@@ -2,7 +2,7 @@
 
 | 项目 | SmartLLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.8.3 |
+| **版本** | v1.8.5 |
 | **状态** | 待开发 |
 | **目标平台** | macOS 13.0+ (Ventura) |
 | **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle) |
@@ -25,15 +25,16 @@
 
 ### 2.1 架构拓扑
 ```text
-[Client (Claude Code)] 
+[Client (Claude Code / OpenAI SDK)] 
        │
-       │ POST /v1/messages
+       │ POST /v1/messages OR /v1/chat/completions
        ▼
 [Local Proxy Server (Port 1897)] 
        │
-       ├── 1. Router Engine (Priority-based / Auto-Failover)
-       ├── 2. Protocol Adapter (Anthropic <-> OpenAI)
-       └── 3. Upstream Client (Alamofire)
+       ├── 1. Request Auto-Detection (Identify Protocol)
+       ├── 2. Router Engine (Priority-based / Auto-Failover)
+       ├── 3. Protocol Adapter (Anthropic <-> OpenAI)
+       └── 4. Upstream Client (Alamofire)
                 │
                 ▼
         [Upstream API (DeepSeek / OpenAI / etc.)]
@@ -53,8 +54,16 @@
 
 ### 3.1 模块一：本地代理服务 (Proxy Server)
 *   **监听端口**：默认 `localhost:1897`。
-*   **路由规则**：拦截 `POST /v1/messages` 和 `/v1/chat/completions`。
-*   **处理流**：接收 -> 路由决策 -> 协议转换 -> 上游请求 -> 拦截流响应 -> 转发客户端。
+*   **请求类型自动识别 (Request Auto-Detection)**:
+    *   代理必须能自动识别客户端发来的请求格式，以便后续处理。
+    *   **识别策略 (优先级从高到低)**:
+        1.  **URL Path 匹配**:
+            *   路径包含 `/v1/messages` $\rightarrow$ 识别为 **Anthropic 协议**。
+            *   路径包含 `/v1/chat/completions` $\rightarrow$ 识别为 **OpenAI 协议**。
+        2.  **JSON Payload 匹配** (兜底方案):
+            *   Body 顶层包含 `system` 字段 (String 或 Array) $\rightarrow$ **Anthropic**。
+            *   Body 顶层包含 `messages` 但无 `system` $\rightarrow$ **OpenAI**。
+*   **处理流**：自动识别 -> 路由决策 -> 协议转换 -> 上游请求 -> 拦截流响应 -> 转发客户端。
 
 ### 3.2 模块二：协议转换器 (Protocol Adapter)
 *   **请求转换 (Anthropic -> OpenAI)**：System Prompt 注入、Thinking 丢弃、Tools 映射。
@@ -139,11 +148,9 @@
     {
       "model": "gpt-4o",
       "protocol": "openai",
-      "metadata": {
-        "context_length": 128000,
-        "input_price": 5.00,
-        "output_price": 15.00
-      }
+      "context_length": 128000,
+      "input_price": 5.00,
+      "output_price": 15.00
     }
     ```
 
