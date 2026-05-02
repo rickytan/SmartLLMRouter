@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartLLM Router - 交互原型</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f0f0; }
+    .macos-window {
+      background: rgba(30, 30, 30, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    .menu-bar {
+      background: rgba(30, 30, 30, 0.9);
+      backdrop-filter: blur(20px);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08);
+    }
+    .menu-item:hover { background: #0a84ff; color: white; border-radius: 5px; cursor: pointer; }
+    .menu-item.active { background: #0a84ff; color: white; border-radius: 5px; }
+    .sidebar-item { padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .sidebar-item:hover { background: rgba(255,255,255,0.08); }
+    .sidebar-item.active { background: #0a84ff; color: white; font-weight: 500; }
+    .btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn-primary { background: #0a84ff; color: white; }
+    .btn-primary:hover { background: #0070e0; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+    .input-dark { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 10px; color: white; font-size: 13px; }
+    .input-dark:focus { outline: none; border-color: #0a84ff; background: rgba(255,255,255,0.1); }
+    .tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; background: rgba(255,255,255,0.1); color: #ccc; }
+    .tag-anthropic { background: rgba(217, 119, 6, 0.2); color: #fbbf24; }
+    .tag-openai { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .latency-fast { color: #34d399; }
+    .latency-med { color: #fbbf24; }
+    .latency-slow { color: #f87171; }
+    .drag-handle { cursor: grab; color: #666; }
+    .drag-handle:active { cursor: grabbing; }
+    .tooltip { position: absolute; background: #333; color: #eee; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 50; }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #eee; padding: 10px 20px; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.3s;
+    }
+    .toast.show { opacity: 1; }
+    .onboarding-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 40; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 10px 0; }
+    .bar { flex: 1; background: linear-gradient(to top, #0a84ff, #34a8ff); border-radius: 3px 3px 0 0; min-width: 12px; transition: height 0.3s; position: relative; }
+    .bar:hover { background: linear-gradient(to top, #0070e0, #0a84ff); }
+    .bar::after { content: attr(data-value); position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #999; opacity: 0; transition: opacity 0.2s; }
+    .bar:hover::after { opacity: 1; }
+    .switch { position: relative; width: 40px; height: 22px; background: rgba(255,255,255,0.2); border-radius: 11px; cursor: pointer; transition: background 0.2s; }
+    .switch.on { background: #34c759; }
+    .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .switch.on::after { transform: translateX(18px); }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .modal.show { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- 顶部 macOS 菜单栏模拟 -->
+  <div class="w-full h-7 bg-black/80 backdrop-blur flex items-center px-3 text-sm text-white select-none z-50">
+    <span class="font-bold mr-4"> SmartLLM Router</span>
+    <span class="mr-3 font-medium">文件</span>
+    <span class="mr-3">编辑</span>
+    <span class="mr-3">视图</span>
+    <span class="mr-3">窗口</span>
+    <span>帮助</span>
+    <div class="ml-auto flex items-center gap-3 text-xs text-gray-300">
+      <span id="menu-trigger" class="cursor-pointer hover:bg-white/10 px-2 py-0.5 rounded">🧠 SmartLLM</span>
+      <span>下午 12:00</span>
+    </div>
+  </div>
+
+  <!-- 菜单栏下拉模拟 -->
+  <div id="menu-dropdown" class="menu-bar hidden absolute top-8 right-12 w-72 text-sm text-white p-1 z-50">
+    <div class="px-3 py-2 border-b border-white/10">
+      <div class="text-xs text-gray-400 font-medium">🟢 Running | Port: 1897</div>
+      <div class="mt-1 flex justify-between items-center cursor-pointer" onclick="showToast('统计已重置')">
+        <span class="text-xs">📊 Today: 12,340 Tokens ($0.15)</span>
+        <span class="text-[10px] text-gray-500">[Reset]</span>
+      </div>
+    </div>
+    
+    <div class="px-3 py-2 border-b border-white/10">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-medium">⚡ Auto Failover</span>
+        <div id="auto-switch-menu" class="switch on" onclick="toggleSwitch(this); updateMenuMode()"></div>
+      </div>
+    </div>
+
+    <div id="channel-list-menu" class="py-1">
+      <div class="menu-item active px-3 py-1.5 text-xs flex justify-between" onclick="selectChannel(this)">
+        <span>● DeepSeek (Active)</span>
+        <span class="latency-fast text-[10px]">85ms</span>
+      </div>
+      <div class="menu-item px-3 py-1.5 text-xs flex justify-between text-gray-400" onclick="selectChannel(this)">
+        <span>阿里百炼</span>
+        <span class="latency-med text-[10px]">620ms</span>
+      </div>
+      <div class="menu-item px-3 py-1.5 text-xs flex justify-between text-gray-500" onclick="selectChannel(this)">
+        <span>⏸ MiniMax (Cooling)</span>
+        <span class="text-[10px]">--</span>
+      </div>
+    </div>
+
+    <div class="border-t border-white/10 py-1">
+      <div class="relative group">
+        <div class="menu-item px-3 py-1.5 text-xs flex justify-between">
+          <span>📋 Recent Requests (Last 5)</span>
+          <span>▸</span>
+        </div>
+        <div class="absolute left-full top-0 ml-1 w-56 bg-[#1e1e1e]/95 backdrop-blur rounded-lg shadow-xl border border-white/10 hidden group-hover:block p-1">
+          <div class="text-xs px-2 py-1 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            <span class="truncate">claude-sonnet ... OK (1.2s)</span>
+          </div>
+          <div class="text-xs px-2 py-1 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span class="truncate">claude-sonnet ... 429 (0.8s)</span>
+          </div>
+          <div class="text-xs px-2 py-1 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            <span class="truncate">gpt-4o ... OK (0.9s)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="border-t border-white/10 py-1">
+      <div class="menu-item px-3 py-1.5 text-xs" onclick="showToast('已复制到剪贴板')">📋 Copy Env Config</div>
+      <div class="menu-item px-3 py-1.5 text-xs" onclick="showToast('正在测试当前 Key...')">🧪 Test Active Key</div>
+    </div>
+
+    <div class="border-t border-white/10 py-1">
+      <div class="menu-item px-3 py-1.5 text-xs" onclick="openSettings()">⚙️ Settings...</div>
+      <div class="menu-item px-3 py-1.5 text-xs text-red-400">❌ Quit</div>
+    </div>
+  </div>
+
+  <!-- 主内容区 - 设置窗口 -->
+  <div id="settings-window" class="flex-1 flex items-center justify-center p-8">
+    <div class="macos-window w-[820px] h-[520px] flex overflow-hidden">
+      <!-- 侧边栏 -->
+      <div class="w-44 bg-[#2a2a2a] border-r border-white/10 p-3 flex flex-col gap-1">
+        <div class="sidebar-item active flex items-center gap-2" onclick="switchTab('general', this)">
+          <span class="w-4 text-center">⚙️</span><span class="text-sm">General</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-2" onclick="switchTab('channels', this)">
+          <span class="w-4 text-center">📡</span><span class="text-sm">Channels</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-2" onclick="switchTab('advanced', this)">
+          <span class="w-4 text-center">🔧</span><span class="text-sm">Advanced</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-2" onclick="switchTab('usage', this)">
+          <span class="w-4 text-center">📊</span><span class="text-sm">Usage</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-2" onclick="switchTab('about', this)">
+          <span class="w-4 text-center">ℹ️</span><span class="text-sm">About</span>
+        </div>
+      </div>
+
+      <!-- 内容区 -->
+      <div class="flex-1 bg-[#1e1e1e] p-5 overflow-y-auto">
+        
+        <!-- General Tab -->
+        <div id="tab-general" class="tab-content">
+          <h2 class="text-white font-semibold mb-4">General</h2>
+          <div class="space-y-5">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">Proxy Status</label>
+              <div class="flex items-center gap-3">
+                <span class="text-green-400 font-medium">● Running</span>
+                <button class="btn btn-secondary text-xs" onclick="this.textContent = this.textContent.includes('Stop') ? '▶ Start' : '⏹ Stop'">⏹ Stop</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">Local Port</label>
+              <input type="text" value="1897" class="input-dark w-32">
+              <span class="text-[10px] text-gray-500 ml-2">Requires restart</span>
+            </div>
+            <div class="flex items-center justify-between py-1">
+              <span class="text-sm text-white">Launch at Login</span>
+              <div class="switch on" onclick="toggleSwitch(this)"></div>
+            </div>
+            <div class="flex items-center justify-between py-1">
+              <span class="text-sm text-white">Start Proxy on Launch</span>
+              <div class="switch on" onclick="toggleSwitch(this)"></div>
+            </div>
+            <div class="pt-2 border-t border-white/10">
+              <button class="btn btn-primary text-sm w-full" onclick="showOnboarding()">⚙️ Setup Shell Environment</button>
+              <div class="text-[10px] text-green-400 mt-1">✅ Configured for zsh</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Channels Tab -->
+        <div id="tab-channels" class="tab-content hidden">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-white font-semibold">Channels</h2>
+            <div class="flex gap-2">
+              <button class="btn btn-secondary text-xs" onclick="simulateSpeedTest()">⚡ Test All</button>
+              <button class="btn btn-primary text-xs" onclick="openAddChannel()">+ Add Channel</button>
+            </div>
+          </div>
+          <div class="text-[10px] text-gray-500 mb-2">Drag to reorder priority</div>
+          <div id="channel-list" class="space-y-1.5">
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 flex items-center gap-3 group hover:border-white/20 transition-all">
+              <span class="drag-handle">⋮⋮</span>
+              <div class="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-blue-400">🟦</div>
+              <div class="flex-1">
+                <div class="text-sm text-white font-medium">DeepSeek Main</div>
+                <div class="flex gap-1 mt-1">
+                  <span class="tag tag-openai">deepseek-chat</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs latency-fast font-mono">85ms</div>
+                <div class="text-[10px] text-green-400">● Active</div>
+              </div>
+              <button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white p-1" onclick="openEditChannel()">✏️</button>
+            </div>
+
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 flex items-center gap-3 group hover:border-white/20 transition-all">
+              <span class="drag-handle">⋮⋮</span>
+              <div class="w-8 h-8 rounded bg-orange-500/20 flex items-center justify-center text-orange-400">🟧</div>
+              <div class="flex-1">
+                <div class="text-sm text-white font-medium">阿里百炼</div>
+                <div class="flex gap-1 mt-1">
+                  <span class="tag tag-openai">qwen-max</span>
+                  <span class="tag tag-anthropic">claude-3-5</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs latency-med font-mono">620ms</div>
+                <div class="text-[10px] text-gray-400">Idle</div>
+              </div>
+              <button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white p-1" onclick="openEditChannel()">✏️</button>
+            </div>
+
+            <div class="bg-[#2a2a2a]/50 p-3 rounded-lg border border-white/5 flex items-center gap-3 group hover:border-white/20 transition-all opacity-70">
+              <span class="drag-handle">⋮⋮</span>
+              <div class="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center text-purple-400">🟪</div>
+              <div class="flex-1">
+                <div class="text-sm text-white font-medium">MiniMax</div>
+                <div class="flex gap-1 mt-1">
+                  <span class="tag tag-openai">MiniMax-M1</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-gray-500 font-mono">--</div>
+                <div class="text-[10px] text-yellow-400">⏸ Cooling</div>
+              </div>
+              <button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white p-1" onclick="openEditChannel()">✏️</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Advanced Tab -->
+        <div id="tab-advanced" class="tab-content hidden">
+          <h2 class="text-white font-semibold mb-4">Advanced</h2>
+          <div class="space-y-5">
+            <div>
+              <label class="text-sm text-white block mb-2">Auto-Failover Strategy</label>
+              <div class="flex items-center justify-between py-2 bg-[#2a2a2a] p-3 rounded-lg border border-white/10">
+                <span class="text-sm">Enable Auto-Failover</span>
+                <div class="switch on" onclick="toggleSwitch(this)"></div>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-2">Cooldown Duration (minutes)</label>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="text-[10px] text-gray-500">429 Rate Limit</label>
+                  <input type="text" value="30" class="input-dark w-full mt-1">
+                </div>
+                <div>
+                  <label class="text-[10px] text-gray-500">5xx Error</label>
+                  <input type="text" value="10" class="input-dark w-full mt-1">
+                </div>
+                <div>
+                  <label class="text-[10px] text-gray-500">401 Auth</label>
+                  <input type="text" value="1440" class="input-dark w-full mt-1">
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">Max Retries</label>
+              <input type="text" value="2" class="input-dark w-20">
+            </div>
+            <div class="pt-2 border-t border-white/10">
+              <label class="text-sm text-white block mb-2">Protocol Compatibility</label>
+              <div class="flex items-center justify-between py-1">
+                <span class="text-sm text-white">Discard Thinking Parameter</span>
+                <div class="switch on" onclick="toggleSwitch(this)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Usage Tab -->
+        <div id="tab-usage" class="tab-content hidden">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-white font-semibold">Usage Statistics</h2>
+            <select class="input-dark text-xs">
+              <option>Last 30 Days</option>
+              <option>Last 7 Days</option>
+              <option>This Month</option>
+            </select>
+          </div>
+          <div class="bg-[#2a2a2a] p-4 rounded-lg border border-white/10 mb-4">
+            <div class="text-xs text-gray-400 mb-2">Daily Token Consumption</div>
+            <div class="bar-chart" id="bar-chart"></div>
+          </div>
+          <div class="space-y-2">
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 flex justify-between items-center">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded bg-blue-500/30"></div>
+                <span class="text-sm text-white">DeepSeek Main</span>
+              </div>
+              <div class="text-right text-xs">
+                <div class="text-white">45,230 Tokens</div>
+                <div class="text-gray-500">$0.85 · 124 requests</div>
+              </div>
+            </div>
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 flex justify-between items-center">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded bg-orange-500/30"></div>
+                <span class="text-sm text-white">阿里百炼</span>
+              </div>
+              <div class="text-right text-xs">
+                <div class="text-white">12,800 Tokens</div>
+                <div class="text-gray-500">$0.32 · 45 requests</div>
+              </div>
+            </div>
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 flex justify-between items-center opacity-50">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded bg-purple-500/30"></div>
+                <span class="text-sm text-white">MiniMax</span>
+              </div>
+              <div class="text-right text-xs">
+                <div class="text-white">0 Tokens</div>
+                <div class="text-gray-500">$0.00 · 0 requests</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button class="btn btn-secondary text-xs" onclick="showToast('已导出 CSV')">📋 Export CSV</button>
+            <button class="btn btn-secondary text-xs text-red-400" onclick="showToast('历史记录已清除')">🗑️ Clear History</button>
+          </div>
+        </div>
+
+        <!-- About Tab -->
+        <div id="tab-about" class="tab-content hidden">
+          <div class="flex flex-col items-center justify-center h-full text-center space-y-4">
+            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-3xl shadow-lg">🧠</div>
+            <div>
+              <h2 class="text-white font-semibold text-lg">SmartLLM Router</h2>
+              <div class="text-xs text-gray-400">Version 1.0.0 (Build 1)</div>
+              <div class="text-[10px] text-gray-600 mt-1">© 2026 Ricky. All rights reserved.</div>
+            </div>
+            <div class="w-full max-w-xs space-y-2 pt-4">
+              <button class="btn btn-primary w-full" onclick="showToast('已是最新版本')">🔄 Check for Updates</button>
+              <button class="btn btn-secondary w-full" onclick="window.open('https://github.com/rickytan/SmartLLMRouter', '_blank')">🐙 View on GitHub</button>
+              <button class="btn btn-secondary w-full" onclick="showToast('诊断信息已复制')">📋 Copy Diagnostics</button>
+              <button class="btn btn-secondary w-full" onclick="showToast('正在打开隐私政策...')">🛡️ Privacy Policy</button>
+              <button class="btn btn-secondary w-full text-[10px]" onclick="showToast('Sparkle, Swifter, Alamofire, KeychainAccess, SwiftGen')">📜 Credits</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding 引导弹窗 -->
+  <div id="onboarding-modal" class="onboarding-overlay hidden">
+    <div class="macos-window w-[520px] p-6 relative">
+      <button class="absolute top-3 right-3 text-gray-400 hover:text-white text-lg" onclick="closeOnboarding()">✕</button>
+      <div id="onboarding-step-1">
+        <div class="text-2xl mb-3">👋</div>
+        <h3 class="text-white font-semibold text-lg mb-1">Welcome to SmartLLM Router</h3>
+        <p class="text-gray-400 text-sm mb-4">First run detected. Let's get you set up in 2 minutes.</p>
+        <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 mb-4">
+          <div class="text-xs text-gray-300 mb-1">1. Configure API Key</div>
+          <div class="text-[10px] text-gray-500">Add a provider from the Channels tab.</div>
+        </div>
+        <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 mb-4">
+          <div class="text-xs text-gray-300 mb-1">2. Setup your Client</div>
+          <div class="text-[10px] text-gray-500">Automatically update your shell config.</div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button class="btn btn-primary flex-1" onclick="nextOnboardingStep()">Next Step →</button>
+          <button class="btn btn-secondary" onclick="closeOnboarding()">Set up Later</button>
+        </div>
+      </div>
+
+      <div id="onboarding-step-2" class="hidden">
+        <h3 class="text-white font-semibold text-lg mb-3">⚙️ Help me configure</h3>
+        <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 mb-3">
+          <div class="text-[10px] text-gray-500 mb-1">Detected Shell:</div>
+          <div class="text-xs text-white font-mono">zsh (macOS default)</div>
+        </div>
+        <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 mb-3">
+          <div class="text-[10px] text-gray-500 mb-1">Backup:</div>
+          <div class="text-xs text-green-400">✅ .zshrc.backup.20260502_120000</div>
+        </div>
+        <div class="bg-[#2a2a2a] p-3 rounded-lg border border-white/10 mb-4">
+          <div class="text-[10px] text-gray-500 mb-1">Preview changes:</div>
+          <div class="text-xs text-green-400 font-mono">+ export ANTHROPIC_BASE_URL=http://localhost:1897</div>
+          <div class="text-xs text-green-400 font-mono">+ export ANTHROPIC_API_KEY=placeholder</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-primary flex-1" onclick="showToast('✅ 配置完成！请重启终端。'); closeOnboarding()">Confirm & Apply</button>
+          <button class="btn btn-secondary" onclick="closeOnboarding()">Skip</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Channel Modal -->
+  <div id="channel-modal" class="modal">
+    <div class="macos-window w-[460px] p-5">
+      <h3 class="text-white font-semibold mb-4">Add Channel</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">Provider Template</label>
+          <select class="input-dark w-full" onchange="fillTemplate(this.value)">
+            <option value="">Select provider...</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="dashscope">阿里百炼</option>
+            <option value="minimax">MiniMax</option>
+            <option value="custom">Custom...</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">Name</label>
+          <input type="text" value="DeepSeek Main" class="input-dark w-full">
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">Base URL</label>
+          <input type="text" value="https://api.deepseek.com/v1" class="input-dark w-full">
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">API Key</label>
+          <div class="flex gap-2">
+            <input type="password" value="sk-ant-xxxxxxxxxxxx" class="input-dark flex-1">
+            <button class="btn btn-secondary text-xs" onclick="showToast('Key 已保存到 Keychain')">🔑</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between py-2 bg-[#2a2a2a] p-3 rounded-lg border border-white/10">
+          <span class="text-xs text-white">📡 Fetch Models</span>
+          <button class="btn btn-secondary text-xs" onclick="showToast('正在获取模型列表...')">Fetch</button>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">Models (selected)</label>
+          <div class="flex flex-wrap gap-1">
+            <span class="tag tag-openai">deepseek-chat</span>
+            <span class="tag tag-openai">deepseek-reasoner</span>
+            <button class="text-[10px] text-gray-500 px-2 py-0.5 border border-dashed border-gray-600 rounded hover:border-gray-400 cursor-pointer">+ Add</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between py-2">
+          <button class="btn btn-secondary text-xs" onclick="showToast('连接测试成功！')">🧪 Test Connection</button>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary text-xs" onclick="closeChannelModal()">Cancel</button>
+            <button class="btn btn-primary text-xs" onclick="showToast('Channel 已保存'); closeChannelModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // 初始化柱状图
+    const chart = document.getElementById('bar-chart');
+    const values = [120, 450, 890, 320, 1500, 980, 420, 750, 210, 680, 1100, 340, 590, 820, 410, 950, 280, 730, 560, 180, 640, 910, 480, 370, 850, 290, 520, 760, 610, 1300];
+    const maxVal = Math.max(...values);
+    values.forEach((v, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = `${(v / maxVal) * 100}%`;
+      bar.setAttribute('data-value', v);
+      if (i === values.length - 1) bar.style.background = 'linear-gradient(to top, #34d399, #34d399)';
+      chart.appendChild(bar);
+    });
+
+    // 菜单栏交互
+    const menuTrigger = document.getElementById('menu-trigger');
+    const menuDropdown = document.getElementById('menu-dropdown');
+    menuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menuDropdown.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => menuDropdown.classList.add('hidden'));
+
+    // Tab 切换
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      el.classList.add('active');
+    }
+
+    // Switch 开关
+    function toggleSwitch(el) {
+      el.classList.toggle('on');
+    }
+
+    function updateMenuMode() {
+      const isAuto = document.getElementById('auto-switch-menu').classList.contains('on');
+      document.querySelectorAll('#channel-list-menu .menu-item').forEach(item => {
+        if (isAuto) {
+          item.classList.add('text-gray-400');
+          item.style.cursor = 'default';
+        } else {
+          item.classList.remove('text-gray-400');
+          item.style.cursor = 'pointer';
+        }
+      });
+    }
+
+    function selectChannel(el) {
+      document.querySelectorAll('#channel-list-menu .menu-item').forEach(item => item.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    // Channel Modal
+    function openAddChannel() { document.getElementById('channel-modal').classList.add('show'); }
+    function openEditChannel() { document.getElementById('channel-modal').classList.add('show'); }
+    function closeChannelModal() { document.getElementById('channel-modal').classList.remove('show'); }
+
+    // Onboarding
+    function showOnboarding() {
+      document.getElementById('onboarding-modal').classList.remove('hidden');
+      document.getElementById('onboarding-step-1').classList.remove('hidden');
+      document.getElementById('onboarding-step-2').classList.add('hidden');
+    }
+    function closeOnboarding() {
+      document.getElementById('onboarding-modal').classList.add('hidden');
+    }
+    function nextOnboardingStep() {
+      document.getElementById('onboarding-step-1').classList.add('hidden');
+      document.getElementById('onboarding-step-2').classList.remove('hidden');
+    }
+
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // Speed Test Simulation
+    function simulateSpeedTest() {
+      showToast('⚡ Testing all channels...');
+      setTimeout(() => {
+        document.querySelectorAll('#channel-list .latency-fast, #channel-list .latency-med').forEach(el => {
+          el.style.opacity = '0.5';
+        });
+        setTimeout(() => {
+          document.querySelectorAll('#channel-list .latency-fast, #channel-list .latency-med').forEach(el => {
+            el.style.opacity = '1';
+          });
+          showToast('✅ Speed test complete');
+        }, 800);
+      }, 1500);
+    }
+
+    function fillTemplate(val) {
+      const inputs = document.querySelectorAll('#channel-modal input');
+      if (val === 'deepseek') {
+        inputs[1].value = 'DeepSeek Main';
+        inputs[2].value = 'https://api.deepseek.com/v1';
+      } else if (val === 'openai') {
+        inputs[1].value = 'OpenAI Official';
+        inputs[2].value = 'https://api.openai.com/v1';
+      } else if (val === 'anthropic') {
+        inputs[1].value = 'Anthropic Official';
+        inputs[2].value = 'https://api.anthropic.com';
+      } else if (val === 'dashscope') {
+        inputs[1].value = '阿里百炼';
+        inputs[2].value = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+      } else if (val === 'minimax') {
+        inputs[1].value = 'MiniMax';
+        inputs[2].value = 'https://api.minimax.chat/v1';
+      }
+    }
+
+    function openSettings() {
+      document.getElementById('settings-window').scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "providers": [
     {
       "id": "anthropic",
@@ -8,8 +8,9 @@
       "base_url": "https://api.anthropic.com",
       "supports_protocols": ["anthropic", "openai"],
       "default_models": [
-        { "model": "claude-sonnet-4-20250514", "protocol": "anthropic" },
-        { "model": "claude-opus-4-20250514", "protocol": "anthropic" }
+        { "model": "claude-sonnet-4-20250514", "protocol": "anthropic", "context_length": 200000, "input_price": 3.00, "output_price": 15.00 },
+        { "model": "claude-opus-4-20250514", "protocol": "anthropic", "context_length": 200000, "input_price": 15.00, "output_price": 75.00 },
+        { "model": "claude-haiku-3-5-20241022", "protocol": "anthropic", "context_length": 200000, "input_price": 0.80, "output_price": 4.00 }
       ]
     },
     {
@@ -19,8 +20,21 @@
       "base_url": "https://api.openai.com/v1",
       "supports_protocols": ["openai"],
       "default_models": [
-        { "model": "gpt-4o", "protocol": "openai" },
-        { "model": "o1", "protocol": "openai" }
+        { "model": "gpt-4o", "protocol": "openai", "context_length": 128000, "input_price": 5.00, "output_price": 15.00 },
+        { "model": "gpt-4o-mini", "protocol": "openai", "context_length": 128000, "input_price": 0.15, "output_price": 0.60 },
+        { "model": "o1", "protocol": "openai", "context_length": 200000, "input_price": 15.00, "output_price": 60.00 },
+        { "model": "o3-mini", "protocol": "openai", "context_length": 200000, "input_price": 1.10, "output_price": 4.40 }
+      ]
+    },
+    {
+      "id": "google_gemini",
+      "name_en": "Google Gemini",
+      "name_zh": "Google Gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "gemini-2.5-pro-preview-03-25", "protocol": "openai", "context_length": 1048576, "input_price": 2.50, "output_price": 15.00 },
+        { "model": "gemini-2.0-flash", "protocol": "openai", "context_length": 1048576, "input_price": 0.10, "output_price": 0.40 }
       ]
     },
     {
@@ -30,8 +44,8 @@
       "base_url": "https://api.deepseek.com/v1",
       "supports_protocols": ["openai"],
       "default_models": [
-        { "model": "deepseek-chat", "protocol": "openai" },
-        { "model": "deepseek-reasoner", "protocol": "openai" }
+        { "model": "deepseek-chat", "protocol": "openai", "context_length": 64000, "input_price": 0.27, "output_price": 1.10 },
+        { "model": "deepseek-reasoner", "protocol": "openai", "context_length": 64000, "input_price": 0.55, "output_price": 2.19 }
       ]
     },
     {
@@ -41,9 +55,9 @@
       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "supports_protocols": ["openai", "anthropic"],
       "default_models": [
-        { "model": "qwen-max", "protocol": "openai" },
-        { "model": "qwen-plus", "protocol": "openai" },
-        { "model": "claude-3-5-sonnet-20241022", "protocol": "anthropic" }
+        { "model": "qwen-max", "protocol": "openai", "context_length": 32768, "input_price": 5.60, "output_price": 16.80 },
+        { "model": "qwen-plus", "protocol": "openai", "context_length": 131072, "input_price": 1.12, "output_price": 2.80 },
+        { "model": "qwen-turbo", "protocol": "openai", "context_length": 1000000, "input_price": 0.04, "output_price": 0.20 }
       ]
     },
     {
@@ -53,8 +67,112 @@
       "base_url": "https://api.minimax.chat/v1",
       "supports_protocols": ["openai"],
       "default_models": [
-        { "model": "MiniMax-M1", "protocol": "openai" },
-        { "model": "MiniMax-Text-01", "protocol": "openai" }
+        { "model": "MiniMax-M1", "protocol": "openai", "context_length": 1000000, "input_price": 0.14, "output_price": 1.40 },
+        { "model": "MiniMax-Text-01", "protocol": "openai", "context_length": 128000, "input_price": 0.07, "output_price": 0.56 }
+      ]
+    },
+    {
+      "id": "moonshot",
+      "name_en": "Moonshot AI (Kimi)",
+      "name_zh": "月之暗面 (Kimi)",
+      "base_url": "https://api.moonshot.cn/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "moonshot-v1-8k", "protocol": "openai", "context_length": 8192, "input_price": 1.68, "output_price": 1.68 },
+        { "model": "moonshot-v1-32k", "protocol": "openai", "context_length": 32768, "input_price": 3.36, "output_price": 3.36 },
+        { "model": "moonshot-v1-128k", "protocol": "openai", "context_length": 131072, "input_price": 8.40, "output_price": 8.40 }
+      ]
+    },
+    {
+      "id": "zhipu",
+      "name_en": "Zhipu AI (ChatGLM)",
+      "name_zh": "智谱 AI (ChatGLM)",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "glm-4-plus", "protocol": "openai", "context_length": 131072, "input_price": 7.00, "output_price": 7.00 },
+        { "model": "glm-4-flash", "protocol": "openai", "context_length": 131072, "input_price": 0.00, "output_price": 0.00 },
+        { "model": "glm-4-long", "protocol": "openai", "context_length": 1000000, "input_price": 0.14, "output_price": 0.14 }
+      ]
+    },
+    {
+      "id": "mistral",
+      "name_en": "Mistral AI",
+      "name_zh": "Mistral AI",
+      "base_url": "https://api.mistral.ai/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "mistral-large-latest", "protocol": "openai", "context_length": 131072, "input_price": 2.00, "output_price": 6.00 },
+        { "model": "mistral-small-latest", "protocol": "openai", "context_length": 32768, "input_price": 0.10, "output_price": 0.30 },
+        { "model": "codestral-latest", "protocol": "openai", "context_length": 32768, "input_price": 0.20, "output_price": 0.60 }
+      ]
+    },
+    {
+      "id": "groq",
+      "name_en": "Groq",
+      "name_zh": "Groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "llama-3.3-70b-versatile", "protocol": "openai", "context_length": 131072, "input_price": 0.59, "output_price": 0.79 },
+        { "model": "llama-3.1-8b-instant", "protocol": "openai", "context_length": 131072, "input_price": 0.05, "output_price": 0.08 },
+        { "model": "mixtral-8x7b-32768", "protocol": "openai", "context_length": 32768, "input_price": 0.24, "output_price": 0.24 }
+      ]
+    },
+    {
+      "id": "together_ai",
+      "name_en": "Together AI",
+      "name_zh": "Together AI",
+      "base_url": "https://api.together.xyz/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "protocol": "openai", "context_length": 131072, "input_price": 0.88, "output_price": 0.88 },
+        { "model": "Qwen/Qwen2.5-72B-Instruct-Turbo", "protocol": "openai", "context_length": 32768, "input_price": 1.20, "output_price": 1.20 }
+      ]
+    },
+    {
+      "id": "cohere",
+      "name_en": "Cohere",
+      "name_zh": "Cohere",
+      "base_url": "https://api.cohere.ai/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "command-r-plus-08-2024", "protocol": "openai", "context_length": 128000, "input_price": 2.50, "output_price": 10.00 },
+        { "model": "command-r-08-2024", "protocol": "openai", "context_length": 128000, "input_price": 0.15, "output_price": 0.60 }
+      ]
+    },
+    {
+      "id": "fireworks",
+      "name_en": "Fireworks AI",
+      "name_zh": "Fireworks AI",
+      "base_url": "https://api.fireworks.ai/inference/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "accounts/fireworks/models/llama-v3p3-70b-instruct", "protocol": "openai", "context_length": 131072, "input_price": 0.90, "output_price": 0.90 },
+        { "model": "accounts/fireworks/models/qwen2p5-72b-instruct", "protocol": "openai", "context_length": 32768, "input_price": 0.90, "output_price": 0.90 }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "name_en": "OpenRouter",
+      "name_zh": "OpenRouter (聚合)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "supports_protocols": ["openai", "anthropic"],
+      "default_models": [
+        { "model": "anthropic/claude-3.5-sonnet", "protocol": "anthropic", "context_length": 200000, "input_price": 3.00, "output_price": 15.00 },
+        { "model": "openai/gpt-4o", "protocol": "openai", "context_length": 128000, "input_price": 5.00, "output_price": 15.00 },
+        { "model": "meta-llama/llama-3.3-70b-instruct", "protocol": "openai", "context_length": 131072, "input_price": 0.59, "output_price": 0.79 }
+      ]
+    },
+    {
+      "id": "siliconflow",
+      "name_en": "SiliconFlow",
+      "name_zh": "硅基流动",
+      "base_url": "https://api.siliconflow.cn/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "Qwen/Qwen2.5-72B-Instruct", "protocol": "openai", "context_length": 32768, "input_price": 0.57, "output_price": 0.57 },
+        { "model": "deepseek-ai/DeepSeek-V3", "protocol": "openai", "context_length": 64000, "input_price": 0.57, "output_price": 0.57 }
       ]
     },
     {
@@ -64,10 +182,8 @@
       "base_url": "PLACEHOLDER_URL",
       "supports_protocols": ["openai"],
       "default_models": [
-        { "model": "mimo-v2", "protocol": "openai" }
-      ],
-      "note_en": "For local deployment or specific API providers. Please update Base URL.",
-      "note_zh": "用于本地部署或特定 API 提供方，请修改 Base URL。"
+        { "model": "mimo-v2", "protocol": "openai", "context_length": 32768, "input_price": 0.00, "output_price": 0.00 }
+      ]
     }
   ]
 }
