@@ -13,31 +13,36 @@
 /* Settings Window */
 "settings.title" = "设置";
 "settings.general" = "常规";
+"settings.channels" = "渠道管理";
+"settings.advanced" = "高级设置";
+"settings.usage" = "使用量统计";
+"settings.about" = "关于";
 "settings.local_port" = "本地端口";
+"settings.launch_at_login" = "登录时启动";
+"settings.setup_shell" = "一键配置终端";
 "settings.cooldown_duration" = "冷却时间 (分钟)";
 "settings.retry_count" = "重试次数";
-"settings.keys_title" = "API 密钥";
-"settings.add_key" = "添加密钥";
-"settings.remove_key" = "删除";
+"settings.fetch_models" = "获取模型列表";
 "settings.test_connection" = "测试连接";
-"settings.status_valid" = "有效";
-"settings.status_invalid" = "无效";
-"settings.launch_at_login" = "登录时启动";
+"settings.save" = "保存";
+"settings.delete" = "删除";
 
 /* Onboarding */
-"onboarding.welcome_title" = "欢迎使用 Smart LLM Router";
-"onboarding.welcome_desc" = "首次运行，请配置您的首个服务提供商 (Provider)。";
-"onboarding.setup_provider_title" = "1. 配置 API 密钥";
-"onboarding.client_config_title" = "2. 设置客户端环境变量";
+"onboarding.welcome_title" = "欢迎使用";
+"onboarding.welcome_desc" = "检测到首次运行。";
+"onboarding.skip" = "稍后设置";
 "onboarding.copy_env" = "复制环境变量";
-"onboarding.next_step" = "下一步";
+"onboarding.help_config" = "帮我配置终端";
 
-/* Errors */
-"errors.port_in_use" = "端口 %d 已被占用。请更改端口或关闭占用该端口的应用。";
+/* About */
+"about.check_updates" = "检查更新";
+"about.github_repo" = "查看 GitHub 仓库";
+"about.privacy" = "隐私政策";
+"about.copy_diagnostics" = "复制诊断信息";
+"about.credits" = "致谢";
 
 /* Common */
-"common.save" = "保存";
-"common.cancel" = "取消";
-"common.error" = "错误";
-"common.success" = "成功";
 "common.copy" = "复制";
+"common.success" = "成功";
+"common.error" = "错误";
+"common.cancel" = "取消";

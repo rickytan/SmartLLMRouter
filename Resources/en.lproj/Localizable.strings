@@ -13,31 +13,36 @@
 /* Settings Window */
 "settings.title" = "Settings";
 "settings.general" = "General";
+"settings.channels" = "Channels";
+"settings.advanced" = "Advanced";
+"settings.usage" = "Usage";
+"settings.about" = "About";
 "settings.local_port" = "Local Port";
-"settings.cooldown_duration" = "Cooldown Duration (mins)";
-"settings.retry_count" = "Retry Count";
-"settings.keys_title" = "API Keys";
-"settings.add_key" = "Add Key";
-"settings.remove_key" = "Remove";
-"settings.test_connection" = "Test Connection";
-"settings.status_valid" = "Valid";
-"settings.status_invalid" = "Invalid";
 "settings.launch_at_login" = "Launch at Login";
+"settings.setup_shell" = "Setup Shell Environment";
+"settings.cooldown_duration" = "Cooldown Duration";
+"settings.retry_count" = "Retry Count";
+"settings.fetch_models" = "Fetch Models";
+"settings.test_connection" = "Test Connection";
+"settings.save" = "Save";
+"settings.delete" = "Delete";
 
 /* Onboarding */
-"onboarding.welcome_title" = "Welcome to Smart LLM Router";
-"onboarding.welcome_desc" = "To get started, please configure your first Provider.";
-"onboarding.setup_provider_title" = "1. Configure API Key";
-"onboarding.client_config_title" = "2. Setup your Client";
+"onboarding.welcome_title" = "Welcome";
+"onboarding.welcome_desc" = "First run detected.";
+"onboarding.skip" = "Set up Later";
 "onboarding.copy_env" = "Copy Env Variables";
-"onboarding.next_step" = "Next Step";
+"onboarding.help_config" = "Help me configure";
 
-/* Errors */
-"errors.port_in_use" = "Port %d is already in use. Please change the port or close the conflicting app.";
+/* About */
+"about.check_updates" = "Check for Updates";
+"about.github_repo" = "View on GitHub";
+"about.privacy" = "Privacy Policy";
+"about.copy_diagnostics" = "Copy Diagnostics";
+"about.credits" = "Credits";
 
 /* Common */
-"common.save" = "Save";
-"common.cancel" = "Cancel";
-"common.error" = "Error";
-"common.success" = "Success";
 "common.copy" = "Copy";
+"common.success" = "Success";
+"common.error" = "Error";
+"common.cancel" = "Cancel";

@@ -2,10 +2,10 @@
 
 | 项目 | Smart LLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.7.0 |
+| **版本** | v1.8.1 |
 | **状态** | 待开发 |
 | **目标平台** | macOS 13.0+ (Ventura) |
-| **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess) |
+| **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle) |
 
 ## 1. 产品概述
 **Smart LLM Router** 是一款原生 macOS 菜单栏应用，作为一个本地 HTTP 网关运行。它的主要目的是为 **Claude Code** (及其他兼容客户端) 提供多厂商 API Key 的统一接入、自动故障转移和负载均衡能力。
@@ -52,6 +52,7 @@
 *   **HTTP Server**: Swifter (v1.5.0+) - 用于监听本地端口。
 *   **HTTP Client**: Alamofire (v5.9.0+) - 用于向上游发起请求，处理 Stream。
 *   **Security**: KeychainAccess (v4.2.2) - 用于加密存储 API Key。
+*   **Update**: Sparkle (~> 2.6) - 用于安全检查应用更新。
 *   **Tooling**: 
     *   **XcodeGen**: 使用 `project.yml` 管理工程，**不使用 .xcodeproj 文件**。
     *   **SwiftGen**: 使用 `swiftgen.yml` 管理多语言和资产，生成类型安全的 Swift 代码。
@@ -155,46 +156,85 @@
         *   `⚙️ Settings`
         *   `❌ Quit`
 
-### 3.5 模块五：设置窗口 (Settings)
-*   **Channel 管理 (CRUD)**：
-    *   列表显示 Name, Type (Icon), Status。
-    *   **拖拽排序**: 用户可通过拖拽列表项调整优先级 (Drag & Drop)。
-    *   **快速添加/编辑**: 
-        1.  **选择模板**: 从 `providers.json` 选择预设供应商（如 DeepSeek, 阿里百炼）。
-        2.  **编辑详情**: 表单中显示预填的名称和 **Base URL** (**必须允许修改**，以支持本地部署)。
-        3.  **输入 Key**: API Key 字段 (存入 Keychain)。
-        4.  **模型管理**: 
-            *   提供 **📡 Fetch Models** 按钮获取在线列表。
-            *   允许 **✍️ Manual Add** 手动输入模型名称。
-    *   **🧪 Test**: 验证 Key 有效性。
-*   **高级设置**：
-    *   `Local Port`: 默认 1897。
-    *   `Cooldown Duration`: 可针对 429/5xx 设置默认冷却时间。
-    *   `Launch at Login`: 开关 (ServiceManagement)。
+### 3.5 模块五：设置窗口 (Settings) - 五大板块
+
+Settings 窗口采用标准的左侧导航栏布局，包含 **General**, **Channels**, **Advanced**, **Usage**, **About** 五个 Tab。
+
+#### 3.5.1 General (常规)
+*   **Service Control**:
+    *   `Proxy Status` (Start/Stop 按钮)。
+    *   `Local Port`: 输入框 (Default 1897)，支持修改。
+    *   `Launch at Login` (Switch)。
+*   **Environment Setup**:
+    *   `⚙️ Setup Shell Environment` 按钮 (执行 Onboarding 中提到的 Shell 自动配置逻辑)。
+    *   状态提示: `✅ Configured for zsh`。
+
+#### 3.5.2 Channels (渠道管理)
+*   **Channel 列表**:
+    *   支持 **拖拽排序** (Drag & Drop) 以调整自动切换优先级。
+    *   列表项显示：Icon, Name, Models, Status (Active/Cooling/Error)。
+*   **添加/编辑 Channel**:
+    *   **模板选择**: 基于 `providers.json`。
+    *   **表单字段**: Name, Base URL (可自定义), API Key (Keychain)。
+    *   **模型管理**:
+        *   `📡 Fetch Models` 按钮 (调用 `/v1/models`)。
+        *   手动添加输入框。
+    *   **验证**: `🧪 Test Connection` 按钮。
+    *   **保存**: 保存并更新 Router。
+
+#### 3.5.3 Advanced (高级/路由)
+*   **Failover**:
+    *   `Enable Auto-Failover` Switch。
+    *   **Cooldown Settings**: 输入框 (429, 5xx, 401 的冷却分钟数)。
+    *   **Max Retries**: 输入框。
+*   **Compatibility**:
+    *   `[x] Discard Thinking Parameter` (路由到 OpenAI 时丢弃 thinking 字段)。
+
+#### 3.5.4 Usage (使用量统计)
+*   **数据源**: 纯本地存储的 JSON/SQLite (Privacy First)。
+*   **顶部视图**: 30 天 Token 消耗柱状图 (支持鼠标悬停查看详情)。
+*   **底部列表**:
+    *   按 **Channel** 分组统计。
+    *   显示：Channel Name, Total Tokens, Est. Cost, Request Count.
+*   **功能**:
+    *   时间筛选 (7d/30d/Month/All)。
+    *   `📋 Export CSV` (导出本地文件)。
+    *   `🗑️ Clear History`。
+
+#### 3.5.5 About (关于)
+*   **应用信息**:
+    *   App Icon, Name, Version (`1.0.0`), Copyright.
+*   **更新检查**:
+    *   集成 **Sparkle** 框架。
+    *   `🔄 Check for Updates` 按钮。
+    *   检查源指向 GitHub Releases XML，不上传任何用户数据。
+*   **辅助功能**:
+    *   `🐙 View on GitHub` 链接。
+    *   `🛡️ Privacy Policy` 链接。
+    *   `📋 Copy Diagnostics` (复制环境/状态信息到剪贴板)。
 
 ### 3.6 模块六：首次启动与引导 (Onboarding Flow)
 *   **Step 1: 启动检测**
     *   App 启动后（无 Dock 图标），检查 `UserDefaults.hasCompletedOnboarding`。
-    *   若未配置，**自动弹出 Settings 窗口**。
-    *   提供 **"Set up Later"** 选项，允许关闭窗口进入空状态运行。
+    *   若未配置，**自动弹出 Settings 窗口** (Channels Tab)。
+    *   提供 **"Set up Later"** 选项。
 *   **Step 2: 灵活配置**
-    *   支持从模板选择，**必须允许修改 Base URL**（连接本地 Ollama/vLLM 等）。
+    *   支持从模板选择，**必须允许修改 Base URL**。
 *   **Step 3: 客户端引导与自动配置**
     *   **卡片展示**: "Copy Client Config" + `⚙️ Help me configure` 按钮。
     *   **自动化配置流程**:
-        1.  **Detect**: 识别当前 Shell (zsh/bash) 及配置文件路径 (e.g., `~/.zshrc`)。
-        2.  **Backup**: 若文件存在，自动复制为 `~/.zshrc.backup.[Timestamp]`。UI 提示“已备份”。
-        3.  **Preview**: 弹窗预览即将写入的代码块（高亮新增行）。
-        4.  **Execute**: 用户确认后写入环境变量。
-        5.  **Done**: 提示“✅ 配置完成。请**重启终端**生效”，并提供“打开终端”按钮。
-    *   **跳过选项**: 用户也可以手动复制并稍后配置。
-    *   **完成**: 标记 `hasCompletedOnboarding = true`。
+        1.  **Detect**: 识别当前 Shell。
+        2.  **Backup**: 自动备份 `.zshrc`。
+        3.  **Preview**: 预览写入内容。
+        4.  **Execute**: 写入环境变量。
+        5.  **Done**: 提示重启终端。
 
 ### 3.7 模块七：内置供应商元数据 (Provider Metadata)
 *   **资源位置**: `Resources/providers.json`
 *   **数据结构**: 
     *   `id`, `name_en/zh`, `base_url`, `supports_protocols`, `default_models`。
-*   **加载策略**: App 启动时从 Bundle 加载，作为 Settings 模板源。
+    *   **新增 Pricing 字段**: `{"model": "gpt-4o", "input_price": 5.00, "output_price": 15.00}` (用于 Usage 模块计算费用)。
+*   **加载策略**: App 启动时从 Bundle 加载。
 
 ---
 
@@ -244,7 +284,7 @@ struct ModelEntry: Identifiable, Codable {
 
 ## 6. 开发计划 (Roadmap)
 
-*   **Phase 1: 基础设施** (XcodeGen, SwiftGen, Proxy Server, Keychain)
+*   **Phase 1: 基础设施** (XcodeGen, SwiftGen, Sparkle, Proxy Server, Keychain)
 *   **Phase 2: 核心代理与转换** (Anthropic/OpenAI SSE & JSON Transform)
-*   **Phase 3: 路由与 UI** (Router, Menu Bar, Settings, Fetch Models, providers.json 解析)
-*   **Phase 4: 高级特性** (Auto-Failover, Cooldown, Stats, Auto-Config Shell)
+*   **Phase 3: 路由与 UI** (Router, Menu Bar, Settings General/Channels, providers.json)
+*   **Phase 4: 高级特性** (Auto-Failover, Cooldown, Usage Stats, About, Auto-Config Shell)
