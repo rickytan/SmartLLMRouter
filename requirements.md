@@ -2,7 +2,7 @@
 
 | 项目 | Smart LLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.6.0 |
+| **版本** | v1.7.0 |
 | **状态** | 待开发 |
 | **目标平台** | macOS 13.0+ (Ventura) |
 | **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess) |
@@ -95,26 +95,26 @@
 
 ### 3.3 模块三：智能路由器 (Smart Router)
 
-#### A. 运行模式
+#### A. 自动切换策略 (Auto-Failover Strategy) **[核心]**
+*   **基于优先级的路由**: 用户通过设置窗口拖拽排序。系统始终尝试 Priority 1 -> 2 -> 3...
+*   **触发条件 (Triggers)**:
+    *   ✅ **Switch**: 429 (Rate Limit), 5xx (Server Error), 401 (Auth), Timeout.
+    *   ❌ **Do Not Switch**: 400 (Bad Request/Prompt Error), 403 (Content Policy).
+*   **重试行为 (Retry Behavior)**:
+    *   **🟢 Pre-Stream (握手阶段)**: 若连接未建立或刚收到错误响应头，**静默重试** (Silent Retry) 下一个可用 Channel，对客户端透明。
+    *   **🔴 Mid-Stream (流传输中断)**: 若 SSE 流已开始传输数据后中断，**停止重试**并断开连接，防止数据错乱。由客户端 (Claude Code) 处理后续重试。
+*   **智能冷却 (Smart Cooldown)**:
+    *   **429**: 15-30 分钟 (默认)。
+    *   **502/504**: 5-10 分钟 (默认)。
+    *   **401**: 24 小时 (默认，直到用户手动修复)。
+*   **范围限制 (Scope Constraint)**: 切换仅在**配置了当前请求模型**的 Channel 间进行。若某 Channel 不支持该模型，直接跳过。
+
+#### B. 运行模式
 1.  **手动模式 (Manual)**：
     *   严格按照用户在菜单栏选择的 `Channel` 发送。
     *   如果该 Channel 报错，**不自动重试**，直接向客户端报错。
 2.  **自动模式 (Auto-Failover)**：
-    *   维护一个 `Priority List` (按 Channel 配置顺序)。
-    *   依次尝试，直到找到可用的 Channel。
-
-#### B. 故障转移与重试 (Failover & Retry)
-*   **触发条件**：
-    *   HTTP Status `429` (Rate Limit)
-    *   HTTP Status `5xx` (Server Error)
-    *   HTTP Status `401` (Invalid Key)
-*   **重试策略 (静默重试)**：
-    *   **连接级重试**：在**建立连接前**或**收到错误响应头/非流式错误体**时，代理层立即向下一个 Channel 发起**全新请求**。客户端完全无感知。
-    *   *注意：如果 SSE 流已经开始传输数据后中断，为了数据一致性，代理层将断开与客户端的连接（此时 Claude Code 会自行处理重试）。*
-*   **冷却机制 (Cooldown)**：
-    *   报错的 Channel 将被标记为 `isCoolingDown = true`。
-    *   冷却时长默认 **30 分钟** (可配置)。
-    *   冷却期间，Auto 模式下自动跳过该 Channel。
+    *   开启上述自动切换策略。
 
 ### 3.4 模块四：菜单栏 UI (Menu Bar App) **[详细交互规范]**
 
@@ -158,6 +158,7 @@
 ### 3.5 模块五：设置窗口 (Settings)
 *   **Channel 管理 (CRUD)**：
     *   列表显示 Name, Type (Icon), Status。
+    *   **拖拽排序**: 用户可通过拖拽列表项调整优先级 (Drag & Drop)。
     *   **快速添加/编辑**: 
         1.  **选择模板**: 从 `providers.json` 选择预设供应商（如 DeepSeek, 阿里百炼）。
         2.  **编辑详情**: 表单中显示预填的名称和 **Base URL** (**必须允许修改**，以支持本地部署)。
@@ -168,8 +169,7 @@
     *   **🧪 Test**: 验证 Key 有效性。
 *   **高级设置**：
     *   `Local Port`: 默认 1897。
-    *   `Cooldown Duration (mins)`: 默认 30。
-    *   `Retry Count`: 默认 2。
+    *   `Cooldown Duration`: 可针对 429/5xx 设置默认冷却时间。
     *   `Launch at Login`: 开关 (ServiceManagement)。
 
 ### 3.6 模块六：首次启动与引导 (Onboarding Flow)
@@ -208,7 +208,7 @@ struct Channel: Identifiable, Codable {
     var providerId: String?
     var apiKey: String
     var baseURL: String
-    var priority: Int
+    var priority: Int // 由列表顺序决定
     var isCoolingDown: Bool = false
     var cooldownUntil: Date?
 }
