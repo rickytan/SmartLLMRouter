@@ -1,5 +1,5 @@
 /* App Status */
-"app.title" = "Smart LLM Router";
+"app.title" = "SmartLLM Router";
 "app.status_running" = "运行中";
 "app.status_stopped" = "已停止";
 "app.status_no_providers" = "无可用服务";
@@ -9,6 +9,9 @@
 "menu.manual_mode" = "🔘 手动模式";
 "menu.settings" = "⚙️ 设置";
 "menu.quit" = "❌ 退出";
+"menu.recent_requests" = "📋 最近请求";
+"menu.copy_env_config" = "📋 复制环境变量";
+"menu.test_active_key" = "🧪 测试当前 Key";
 
 /* Settings Window */
 "settings.title" = "设置";
@@ -19,8 +22,10 @@
 "settings.about" = "关于";
 "settings.local_port" = "本地端口";
 "settings.launch_at_login" = "登录时启动";
-"settings.setup_shell" = "一键配置终端";
-"settings.cooldown_duration" = "冷却时间 (分钟)";
+"settings.setup_shell" = "⚙️ 一键配置终端";
+"settings.service_control" = "服务控制";
+"settings.environment" = "环境配置";
+"settings.cooldown_duration" = "冷却时间";
 "settings.retry_count" = "重试次数";
 "settings.fetch_models" = "获取模型列表";
 "settings.test_connection" = "测试连接";
@@ -29,14 +34,14 @@
 
 /* Onboarding */
 "onboarding.welcome_title" = "欢迎使用";
-"onboarding.welcome_desc" = "检测到首次运行。";
+"onboarding.welcome_desc" = "检测到首次运行";
 "onboarding.skip" = "稍后设置";
 "onboarding.copy_env" = "复制环境变量";
-"onboarding.help_config" = "帮我配置终端";
+"onboarding.help_config" = "帮我配置";
 
 /* About */
 "about.check_updates" = "检查更新";
-"about.github_repo" = "查看 GitHub 仓库";
+"about.github_repo" = "查看 GitHub";
 "about.privacy" = "隐私政策";
 "about.copy_diagnostics" = "复制诊断信息";
 "about.credits" = "致谢";
@@ -46,3 +51,5 @@
 "common.success" = "成功";
 "common.error" = "错误";
 "common.cancel" = "取消";
+"common.start" = "启动";
+"common.stop" = "停止";

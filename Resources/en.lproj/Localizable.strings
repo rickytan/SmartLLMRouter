@@ -1,5 +1,5 @@
 /* App Status */
-"app.title" = "Smart LLM Router";
+"app.title" = "SmartLLM Router";
 "app.status_running" = "Running";
 "app.status_stopped" = "Stopped";
 "app.status_no_providers" = "No Providers";
@@ -9,6 +9,9 @@
 "menu.manual_mode" = "🔘 Manual Mode";
 "menu.settings" = "⚙️ Settings";
 "menu.quit" = "❌ Quit";
+"menu.recent_requests" = "📋 Recent Requests";
+"menu.copy_env_config" = "📋 Copy Env Config";
+"menu.test_active_key" = "🧪 Test Active Key";
 
 /* Settings Window */
 "settings.title" = "Settings";
@@ -19,7 +22,9 @@
 "settings.about" = "About";
 "settings.local_port" = "Local Port";
 "settings.launch_at_login" = "Launch at Login";
-"settings.setup_shell" = "Setup Shell Environment";
+"settings.setup_shell" = "⚙️ Setup Shell Environment";
+"settings.service_control" = "Service Control";
+"settings.environment" = "Environment Setup";
 "settings.cooldown_duration" = "Cooldown Duration";
 "settings.retry_count" = "Retry Count";
 "settings.fetch_models" = "Fetch Models";
@@ -46,3 +51,5 @@
 "common.success" = "Success";
 "common.error" = "Error";
 "common.cancel" = "Cancel";
+"common.start" = "Start";
+"common.stop" = "Stop";
