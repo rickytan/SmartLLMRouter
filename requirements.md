@@ -2,7 +2,7 @@
 
 | 项目 | Smart LLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.4.0 |
+| **版本** | v1.6.0 |
 | **状态** | 待开发 |
 | **目标平台** | macOS 13.0+ (Ventura) |
 | **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess) |
@@ -116,26 +116,55 @@
     *   冷却时长默认 **30 分钟** (可配置)。
     *   冷却期间，Auto 模式下自动跳过该 Channel。
 
-### 3.4 模块四：菜单栏 UI (Menu Bar App)
-*   **状态图标**：
+### 3.4 模块四：菜单栏 UI (Menu Bar App) **[详细交互规范]**
+
+*   **全局状态图标**：
     *   🟢 **Running**: 代理运行中，至少有一个可用 Channel。
     *   🔴 **Stopped/Error**: 代理未启动或所有 Channel 不可用。
-*   **菜单内容**：
-    *   **Header**: `L10n.App.statusRunning`
-    *   **Stats**: `Today Tokens: 12,345` (需实时更新)
-    *   **Toggle**: `⚡ Auto Switch [ON/OFF]`
-    *   **List**:
-        *   ✅ Channel A (Active)
-        *   ⏸ Channel B (Cooling)
-        *   ⏸ Channel C
-    *   **Footer**: `L10n.Settings.title`, `L10n.Common.quit`
+*   **下拉菜单结构 (从上至下)**：
+    1.  **Header (只读)**：
+        *   内容：`🟢 Running | Port: 1897` (根据实际状态变化)。
+    2.  **实时统计 (Real-time Stats)**：
+        *   内容：`📊 Today: 12,340 Tokens ($0.15)`。
+        *   交互：点击可触发 "Reset Stats" 确认弹窗。
+        *   **更新机制**：仅在收到上游响应 **回调 (Callback)** 时更新内部数据；**每次菜单展开时**强制刷新显示。
+    3.  **分隔线**
+    4.  **核心开关 (Routing Mode)**：
+        *   内容：`⚡ Auto Failover: [ ON / OFF ]`。
+        *   行为：
+            *   **ON**：下方 Channel 列表显示为灰色，不可点击 (由系统路由)。
+            *   **OFF**：Channel 列表变为可点击 (进入手动模式)。
+    5.  **频道列表 (Channel List)**：
+        *   样式：显示所有已配置 Channel。
+            *   当前活跃：`● Channel Name` (前面有实心圆点)。
+            *   非活跃：`Channel Name`。
+            *   冷却中：`⏸ Channel Name (Cooling)` (灰色)。
+        *   **交互**：手动模式下点击切换。切换仅对**下一个**进入的请求生效，**不中断**正在进行的流。
+    6.  **分隔线**
+    7.  **子菜单 (Recent Requests)**：
+        *   标题：`📋 Recent Requests (Last 5)`。
+        *   内容：展示最近 5 条请求。格式：`[Icon] Model Name ... [Status Code] (Latency)`。
+            *   成功：绿色图标。失败/限流：红色图标。
+        *   交互：**只读展示**，点击无额外动作。
+    8.  **分隔线**
+    9.  **快捷工具 (Quick Actions)**：
+        *   `📋 Copy Env Config`：点击复制 `export ANTHROPIC_BASE_URL=...` 到剪贴板 + Toast 提示。
+        *   `🧪 Test Active Key`：点击对当前 Channel 发起 Ping 测试。
+    10. **分隔线**
+    11. **系统级 (System)**：
+        *   `⚙️ Settings`
+        *   `❌ Quit`
 
 ### 3.5 模块五：设置窗口 (Settings)
 *   **Channel 管理 (CRUD)**：
     *   列表显示 Name, Type (Icon), Status。
-    *   **快速添加**: 提供基于 `providers.json` 的预设列表（如 DeepSeek, 阿里百炼等）。
-    *   **表单**: 输入 API Key (存入 Keychain), Base URL (可修改)。
-    *   **📡 Fetch Models**: 点击按钮请求 `/v1/models` 获取该 Key 支持的模型列表，供用户勾选（添加到路由）。
+    *   **快速添加/编辑**: 
+        1.  **选择模板**: 从 `providers.json` 选择预设供应商（如 DeepSeek, 阿里百炼）。
+        2.  **编辑详情**: 表单中显示预填的名称和 **Base URL** (**必须允许修改**，以支持本地部署)。
+        3.  **输入 Key**: API Key 字段 (存入 Keychain)。
+        4.  **模型管理**: 
+            *   提供 **📡 Fetch Models** 按钮获取在线列表。
+            *   允许 **✍️ Manual Add** 手动输入模型名称。
     *   **🧪 Test**: 验证 Key 有效性。
 *   **高级设置**：
     *   `Local Port`: 默认 1897。
@@ -146,26 +175,26 @@
 ### 3.6 模块六：首次启动与引导 (Onboarding Flow)
 *   **Step 1: 启动检测**
     *   App 启动后（无 Dock 图标），检查 `UserDefaults.hasCompletedOnboarding`。
-    *   若未配置，**自动弹出 Settings 窗口**，高亮 Channel 列表。
-*   **Step 2: 配置 Channel**
-    *   用户选择内置供应商 (如 DeepSeek) -> 填入 Key -> **Fetch Models** -> 测试通过。
-*   **Step 3: 客户端引导**
-    *   Settings 顶部显示 "Copy Client Config" 卡片。
-    *   **内容**：`export ANTHROPIC_BASE_URL=http://localhost:1897`
-    *   点击一键复制，标记完成。
+    *   若未配置，**自动弹出 Settings 窗口**。
+    *   提供 **"Set up Later"** 选项，允许关闭窗口进入空状态运行。
+*   **Step 2: 灵活配置**
+    *   支持从模板选择，**必须允许修改 Base URL**（连接本地 Ollama/vLLM 等）。
+*   **Step 3: 客户端引导与自动配置**
+    *   **卡片展示**: "Copy Client Config" + `⚙️ Help me configure` 按钮。
+    *   **自动化配置流程**:
+        1.  **Detect**: 识别当前 Shell (zsh/bash) 及配置文件路径 (e.g., `~/.zshrc`)。
+        2.  **Backup**: 若文件存在，自动复制为 `~/.zshrc.backup.[Timestamp]`。UI 提示“已备份”。
+        3.  **Preview**: 弹窗预览即将写入的代码块（高亮新增行）。
+        4.  **Execute**: 用户确认后写入环境变量。
+        5.  **Done**: 提示“✅ 配置完成。请**重启终端**生效”，并提供“打开终端”按钮。
+    *   **跳过选项**: 用户也可以手动复制并稍后配置。
+    *   **完成**: 标记 `hasCompletedOnboarding = true`。
 
 ### 3.7 模块七：内置供应商元数据 (Provider Metadata)
 *   **资源位置**: `Resources/providers.json`
 *   **数据结构**: 
-    *   `id`: 唯一标识
-    *   `name_en/zh`: 多语言名称
-    *   `base_url`: 默认 API 端点
-    *   `supports_protocols`: 支持的协议列表 (`openai`, `anthropic`)
-    *   `default_models`: 预置的模型及其协议映射
-*   **加载策略**:
-    *   App 启动时从 Bundle 加载该 JSON。
-    *   在 Settings -> Add Channel 界面中，作为 "Select Provider Template" 的列表源。
-    *   支持未来版本通过远程更新此 JSON (预留接口，暂不实现)。
+    *   `id`, `name_en/zh`, `base_url`, `supports_protocols`, `default_models`。
+*   **加载策略**: App 启动时从 Bundle 加载，作为 Settings 模板源。
 
 ---
 
@@ -175,13 +204,12 @@
 ```swift
 struct Channel: Identifiable, Codable {
     let id: UUID
-    var name: String // e.g., "DeepSeek Main", "My Proxy"
-    var providerId: String? // 关联 providers.json 中的 id (用于显示 Logo/名称)
-    var apiKey: String // 内存中暂存，读写走 Keychain
+    var name: String
+    var providerId: String?
+    var apiKey: String
     var baseURL: String
     var priority: Int
-    
-    var isCoolingDown: Bool // 运行时状态
+    var isCoolingDown: Bool = false
     var cooldownUntil: Date?
 }
 ```
@@ -190,25 +218,11 @@ struct Channel: Identifiable, Codable {
 ```swift
 struct ModelEntry: Identifiable, Codable {
     let id: UUID
-    var channelId: UUID // 归属哪个 Channel
-    var modelName: String // e.g., "claude-3-5-sonnet", "deepseek-chat"
-    var protocolType: ProviderType // .openai or .anthropic
+    var channelId: UUID
+    var modelName: String
+    var protocolType: ProviderType
 }
 ```
-
-### 4.3 Provider Metadata 结构体
-```swift
-struct ProviderTemplate: Identifiable, Codable {
-    let id: String
-    var name: String
-    var baseURL: String
-    var protocols: [String] // ["openai", "anthropic"]
-    var models: [(name: String, protocol: String)]
-}
-```
-
-### 4.4 状态管理 (AppState)
-使用 `ObservableObject` 或 `Actor` 管理全局状态。
 
 ---
 
@@ -219,35 +233,18 @@ struct ProviderTemplate: Identifiable, Codable {
     *   代理转发延迟 (Latency Overhead) < 10ms。
     *   内存占用 < 50MB。
 2.  **隐私与数据隔离 (Privacy & Security)**:
-    *   **严禁数据外发**：除了将用户的 LLM 请求转发给其配置的上游 API 端点外，**严禁**向任何第三方服务器发送数据。
-    *   **本地存储**：所有配置（Channels, Models, Settings）仅存储在 macOS Keychain 和 UserDefaults 中。
-    *   **日志脱敏**：本地调试日志 (Console Log) 中打印的请求头/Body 时，必须自动掩盖 API Key，防止开发者工具调试时泄露。
+    *   **严禁数据外发**：除了转发给上游 API，**严禁**向任何第三方发送数据。
+    *   **本地存储**：配置仅存储于 Keychain 和 UserDefaults。
+    *   **日志脱敏**：本地日志必须掩盖 API Key。
 3.  **工程规范**:
-    *   **必须**通过修改 `project.yml` 来调整工程配置，禁止直接提交 `.xcodeproj`。
-    *   **必须**通过 `Localizable.strings` 维护文案，通过 SwiftGen 生成的 `L10n` 枚举引用，**严禁**在代码中硬编码字符串。
+    *   **必须**通过修改 `project.yml` 来调整工程配置。
+    *   **必须**通过 `Localizable.strings` 和 SwiftGen 维护文案。
 
 ---
 
 ## 6. 开发计划 (Roadmap)
 
-*   **Phase 1: 基础设施**
-    *   XcodeGen 项目搭建，CocoaPods 集成。
-    *   实现 `ProxyServer` 基础类，能够启动并响应 HTTP 请求。
-    *   实现 Keychain 存取逻辑。
-    *   配置 SwiftGen 基础环境。
-
-*   **Phase 2: 核心代理与转换**
-    *   实现 Anthropic -> Anthropic 透传。
-    *   实现 Anthropic -> OpenAI 请求/响应转换 (含 SSE 实时转换)。
-    *   *验收标准：Claude Code 能通过代理成功调用 OpenAI 模型。*
-
-*   **Phase 3: 路由与 UI**
-    *   实现 `SmartRouter` (手动/自动切换)。
-    *   实现 SwiftUI MenuBar UI 和 Settings Window。
-    *   解析 `providers.json` 并渲染供应商列表。
-    *   绑定 UI 到 Router 逻辑。
-
-*   **Phase 4: 高级特性**
-    *   实现故障转移 (Failover) 和冷却 (Cooldown) 逻辑。
-    *   实现 Token 统计与 UI 实时更新。
-    *   实现 Fetch Models 功能。
+*   **Phase 1: 基础设施** (XcodeGen, SwiftGen, Proxy Server, Keychain)
+*   **Phase 2: 核心代理与转换** (Anthropic/OpenAI SSE & JSON Transform)
+*   **Phase 3: 路由与 UI** (Router, Menu Bar, Settings, Fetch Models, providers.json 解析)
+*   **Phase 4: 高级特性** (Auto-Failover, Cooldown, Stats, Auto-Config Shell)
