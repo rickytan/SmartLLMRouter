@@ -1,0 +1,73 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "anthropic",
+      "name_en": "Anthropic",
+      "name_zh": "Anthropic",
+      "base_url": "https://api.anthropic.com",
+      "supports_protocols": ["anthropic", "openai"],
+      "default_models": [
+        { "model": "claude-sonnet-4-20250514", "protocol": "anthropic" },
+        { "model": "claude-opus-4-20250514", "protocol": "anthropic" }
+      ]
+    },
+    {
+      "id": "openai",
+      "name_en": "OpenAI",
+      "name_zh": "OpenAI",
+      "base_url": "https://api.openai.com/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "gpt-4o", "protocol": "openai" },
+        { "model": "o1", "protocol": "openai" }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "name_en": "DeepSeek",
+      "name_zh": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "deepseek-chat", "protocol": "openai" },
+        { "model": "deepseek-reasoner", "protocol": "openai" }
+      ]
+    },
+    {
+      "id": "dashscope",
+      "name_en": "Alibaba DashScope",
+      "name_zh": "阿里百炼",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "supports_protocols": ["openai", "anthropic"],
+      "default_models": [
+        { "model": "qwen-max", "protocol": "openai" },
+        { "model": "qwen-plus", "protocol": "openai" },
+        { "model": "claude-3-5-sonnet-20241022", "protocol": "anthropic" }
+      ]
+    },
+    {
+      "id": "minimax",
+      "name_en": "MiniMax",
+      "name_zh": "MiniMax",
+      "base_url": "https://api.minimax.chat/v1",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "MiniMax-M1", "protocol": "openai" },
+        { "model": "MiniMax-Text-01", "protocol": "openai" }
+      ]
+    },
+    {
+      "id": "xiaomi_mimo",
+      "name_en": "Xiaomi Mimo",
+      "name_zh": "小米 Mimo",
+      "base_url": "PLACEHOLDER_URL",
+      "supports_protocols": ["openai"],
+      "default_models": [
+        { "model": "mimo-v2", "protocol": "openai" }
+      ],
+      "note_en": "For local deployment or specific API providers. Please update Base URL.",
+      "note_zh": "用于本地部署或特定 API 提供方，请修改 Base URL。"
+    }
+  ]
+}

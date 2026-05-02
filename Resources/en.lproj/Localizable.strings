@@ -22,9 +22,22 @@
 "settings.test_connection" = "Test Connection";
 "settings.status_valid" = "Valid";
 "settings.status_invalid" = "Invalid";
+"settings.launch_at_login" = "Launch at Login";
+
+/* Onboarding */
+"onboarding.welcome_title" = "Welcome to Smart LLM Router";
+"onboarding.welcome_desc" = "To get started, please configure your first Provider.";
+"onboarding.setup_provider_title" = "1. Configure API Key";
+"onboarding.client_config_title" = "2. Setup your Client";
+"onboarding.copy_env" = "Copy Env Variables";
+"onboarding.next_step" = "Next Step";
+
+/* Errors */
+"errors.port_in_use" = "Port %d is already in use. Please change the port or close the conflicting app.";
 
 /* Common */
 "common.save" = "Save";
 "common.cancel" = "Cancel";
 "common.error" = "Error";
 "common.success" = "Success";
+"common.copy" = "Copy";

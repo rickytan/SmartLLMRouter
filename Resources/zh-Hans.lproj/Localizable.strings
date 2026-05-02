@@ -22,9 +22,22 @@
 "settings.test_connection" = "测试连接";
 "settings.status_valid" = "有效";
 "settings.status_invalid" = "无效";
+"settings.launch_at_login" = "登录时启动";
+
+/* Onboarding */
+"onboarding.welcome_title" = "欢迎使用 Smart LLM Router";
+"onboarding.welcome_desc" = "首次运行，请配置您的首个服务提供商 (Provider)。";
+"onboarding.setup_provider_title" = "1. 配置 API 密钥";
+"onboarding.client_config_title" = "2. 设置客户端环境变量";
+"onboarding.copy_env" = "复制环境变量";
+"onboarding.next_step" = "下一步";
+
+/* Errors */
+"errors.port_in_use" = "端口 %d 已被占用。请更改端口或关闭占用该端口的应用。";
 
 /* Common */
 "common.save" = "保存";
 "common.cancel" = "取消";
 "common.error" = "错误";
 "common.success" = "成功";
+"common.copy" = "复制";
