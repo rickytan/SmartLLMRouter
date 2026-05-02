@@ -1,0 +1,30 @@
+/* App Status */
+"app.title" = "Smart LLM Router";
+"app.status_running" = "Running";
+"app.status_stopped" = "Stopped";
+"app.status_no_providers" = "No Providers";
+
+/* Menu Items */
+"menu.auto_switch" = "⚡ Auto Switch";
+"menu.manual_mode" = "🔘 Manual Mode";
+"menu.settings" = "⚙️ Settings";
+"menu.quit" = "❌ Quit";
+
+/* Settings Window */
+"settings.title" = "Settings";
+"settings.general" = "General";
+"settings.local_port" = "Local Port";
+"settings.cooldown_duration" = "Cooldown Duration (mins)";
+"settings.retry_count" = "Retry Count";
+"settings.keys_title" = "API Keys";
+"settings.add_key" = "Add Key";
+"settings.remove_key" = "Remove";
+"settings.test_connection" = "Test Connection";
+"settings.status_valid" = "Valid";
+"settings.status_invalid" = "Invalid";
+
+/* Common */
+"common.save" = "Save";
+"common.cancel" = "Cancel";
+"common.error" = "Error";
+"common.success" = "Success";

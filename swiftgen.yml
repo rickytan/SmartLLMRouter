@@ -1,0 +1,9 @@
+# SwiftGen Configuration
+# Generates type-safe code for assets and localizations
+
+strings:
+  - inputs: Resources/en.lproj/Localizable.strings
+  - inputs: Resources/zh-Hans.lproj/Localizable.strings
+  outputs:
+    - templateName: structured-swift5
+      output: Sources/Generated/L10n.swift

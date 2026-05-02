@@ -1,0 +1,43 @@
+name: SmartLLMRouter
+options:
+  bundleIdPrefix: com.smartllmrouter
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  postGenCommand: "pod install"
+
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_LSUIElement: YES
+
+targets:
+  SmartLLMRouter:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - Resources
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      debug:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    dependencies:
+      - target: Pods-SmartLLMRouter
+      
+    preBuildScripts:
+      - name: SwiftGen
+        path: Pods/SwiftGen/bin/swiftgen
+        basedir: ${PROJECT_DIR}
+        output: ${SCRIPT_OUTPUT_FILE_0}
+        inputFilePaths:
+          - ${PROJECT_DIR}/Resources/en.lproj/Localizable.strings
+          - ${PROJECT_DIR}/Resources/zh-Hans.lproj/Localizable.strings
+        outputFilePaths:
+          - ${PROJECT_DIR}/Sources/Generated/L10n.swift
+        script: |
+          echo "Generating Strings..."
+          "${SCRIPT_INPUT_FILE_0}"

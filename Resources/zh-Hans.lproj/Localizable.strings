@@ -1,0 +1,30 @@
+/* App Status */
+"app.title" = "Smart LLM Router";
+"app.status_running" = "运行中";
+"app.status_stopped" = "已停止";
+"app.status_no_providers" = "无可用服务";
+
+/* Menu Items */
+"menu.auto_switch" = "⚡ 自动切换";
+"menu.manual_mode" = "🔘 手动模式";
+"menu.settings" = "⚙️ 设置";
+"menu.quit" = "❌ 退出";
+
+/* Settings Window */
+"settings.title" = "设置";
+"settings.general" = "常规";
+"settings.local_port" = "本地端口";
+"settings.cooldown_duration" = "冷却时间 (分钟)";
+"settings.retry_count" = "重试次数";
+"settings.keys_title" = "API 密钥";
+"settings.add_key" = "添加密钥";
+"settings.remove_key" = "删除";
+"settings.test_connection" = "测试连接";
+"settings.status_valid" = "有效";
+"settings.status_invalid" = "无效";
+
+/* Common */
+"common.save" = "保存";
+"common.cancel" = "取消";
+"common.error" = "错误";
+"common.success" = "成功";
