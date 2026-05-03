@@ -43,6 +43,11 @@ Pods/
 # SwiftGen
 Sources/Generated/
 
+# XcodeGen
+#
+# We generate the project from project.yml, so no need to track it.
+*.xcodeproj/
+
 # API Specs reference (large external files)
 Resources/specs/*.ts
 
