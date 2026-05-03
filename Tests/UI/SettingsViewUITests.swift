@@ -61,7 +61,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 点击 General Tab
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证端口输入框存在
         assertElementExists(UI.settingsPortField, "General Tab 应包含端口输入框")
@@ -79,7 +79,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 点击 Channels Tab
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证添加频道按钮存在
         assertElementExists(UI.settingsAddChannelButton, "Channels Tab 应包含添加按钮")
@@ -95,7 +95,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 点击 Advanced Tab
         tapElement(UI.settingsAdvancedTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证故障转移开关存在
         assertElementExists(UI.settingsFailoverToggle, "Advanced Tab 应包含故障转移开关")
@@ -113,7 +113,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 点击 Usage Tab
         tapElement(UI.settingsUsageTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证统计卡片存在
         assertElementExists(UI.usageTotalRequests, "Usage Tab 应显示总请求数")
@@ -128,7 +128,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 点击 About Tab
         tapElement(UI.settingsAboutTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证版本信息存在
         assertElementExists(UI.aboutVersionLabel, "About Tab 应显示版本信息")
@@ -146,15 +146,16 @@ final class SettingsViewUITests: UITestCase {
         
         // 切换到 General Tab
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        sleep(1)
         
         // 找到端口输入框
         let portField = app.descendants(matching: .any).matching(identifier: UI.settingsPortField).firstMatch
         XCTAssertTrue(portField.waitForExistence(timeout: 3), "端口输入框应存在")
         
-        // 点击并清空
+        // 点击并清空（全选后删除）
         portField.click()
-        portField.clearContents()
+        portField.typeKey("a", modifierFlags: .command)
+        portField.typeText(XCUIKeyboardKey.delete.rawValue)
         
         // 输入新端口
         portField.typeText("1898")

@@ -71,7 +71,7 @@ final class AccessibilityCoverageTests: UITestCase {
         tapElement(UI.menuSettingsButton)
         sleep(1)
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        sleep(1)
         
         let requiredIdentifiers = [
             UI.settingsPortField,
@@ -88,7 +88,7 @@ final class AccessibilityCoverageTests: UITestCase {
         tapElement(UI.menuSettingsButton)
         sleep(1)
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         let requiredIdentifiers = [
             UI.settingsAddChannelButton,
@@ -122,7 +122,7 @@ final class AccessibilityCoverageTests: UITestCase {
         tapElement(UI.menuSettingsButton)
         sleep(1)
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        sleep(1)
         
         let textFields = app.textFields.allElementsBoundByIndex
         

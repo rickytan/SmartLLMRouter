@@ -13,7 +13,7 @@ final class ChannelCRUDUITests: UITestCase {
         
         // 切换到 Channels Tab
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         // 点击添加按钮
         let addButton = app.descendants(matching: .any).matching(identifier: UI.settingsAddChannelButton).firstMatch
@@ -39,7 +39,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         // 验证频道列表存在
         let channelList = app.descendants(matching: .any).matching(identifier: UI.settingsChannelList).firstMatch
@@ -52,7 +52,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         // 查找第一个频道行
         let firstChannelRow = app.descendants(matching: .any).matching(identifier: "\(UI.channelRowPrefix).0").firstMatch
@@ -75,7 +75,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         // 查找测速按钮
         let speedTestButton = app.descendants(matching: .any).matching(identifier: "\(UI.channelSpeedTestPrefix).0").firstMatch
@@ -92,7 +92,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         let editButton = app.descendants(matching: .any).matching(identifier: "\(UI.channelEditPrefix).0").firstMatch
         
@@ -107,7 +107,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         let deleteButton = app.descendants(matching: .any).matching(identifier: "\(UI.channelDeletePrefix).0").firstMatch
         
@@ -124,7 +124,7 @@ final class ChannelCRUDUITests: UITestCase {
         sleep(1)
         
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        sleep(1)
         
         assertElementExists(UI.settingsTestAllButton, "Channels Tab 应包含批量测速按钮")
     }
