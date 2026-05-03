@@ -37,6 +37,16 @@
 "settings.general.protocol.auto" = "Auto-detect";
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
+"settings.general.service" = "Service";
+"settings.general.startService" = "▶️ Start Service";
+"settings.general.stopService" = "⏹️ Stop Service";
+"settings.general.runningOnPort" = "Running on port %d";
+"settings.general.serviceStopped" = "Service stopped";
+"settings.general.shellEnv" = "Shell Environment";
+"settings.general.updateShellConfig" = "✅ Update Shell Config";
+"settings.general.setupShellEnv" = "⚙️ Setup Shell Environment";
+"settings.general.shellConfigured" = "Variables already added to ~/.zshrc";
+"settings.general.notConfigured" = "Not configured";
 
 // Channel Settings
 "settings.channels.add" = "Add Channel";
@@ -50,6 +60,11 @@
 "settings.channels.priority" = "Priority";
 "settings.channels.protocol" = "Protocol";
 "settings.channels.test_connection" = "Test Connection";
+"settings.channels.testAll" = "⚡ Test All";
+"settings.channels.testing" = "Testing...";
+"settings.channels.reorderHint" = "Reorder: drag using ⠿ handle on left";
+"settings.channels.emptyTitle" = "No channels configured";
+"settings.channels.emptySubtitle" = "Add one to get started";
 
 // Advanced Settings
 "settings.advanced.failover" = "Auto-Failover";
@@ -70,6 +85,12 @@
 "settings.usage.input_tokens" = "Input Tokens";
 "settings.usage.output_tokens" = "Output Tokens";
 "settings.usage.clear_history" = "Clear History";
+"settings.usage.chartTitle" = "30-Day Usage";
+"settings.usage.channelStats" = "Channel Statistics";
+"settings.usage.requests" = "Requests";
+"settings.usage.tokens" = "Tokens";
+"settings.usage.cost" = "Cost";
+"settings.usage.noData" = "No usage data yet";
 
 // About Settings
 "settings.about.version" = "Version %@";
@@ -93,8 +114,23 @@
 "onboarding.subtitle" = "Your local LLM proxy and router";
 "onboarding.setup" = "Set Up Now";
 "onboarding.skip" = "Set Up Later";
+"onboarding.next" = "Next";
+"onboarding.back" = "Back";
+"onboarding.finish" = "Finish";
+"onboarding.launch" = "Launch App";
 "onboarding.add_channel" = "Add your first channel";
 "onboarding.test_connection" = "Test your connection";
+"onboarding.shell_config" = "Configure Shell Environment";
+"onboarding.shell_config_description" = "SmartLLM Router will add environment variables to your ~/.zshrc so Claude Code can use it automatically";
+"onboarding.shell_configure" = "Configure Shell";
+"onboarding.shell_configured" = "Shell Configured ✓";
+"onboarding.shell_config_success" = "Environment variables added successfully";
+"onboarding.shell_config_skipped" = "You can configure this later in Settings";
+"onboarding.done" = "You're All Set!";
+"onboarding.done_description" = "SmartLLM Router is ready. Start sending requests to localhost:1897";
+"onboarding.feature_failover" = "Automatic failover between API keys";
+"onboarding.feature_multikey" = "Multi-provider key management";
+"onboarding.feature_privacy" = "100% local — your keys never leave your Mac";
 
 // Status Messages
 "status.copied" = "Copied to clipboard";
@@ -105,3 +141,16 @@
 "status.models_fetched" = "Models fetched successfully";
 "status.saving" = "Saving...";
 "status.saved" = "Saved successfully";
+
+// Add Channel
+"addchannel.modelPlaceholder" = "Model ID";
+"addchannel.cancel" = "Cancel";
+
+// Model Editor
+"modelEditor.contextLength" = "Context Length";
+"modelEditor.inputPrice" = "Input Price ($/1M tokens)";
+"modelEditor.outputPrice" = "Output Price ($/1M tokens)";
+"modelEditor.cancel" = "Cancel";
+
+// About
+"about.appName" = "SmartLLM Router";

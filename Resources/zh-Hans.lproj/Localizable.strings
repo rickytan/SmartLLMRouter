@@ -37,6 +37,16 @@
 "settings.general.protocol.auto" = "自动检测";
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
+"settings.general.service" = "服务";
+"settings.general.startService" = "▶️ 启动服务";
+"settings.general.stopService" = "⏹️ 停止服务";
+"settings.general.runningOnPort" = "运行于端口 %d";
+"settings.general.serviceStopped" = "服务已停止";
+"settings.general.shellEnv" = "Shell 环境";
+"settings.general.updateShellConfig" = "✅ 更新 Shell 配置";
+"settings.general.setupShellEnv" = "⚙️ 配置 Shell 环境";
+"settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
+"settings.general.notConfigured" = "未配置";
 
 // Channel Settings
 "settings.channels.add" = "添加通道";
@@ -50,6 +60,11 @@
 "settings.channels.priority" = "优先级";
 "settings.channels.protocol" = "协议";
 "settings.channels.test_connection" = "测试连接";
+"settings.channels.testAll" = "⚡ 全部测速";
+"settings.channels.testing" = "测试中...";
+"settings.channels.reorderHint" = "调整顺序：拖动左侧 ⠿ 手柄";
+"settings.channels.emptyTitle" = "未配置通道";
+"settings.channels.emptySubtitle" = "添加一个通道以开始使用";
 
 // Advanced Settings
 "settings.advanced.failover" = "自动故障转移";
@@ -70,6 +85,12 @@
 "settings.usage.input_tokens" = "输入 Token";
 "settings.usage.output_tokens" = "输出 Token";
 "settings.usage.clear_history" = "清除历史记录";
+"settings.usage.chartTitle" = "30 天用量";
+"settings.usage.channelStats" = "通道统计";
+"settings.usage.requests" = "请求";
+"settings.usage.tokens" = "Token";
+"settings.usage.cost" = "费用";
+"settings.usage.noData" = "暂无使用数据";
 
 // About Settings
 "settings.about.version" = "版本 %@";
@@ -93,8 +114,23 @@
 "onboarding.subtitle" = "您的本地 LLM 代理和路由器";
 "onboarding.setup" = "立即设置";
 "onboarding.skip" = "稍后设置";
+"onboarding.next" = "下一步";
+"onboarding.back" = "返回";
+"onboarding.finish" = "完成";
+"onboarding.launch" = "启动应用";
 "onboarding.add_channel" = "添加您的第一个通道";
 "onboarding.test_connection" = "测试您的连接";
+"onboarding.shell_config" = "配置 Shell 环境";
+"onboarding.shell_config_description" = "SmartLLM Router 将环境变量添加到您的 ~/.zshrc，以便 Claude Code 可以自动使用";
+"onboarding.shell_configure" = "配置 Shell";
+"onboarding.shell_configured" = "Shell 已配置 ✓";
+"onboarding.shell_config_success" = "环境变量添加成功";
+"onboarding.shell_config_skipped" = "您可以在设置中稍后配置";
+"onboarding.done" = "全部完成！";
+"onboarding.done_description" = "SmartLLM Router 已就绪。开始向 localhost:1897 发送请求吧";
+"onboarding.feature_failover" = "API 密钥之间自动故障转移";
+"onboarding.feature_multikey" = "多提供商密钥管理";
+"onboarding.feature_privacy" = "100% 本地 — 您的密钥永远不会离开您的 Mac";
 
 // Status Messages
 "status.copied" = "已复制到剪贴板";
@@ -105,3 +141,16 @@
 "status.models_fetched" = "模型获取成功";
 "status.saving" = "保存中...";
 "status.saved" = "保存成功";
+
+// Add Channel
+"addchannel.modelPlaceholder" = "模型 ID";
+"addchannel.cancel" = "取消";
+
+// Model Editor
+"modelEditor.contextLength" = "上下文长度";
+"modelEditor.inputPrice" = "输入价格 ($/1M tokens)";
+"modelEditor.outputPrice" = "输出价格 ($/1M tokens)";
+"modelEditor.cancel" = "取消";
+
+// About
+"about.appName" = "SmartLLM Router";

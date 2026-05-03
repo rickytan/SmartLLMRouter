@@ -165,7 +165,7 @@ struct MenuView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             } else {
-                Text("\(usage.todayStats.totalRequests) today")
+                Text(L10n.Menu.statsRequests(Int64(usage.todayStats.totalRequests)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
