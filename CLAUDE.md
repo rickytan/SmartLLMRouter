@@ -34,16 +34,26 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ```
 
 ## Current State
-- **Phase 1-2**: ✅ Complete — All core services
+- **Phase 1-2**: ✅ Complete — All core services (Proxy, Router, ProtocolConverter, Keychain, Logger)
 - **Phase 3 UI**: ✅ MenuView & SettingsView fully rewritten with DesignTokens
-- **Onboarding**: ✅ **FIXED** — UI overlap resolved (safeAreaInset + ScrollView), provider icons added (SF Symbols), crash protection verified.
-- **Phase 4**: ✅ **COMPLETE** — UsageTab stacked bar chart (grouped by channel), Sparkle auto-update integrated, zero hardcoded visual values across all Views
-- **Static Linking**: ✅ `use_frameworks! :linkage => :static` enabled, app size 8.6 MB
+- **Onboarding**: ✅ **FIXED** — UI overlap resolved, provider icons (SF Symbols), crash protection
+- **Phase 4**: ✅ **COMPLETE** — Stacked usage chart, Sparkle auto-update, zero hardcoded visual values
+- **Phase 5**: ✅ **COMPLETE** — Unified Model Switcher with Protocol Consistency enforcement
+- **Architecture**: ✅ Asset Catalog + SwiftGen for colors, Static linking (8.6MB), XcodeGen-only workflow
+
+## Technical Decisions (ADR)
+1. **Shell Config Path**: Use `~/.zshenv` (not `.zshrc`) for non-interactive shell compatibility.
+2. **Color Management**: `Assets.xcassets` + SwiftGen generated code (`Asset.xxx.swiftUIColor`). Dark Mode supported via System Reference Colors.
+3. **Project Files**: `xcodeproj/` and `xcworkspace/` are `.gitignore`d. XcodeGen is the source of truth.
+4. **Static Linking**: `use_frameworks! :linkage => :static` enabled. Sparkle remains dynamic (contains Updater.app).
+5. **Protocol Consistency**: Model switching restricted to same protocol family. Cross-protocol switches FORBIDDEN.
+6. **Build Order**: `xcodegen generate` BEFORE `bundle exec pod install`.
+7. **Generated Code**: `Sources/Generated/` (L10n.swift, Assets+Generated.swift) committed to repo for fresh-clone builds.
 
 ## Pending Tasks
-- **Phase 5**: ✅ **COMPLETE** — Unified Model Switcher integrated with Protocol Consistency enforcement
 - **UI Test expansion**: Add UITest cases for Onboarding flow, AddChannel CRUD, Settings tabs
 - **UsageTracker integration in Proxy**: Ensure `UsageTracker.recordUsage` is called from `RequestForwarder` on every proxied request
+- **Shell Config UX**: Consider supporting both `.zshrc` and `.zshenv` with user choice
 
 ## Key Files
 - Sources/Views/Onboarding/OnboardingView.swift — First-launch wizard (4 steps)
@@ -52,7 +62,7 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 - Sources/Views/SettingsView.swift — Settings with 5 tabs (rewritten)
 - Sources/Models/AppState.swift — Has onboardingCompleted property
 - Sources/Services/ChannelManager.swift — Channel CRUD, speed test, provider templates
-- Sources/Services/ShellConfigManager.swift — .zshrc configuration
+- Sources/Services/ShellConfigManager.swift — `.zshenv` configuration (auto-proxy setup)
 
 ## Design System (DESIGN.md)
 - Menu: 300pt wide, 12pt padding

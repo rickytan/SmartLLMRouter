@@ -2,10 +2,46 @@
 
 | 项目 | SmartLLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.8.5 |
-| **状态** | 待开发 |
+| **版本** | v1.8.6 |
+| **状态** | Phase 1-5 已完成，持续迭代 |
 | **目标平台** | macOS 13.0+ (Ventura) |
-| **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle) |
+| **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle, CocoaLumberjack) |
+
+---
+
+## 0. 技术决策记录 (ADR)
+
+### ADR-001: Shell 配置路径选择 `.zshenv`
+- **决策**: 使用 `~/.zshenv` 而非 `~/.zshrc` 注入代理环境变量。
+- **原因**: `.zshrc` 仅在交互式 Shell 中加载，Claude Code、脚本、CI 等非交互式环境无法读取。`.zshenv` 是所有 zsh 进程启动时**必定**加载的第一个文件，确保代理环境变量全局生效。
+- **影响**: `ShellConfigManager` 默认目标文件改为 `~/.zshenv`。
+
+### ADR-002: 颜色管理采用 Asset Catalog + SwiftGen
+- **决策**: 所有颜色迁移至 `Assets.xcassets`，使用 SwiftGen 生成类型安全代码 (`Asset.xxx.swiftUIColor`)。
+- **原因**: 硬编码 RGB 无法适配暗黑模式；`Color("Name")` 字符串引用缺乏编译期检查。
+- **影响**: `DesignTokens.swift` 全部使用 `Asset.xxx.swiftUIColor`，系统 Reference Color 自动适配 Light/Dark。
+
+### ADR-003: 工程文件不纳入版本控制
+- **决策**: `SmartLLMRouter.xcodeproj/` 和 `SmartLLMRouter.xcworkspace/` 加入 `.gitignore`。
+- **原因**: 项目使用 XcodeGen 管理工程配置，`project.yml` 是唯一可信源。避免多人开发时的工程文件冲突。
+- **影响**: 新环境 clone 后需先执行 `xcodegen generate` 生成工程。
+
+### ADR-004: CocoaPods 静态链接
+- **决策**: `Podfile` 使用 `use_frameworks! :linkage => :static`。
+- **原因**: 减少打包体积（当前 8.6 MB），避免 Framework 签名问题。
+- **例外**: Sparkle 因内含 `Updater.app` 必须作为独立 Framework 保留（2.3 MB）。
+
+### ADR-005: 协议一致性约束
+- **决策**: 模型切换只能在**同协议簇内**进行，禁止跨协议切换。
+- **原因**: 跨协议切换（如 Anthropic → OpenAI）会破坏 Tool Calling 和 SSE 流式响应格式，导致 Claude Code 客户端崩溃。
+- **影响**: `ModelSwitcher` 和 `RequestForwarder` 必须验证协议兼容性。
+
+### ADR-006: 构建顺序强制规范
+- **决策**: 先 `xcodegen generate`，再 `bundle exec pod install`。
+- **原因**: `pod install` 会向 `xcodeproj` 写入 CocoaPods 链接配置，若后执行 `xcodegen` 会覆盖这些配置导致编译失败。
+- **影响**: 所有 CI/构建脚本必须遵循此顺序。
+
+---
 
 ## 1. 产品概述
 **SmartLLM Router** 是一款原生 macOS 菜单栏应用，作为一个本地 HTTP 网关运行。它的主要目的是为 **Claude Code** (及其他兼容客户端) 提供多厂商 API Key 的统一接入、自动故障转移和负载均衡能力。
