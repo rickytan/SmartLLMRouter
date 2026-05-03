@@ -153,5 +153,12 @@
 "modelEditor.outputPrice" = "Output Price ($/1M tokens)";
 "modelEditor.cancel" = "Cancel";
 
+// Model Switcher
+"model.selector.label" = "Model";
+"model.default.passthrough" = "Default (Passthrough)";
+"model.active" = "Active: %@";
+"model.protocol.incompatible" = "Protocol incompatible";
+"model.no.models.available" = "No models available";
+
 // About
 "about.appName" = "SmartLLM Router";

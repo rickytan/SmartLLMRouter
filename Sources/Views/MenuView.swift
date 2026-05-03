@@ -8,6 +8,9 @@ struct MenuView: View {
     @ObservedObject private var channelStore = ChannelStore.shared
     @ObservedObject private var usage = UsageTracker.shared
     @ObservedObject private var channelManager = ChannelManager.shared
+    @ObservedObject private var modelSwitcher = ModelSwitcher.shared
+
+    @State private var showingModelPicker = false
 
     var body: some View {
         VStack(spacing: .zero) {
@@ -30,6 +33,14 @@ struct MenuView: View {
 
             // Auto-Failover Toggle
             failoverToggle
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
+
+            Divider()
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+
+            // Model Selector
+            modelSelector
                 .padding(.horizontal, DesignToken.Layout.menuPadding)
                 .padding(.vertical, DesignToken.Spacing.sm)
 
@@ -121,6 +132,87 @@ struct MenuView: View {
         .font(DesignToken.Font.system(size: 12))
         .toggleStyle(.switch)
         .accessibilityIdentifier("menu.failover.toggle")
+    }
+
+    // MARK: - Model Selector
+
+    private var modelSelector: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            // Header row with label and current selection
+            HStack {
+                Text(L10n.Model.selectorLabel)
+                    .font(DesignToken.Font.system(size: 11, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+
+                Spacer()
+
+                // Current model display
+                Text(modelSwitcher.displayName)
+                    .font(DesignToken.Font.system(size: 11, weight: .semibold))
+                    .foregroundColor(modelSwitcher.hasOverride ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Image(systemName: modelSwitcher.hasOverride ? "checkmark.circle.fill" : "circle")
+                    .font(DesignToken.Font.system(size: 10))
+                    .foregroundColor(modelSwitcher.hasOverride ? DesignToken.Colors.accent : DesignToken.Colors.textTertiary)
+            }
+
+            // Model list (inline, no popover needed for menu bar)
+            if modelSwitcher.compatibleModels.isEmpty {
+                Text(L10n.Model.noModelsAvailable)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        // Default option
+                        modelOptionButton(
+                            modelID: nil,
+                            displayName: L10n.Model.defaultPassthrough,
+                            isSelected: !modelSwitcher.hasOverride
+                        )
+
+                        ForEach(modelSwitcher.compatibleModels, id: \.identifier) { model in
+                            modelOptionButton(
+                                modelID: model.identifier,
+                                displayName: model.displayName,
+                                isSelected: modelSwitcher.selectedModelID == model.identifier
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("menu.model.selector")
+    }
+
+    /// Individual model selection button
+    private func modelOptionButton(modelID: String?, displayName: String, isSelected: Bool) -> some View {
+        Button(action: {
+            modelSwitcher.selectModel(modelID)
+        }) {
+            HStack(spacing: DesignToken.Spacing.xxs) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(DesignToken.Font.system(size: 8, weight: .bold))
+                }
+                Text(displayName)
+                    .font(DesignToken.Font.system(size: 10, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, DesignToken.Spacing.xs)
+            .padding(.vertical, DesignToken.Spacing.xxs)
+            .background(
+                isSelected
+                    ? DesignToken.Colors.accent.opacity(0.15)
+                    : DesignToken.Colors.hoverFill
+            )
+            .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Active Channel Info

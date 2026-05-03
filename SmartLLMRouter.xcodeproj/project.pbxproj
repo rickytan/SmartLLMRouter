@@ -17,7 +17,7 @@
 		447C5984499FABEAC355FBB0 /* SmartLLMRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E42F2B023E9D9888EF4305 /* SmartLLMRouterTests.swift */; };
 		46655E715C984A73A0D333D9 /* AppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F9725EF4309B45C644878E /* AppMain.swift */; };
 		4968777B365CEDB04E2F6BDC /* anthropic-messages.json in Resources */ = {isa = PBXBuildFile; fileRef = F66EDEAAA771186C0163AFF1 /* anthropic-messages.json */; };
-		543A2F42D1DF79D007882038 /* Pods_SmartLLMRouter.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */; };
+		4A72B912E2E1B8DE697A7C79 /* Pods_SmartLLMRouter.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1BBBE26A77A46C2C423EFE2E /* Pods_SmartLLMRouter.framework */; };
 		606AFDED2311552F4BA3E657 /* RequestForwarder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB11B76F2553689C6D960157 /* RequestForwarder.swift */; };
 		64F8E75DFDAF1D81768131F1 /* AddChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4448B464A87133021F611B8 /* AddChannelView.swift */; };
 		70AA651D032F363D8229A59D /* AccessibilityCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621280B030EAC6988C771FAD /* AccessibilityCoverageTests.swift */; };
@@ -29,6 +29,7 @@
 		A5AD8F7D256701C83DC95AFA /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68B67CBADAAD18B6EC7468D7 /* MenuView.swift */; };
 		A5F7D02EC86DBDF15463B724 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED71D39C048CC9604A28602 /* MockData.swift */; };
 		A6AAF6D5CB20CB9757267C59 /* openai-chat-messages.ts in Resources */ = {isa = PBXBuildFile; fileRef = 6991643C5CE43761F5163A36 /* openai-chat-messages.ts */; };
+		AC17B78A295D3AFCA811DB05 /* ModelSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA23A1C59854066F38661D5 /* ModelSwitcher.swift */; };
 		B4DE0EE2CBDE002301EAFD41 /* openai-chat-completions.json in Resources */ = {isa = PBXBuildFile; fileRef = D62E6D82330458687242B685 /* openai-chat-completions.json */; };
 		BCE8D48195ACD3ED528F2B1A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14DE1D9F9057CBAEE3926F4B /* AppState.swift */; };
 		BE5DCA3544C342CCFCBCCA3B /* anthropic-messages-types.ts in Resources */ = {isa = PBXBuildFile; fileRef = 4F6EB75D0A5B6E5E0534F6C3 /* anthropic-messages-types.ts */; };
@@ -67,16 +68,17 @@
 /* Begin PBXFileReference section */
 		013F0A5C186089CD112E7A61 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		03131747C7F6542102DD77D1 /* SettingsViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewUITests.swift; sourceTree = "<group>"; };
-		0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.debug.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.debug.xcconfig"; sourceTree = "<group>"; };
 		0F3716FC78C129361D3646ED /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		14DE1D9F9057CBAEE3926F4B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		15AFDE3362CF7A01AFB25F26 /* MenuViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuViewUITests.swift; sourceTree = "<group>"; };
+		1BBBE26A77A46C2C423EFE2E /* Pods_SmartLLMRouter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SmartLLMRouter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		1E67E43DF74D949E95A122DF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		22ECDA71B101B3ECAC84C063 /* SmartRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartRouter.swift; sourceTree = "<group>"; };
 		26E5B3917D048287705080E9 /* ChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelManager.swift; sourceTree = "<group>"; };
 		2729C6EF7103099B402EAAE4 /* openai-shared.ts */ = {isa = PBXFileReference; path = "openai-shared.ts"; sourceTree = "<group>"; };
 		4081809DC9C9A19C1C630BF4 /* ShellConfigManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellConfigManager.swift; sourceTree = "<group>"; };
 		413765CB49B55F622881304D /* ChannelCRUDUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelCRUDUITests.swift; sourceTree = "<group>"; };
+		4AE53F2E137EC2AB143B7934 /* Pods-SmartLLMRouter.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.release.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.release.xcconfig"; sourceTree = "<group>"; };
 		4D4E1666E71D1F65A8D99A0D /* ProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyServer.swift; sourceTree = "<group>"; };
 		4F6EB75D0A5B6E5E0534F6C3 /* anthropic-messages-types.ts */ = {isa = PBXFileReference; path = "anthropic-messages-types.ts"; sourceTree = "<group>"; };
 		621280B030EAC6988C771FAD /* AccessibilityCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityCoverageTests.swift; sourceTree = "<group>"; };
@@ -86,13 +88,13 @@
 		6991643C5CE43761F5163A36 /* openai-chat-messages.ts */ = {isa = PBXFileReference; path = "openai-chat-messages.ts"; sourceTree = "<group>"; };
 		6A3ED871ED3D6572CF10F1D6 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		6F5974A5D8122928ED753A3D /* SmartLLMRouterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartLLMRouterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SmartLLMRouter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		743B2485FC9FDF70B08839CE /* UsageTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageTracker.swift; sourceTree = "<group>"; };
 		78E42F2B023E9D9888EF4305 /* SmartLLMRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartLLMRouterTests.swift; sourceTree = "<group>"; };
 		9131589A54BB76DBCFBEB758 /* ProtocolConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolConverter.swift; sourceTree = "<group>"; };
 		95FD0F8BD7D7A116EABFD721 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		97814A5AB435913CB94CBC65 /* SmartLLMRouter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartLLMRouter.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.release.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.release.xcconfig"; sourceTree = "<group>"; };
+		9CA23A1C59854066F38661D5 /* ModelSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSwitcher.swift; sourceTree = "<group>"; };
+		9F1C5DF910B497949737397B /* Pods-SmartLLMRouter.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.debug.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.debug.xcconfig"; sourceTree = "<group>"; };
 		BD1A075F24789855903336C6 /* LoggerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerManager.swift; sourceTree = "<group>"; };
 		BED71D39C048CC9604A28602 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		C0237AB39BC6ADEAE3E29EB5 /* SmartLLMRouterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartLLMRouterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -118,7 +120,7 @@
 			files = (
 				C26C143975DEC87CE3122B77 /* Cocoa.framework in Frameworks */,
 				DBB8A541C8FDC6A64D19D616 /* SystemConfiguration.framework in Frameworks */,
-				543A2F42D1DF79D007882038 /* Pods_SmartLLMRouter.framework in Frameworks */,
+				4A72B912E2E1B8DE697A7C79 /* Pods_SmartLLMRouter.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,16 +144,6 @@
 				6F5974A5D8122928ED753A3D /* SmartLLMRouterUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		20836DBECC5B0C5EF4890728 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */,
-				BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D0A79C37A7F57B30B36492C /* Unit */ = {
@@ -189,8 +181,18 @@
 				E9B800669FBFCAB51ABF6168 /* Tests */,
 				8091A9963CC261AB870EF5B6 /* Frameworks */,
 				0C7BCB264F49635A30177155 /* Products */,
-				20836DBECC5B0C5EF4890728 /* Pods */,
+				5B0ED97B3B8C9F7180F876E9 /* Pods */,
 			);
+			sourceTree = "<group>";
+		};
+		5B0ED97B3B8C9F7180F876E9 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				9F1C5DF910B497949737397B /* Pods-SmartLLMRouter.debug.xcconfig */,
+				4AE53F2E137EC2AB143B7934 /* Pods-SmartLLMRouter.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		7E85F6728EC69D43FB153D2F /* Utilities */ = {
@@ -207,7 +209,7 @@
 			children = (
 				641A141D241E3805C63C6E33 /* Cocoa.framework */,
 				95FD0F8BD7D7A116EABFD721 /* SystemConfiguration.framework */,
-				7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */,
+				1BBBE26A77A46C2C423EFE2E /* Pods_SmartLLMRouter.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -273,6 +275,7 @@
 				26E5B3917D048287705080E9 /* ChannelManager.swift */,
 				E88E8F18E16E7CFD044DB9A5 /* CooldownEngine.swift */,
 				6A3ED871ED3D6572CF10F1D6 /* KeychainManager.swift */,
+				9CA23A1C59854066F38661D5 /* ModelSwitcher.swift */,
 				9131589A54BB76DBCFBEB758 /* ProtocolConverter.swift */,
 				4D4E1666E71D1F65A8D99A0D /* ProxyServer.swift */,
 				EB11B76F2553689C6D960157 /* RequestForwarder.swift */,
@@ -318,13 +321,13 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 84702DA1C579FE6266B01010 /* Build configuration list for PBXNativeTarget "SmartLLMRouter" */;
 			buildPhases = (
-				4B38FA1B6B24B2401A2D9C81 /* [CP] Check Pods Manifest.lock */,
+				67A2C599598F3F11B8F58317 /* [CP] Check Pods Manifest.lock */,
 				F5CBB08E40EF7EB03AE9108C /* SwiftLint */,
 				4EF168A221A67208077A7B47 /* Sources */,
 				F9261CB913B1AA39B6A9B085 /* Resources */,
 				45D83AC171B90C47DD9E6847 /* Frameworks */,
-				393922D09547B1D301E45060 /* [CP] Embed Pods Frameworks */,
-				85FD99FFC27170A0BF0EDA43 /* [CP] Copy Pods Resources */,
+				3EF5E4F43503109BCD31EAE2 /* [CP] Embed Pods Frameworks */,
+				2DAA2B4645B95D32BC68F04E /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -406,7 +409,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		393922D09547B1D301E45060 /* [CP] Embed Pods Frameworks */ = {
+		2DAA2B4645B95D32BC68F04E /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		3EF5E4F43503109BCD31EAE2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -423,7 +443,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		4B38FA1B6B24B2401A2D9C81 /* [CP] Check Pods Manifest.lock */ = {
+		67A2C599598F3F11B8F58317 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -443,23 +463,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		85FD99FFC27170A0BF0EDA43 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		F5CBB08E40EF7EB03AE9108C /* SwiftLint */ = {
@@ -498,6 +501,7 @@
 				3B59BA2384234E8DC07B27E3 /* L10n.swift in Sources */,
 				8F806DA927320729E813C1C1 /* LoggerManager.swift in Sources */,
 				A5AD8F7D256701C83DC95AFA /* MenuView.swift in Sources */,
+				AC17B78A295D3AFCA811DB05 /* ModelSwitcher.swift in Sources */,
 				E3109D901475FCA58D8B274E /* OnboardingView.swift in Sources */,
 				8BBC31EC61BB609E73FAABCE /* ProtocolConverter.swift in Sources */,
 				FDCE701C79F43EF174101D97 /* ProxyServer.swift in Sources */,
@@ -575,7 +579,7 @@
 		};
 		478F6ADC16AC5C94B5AEF8EC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */;
+			baseConfigurationReference = 4AE53F2E137EC2AB143B7934 /* Pods-SmartLLMRouter.release.xcconfig */;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -626,7 +630,7 @@
 		};
 		C0BD929FEDE6A8B46A643152 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */;
+			baseConfigurationReference = 9F1C5DF910B497949737397B /* Pods-SmartLLMRouter.debug.xcconfig */;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

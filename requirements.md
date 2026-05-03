@@ -210,3 +210,32 @@ struct ModelEntry: Identifiable, Codable {
 *   **Phase 2**: Protocol Adapter (SSE/JSON), Swifter + Alamofire bridging.
 *   **Phase 3**: Routing Logic, Menu Bar UI, Settings UI (General/Channels), Speed Test feature.
 *   **Phase 4**: Auto-Failover/Cooldown, Usage Stats, Auto-Config Shell, Sparkle Updates.
+
+## Phase 5: Unified Model Switcher
+
+### User Story
+As a user using Claude Code (or similar tools), I want to switch the LLM model directly from the SmartLLMRouter menu bar. This allows me to switch models instantly across all my tools without editing configuration files or typing commands like `/model`.
+
+### Core Constraints
+**Protocol Consistency is CRITICAL.**
+1.  **Never break the client's protocol**: If the client (e.g., Claude Code) sends an **Anthropic** protocol request, the proxy **MUST** return an **Anthropic** protocol response.
+2.  **Allowed Switches**: You can route to *any* backend that supports the same protocol (or has a converter). For example, switching from `claude-3-opus` to `moonshot-v1` (via Anthropic compatibility) is allowed.
+3.  **Forbidden Switches**: Routing an Anthropic request to a native OpenAI endpoint *without* fully converting the response back is **FORBIDDEN**. This breaks Tool Calling and SSE streaming.
+4.  **UI Filtering**: The menu bar model selector should only display models compatible with the active channel's protocol.
+
+### Implementation Tasks
+1.  **ModelSwitcher Service**:
+    -   Create a new service to manage the `activeModel` state (singleton).
+    -   Persist the selection in `UserDefaults`.
+2.  **RequestForwarder Integration**:
+    -   Intercept outgoing requests.
+    -   If `activeModel` is set (not "Default"), replace the `model` field in the request body.
+    -   **Important**: Ensure the target Channel/Provider supports the required protocol.
+3.  **MenuView UI Update**:
+    -   Add a "Model" selector (Popover or Menu item) in `MenuView`.
+    -   Display the current active model.
+    -   List compatible models from the active channel.
+    -   Use `DesignToken` styles and `L10n` strings.
+4.  **Protocol Enforcement**:
+    -   Add logic in `ChannelManager` or `ProtocolConverter` to validate if a model switch is valid for the current protocol context.
+

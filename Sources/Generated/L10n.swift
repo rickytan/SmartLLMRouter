@@ -410,6 +410,24 @@ internal enum L10n {
     }
   }
 
+  internal enum Model {
+    internal static var selectorLabel: String {
+      NSLocalizedString("model.selector.label", comment: "")
+    }
+    internal static var defaultPassthrough: String {
+      NSLocalizedString("model.default.passthrough", comment: "")
+    }
+    internal static func activeModel(_ p1: String) -> String {
+      String(format: NSLocalizedString("model.active", comment: ""), p1)
+    }
+    internal static var protocolIncompatible: String {
+      NSLocalizedString("model.protocol.incompatible", comment: "")
+    }
+    internal static var noModelsAvailable: String {
+      NSLocalizedString("model.no.models.available", comment: "")
+    }
+  }
+
   internal enum About {
     internal static var appName: String {
       NSLocalizedString("about.appName", comment: "")

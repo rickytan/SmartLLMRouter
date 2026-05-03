@@ -153,5 +153,12 @@
 "modelEditor.outputPrice" = "输出价格 ($/1M tokens)";
 "modelEditor.cancel" = "取消";
 
+// Model Switcher
+"model.selector.label" = "模型";
+"model.default.passthrough" = "默认 (直通)";
+"model.active" = "当前: %@";
+"model.protocol.incompatible" = "协议不兼容";
+"model.no.models.available" = "无可用模型";
+
 // About
 "about.appName" = "SmartLLM Router";

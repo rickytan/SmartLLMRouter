@@ -104,6 +104,9 @@ final class ProxyServer: ObservableObject {
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
 
+        // Apply model override from ModelSwitcher before forwarding
+        let effectiveBody = applyModelOverride(body: bodyData)
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
         components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
@@ -117,7 +120,7 @@ final class ProxyServer: ObservableObject {
 
         if incomingProtocol != targetProtocol {
             do {
-                guard let json = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+                guard let json = try JSONSerialization.jsonObject(with: effectiveBody) as? [String: Any] else {
                     return errorResponse(400, "Invalid JSON body")
                 }
 
@@ -137,7 +140,7 @@ final class ProxyServer: ObservableObject {
                 return errorResponse(400, "Protocol conversion failed")
             }
         } else {
-            forwardedBody = bodyData
+            forwardedBody = effectiveBody
         }
 
         // Add auth headers
@@ -292,6 +295,9 @@ final class ProxyServer: ObservableObject {
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
 
+        // Apply model override from ModelSwitcher before forwarding
+        let effectiveBody = applyModelOverride(body: bodyData)
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
         components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
@@ -306,7 +312,7 @@ final class ProxyServer: ObservableObject {
 
         if incomingProtocol != targetProtocol {
             do {
-                guard let json = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+                guard let json = try JSONSerialization.jsonObject(with: effectiveBody) as? [String: Any] else {
                     SmartRouter.shared.completeRequest(requestID: reqIdString)
                     return errorResponse(400, "Invalid JSON body")
                 }
@@ -328,7 +334,7 @@ final class ProxyServer: ObservableObject {
                 return errorResponse(400, "Protocol conversion failed")
             }
         } else {
-            forwardedBody = bodyData
+            forwardedBody = effectiveBody
         }
 
         // Add auth headers
@@ -485,6 +491,23 @@ final class ProxyServer: ObservableObject {
             return nil
         }
         return json["model"] as? String
+    }
+
+    /// Apply model override from ModelSwitcher to request body
+    /// Returns modified body data with the selected model, or original body if no override
+    private func applyModelOverride(body: Data) -> Data {
+        // Check if user has selected a specific model
+        guard ModelSwitcher.shared.hasOverride,
+              let modelID = ModelSwitcher.shared.selectedModelID,
+              var json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+        else {
+            return body
+        }
+
+        json["model"] = modelID
+        Log.info("Model override applied: \(modelID)")
+
+        return (try? JSONSerialization.data(withJSONObject: json)) ?? body
     }
 
     /// Build final HTTP response

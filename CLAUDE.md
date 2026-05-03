@@ -11,6 +11,11 @@
 - **Zero hardcoded strings** — use `L10n.xxx` for all UI text
 - **API Keys via KeychainManager only** — never plaintext
 - **SwiftFormat warning**: Current version may aggressively delete `self` in closures and `Log.` prefixes. Check build after formatting.
+- **Protocol Consistency (CRITICAL)**:
+  - When routing or switching models, **NEVER** break the client's protocol expectation.
+  - If client sends **Anthropic** protocol, proxy MUST return **Anthropic** protocol response.
+  - Routing to *any* backend supporting Anthropic protocol (or convertible to it) is **ALLOWED**.
+  - Routing an Anthropic request to a native OpenAI endpoint *without* converting the response back is **FORBIDDEN** (breaks Tool Calling/SSE).
 
 ## Build Commands
 ```bash
@@ -36,6 +41,11 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 - **Static Linking**: ✅ `use_frameworks! :linkage => :static` enabled, app size 8.6 MB
 
 ## Pending Tasks
+- **Phase 5: Unified Model Switcher** (IN PROGRESS)
+  - Implement `ModelSwitcher` service to manage active model.
+  - Update `MenuView` to allow selecting models from the active channel.
+  - Update `RequestForwarder` to replace `model` field in requests.
+  - **Strict Protocol Consistency**: Only allow switching models that support the active channel's protocol.
 - **UI Test expansion**: Add UITest cases for Onboarding flow, AddChannel CRUD, Settings tabs
 - **UsageTracker integration in Proxy**: Ensure `UsageTracker.recordUsage` is called from `RequestForwarder` on every proxied request
 
