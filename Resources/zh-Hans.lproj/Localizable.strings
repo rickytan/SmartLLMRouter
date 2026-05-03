@@ -119,6 +119,7 @@
 "onboarding.finish" = "完成";
 "onboarding.launch" = "启动应用";
 "onboarding.add_channel" = "添加您的第一个通道";
+"onboarding.api_key_placeholder" = "Enter your API key";
 "onboarding.test_connection" = "测试您的连接";
 "onboarding.shell_config" = "配置 Shell 环境";
 "onboarding.shell_config_description" = "SmartLLM Router 将环境变量添加到您的 ~/.zshrc，以便 Claude Code 可以自动使用";

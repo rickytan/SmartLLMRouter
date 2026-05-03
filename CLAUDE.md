@@ -17,11 +17,9 @@
 # Ruby path (system Ruby 2.6 is too old)
 export PATH="/opt/homebrew/Cellar/ruby@3.1/3.1.7_1/bin:$PATH"
 
-# Install deps
-bundle exec pod install
-
-# Generate project
+# ⚠️ ORDER MATTERS: xcodegen first, then pod install (pod install writes CocoaPods links into the xcodeproj)
 xcodegen generate
+bundle exec pod install
 
 # Build
 xcodebuild -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destination 'platform=macOS' build
@@ -33,14 +31,14 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ## Current State
 - **Phase 1-2**: ✅ Complete — All core services (ProxyServer, SmartRouter, CooldownEngine, ChannelManager, ProtocolConverter, RequestForwarder, UsageTracker, KeychainManager, ShellConfigManager, LoggerManager)
 - **Phase 3 UI**: ✅ MenuView & SettingsView rewritten per DESIGN.md
-- **Onboarding**: ⚠️ Files exist in `Sources/Views/Onboarding/` (OnboardingView.swift, AddChannelView.swift), AppState updated with `onboardingCompleted`, **but NOT integrated into AppMain.swift yet**
+- **Onboarding**: ✅ Integrated into AppMain.swift — shows on first launch via `AppState.onboardingCompleted`, 4-step flow (welcome → addChannel → shellConfig → done)
+- **DesignTokens**: ✅ 62 constants (Spacing.xxs added), all View files use DesignToken.xxx — zero hardcoded visual values
 - **Phase 4**: ❌ Missing — Usage 30-day chart, Sparkle auto-update
 
 ## Pending Tasks (Priority Order)
-1. **Integrate Onboarding into AppMain.swift** — Show OnboardingView on first launch, hide when `AppState.onboardingCompleted == true`
-2. **Fix/Add accessibilityIdentifier** — All elements in OnboardingView, AddChannelView, MenuView, SettingsView
-3. **UsageTab 30-day chart** — Use Swift Charts framework (iOS 16+/macOS 13+) to render bar charts, grouped by channel
-4. **Complete AddChannelView** — Ensure full CRUD with provider templates, Keychain integration, model metadata
+1. **UsageTab 30-day chart** — Use Swift Charts framework (iOS 16+/macOS 13+) to render bar charts, grouped by channel
+2. **Complete AddChannelView CRUD** — Ensure full model metadata management, Keychain integration
+3. **Sparkle auto-update** — Already in Podfile, needs AppMain integration
 
 ## Key Files
 - Sources/Views/Onboarding/OnboardingView.swift — First-launch wizard (4 steps)

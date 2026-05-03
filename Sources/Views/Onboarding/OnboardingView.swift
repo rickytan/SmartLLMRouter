@@ -204,7 +204,7 @@ struct OnboardingView: View {
                 }
             }
 
-            SecureField("", text: $apiKey)
+            SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
                 .textFieldStyle(.roundedBorder)
                 .font(DesignToken.Font.mono())
                 .accessibilityIdentifier("onboarding.addchannel.apiKey")
@@ -229,7 +229,7 @@ struct OnboardingView: View {
     }
 
     private func connectionTestStatus(result: ConnectionTestResult) -> some View {
-        HStack(spacing: DesignToken.Spacing.xs + 2) {
+        HStack(spacing: DesignToken.Spacing.xxs) {
             Image(systemName: result == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundColor(result == .success
                     ? DesignToken.Colors.statusOnline
@@ -257,13 +257,13 @@ struct OnboardingView: View {
             models: []
         )
 
-        // Temporarily store key for test
+        // Temporarily store key for test, always clean up
         try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        defer {
+            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+        }
 
         let success = await channelManager.testConnection(channel: tempChannel)
-
-        // Clean up temp key
-        try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
 
         connectionTestResult = success ? .success : .failure
         isTestingConnection = false
@@ -308,7 +308,7 @@ struct OnboardingView: View {
     }
 
     private func shellConfigStatus(result: ShellConfigResult) -> some View {
-        HStack(spacing: DesignToken.Spacing.xs + 2) {
+        HStack(spacing: DesignToken.Spacing.xxs) {
             Image(systemName: result == .success ? "checkmark.circle.fill" : "info.circle")
                 .foregroundColor(result == .success
                     ? DesignToken.Colors.statusOnline

@@ -119,6 +119,7 @@
 "onboarding.finish" = "Finish";
 "onboarding.launch" = "Launch App";
 "onboarding.add_channel" = "Add your first channel";
+"onboarding.api_key_placeholder" = "Enter your API key";
 "onboarding.test_connection" = "Test your connection";
 "onboarding.shell_config" = "Configure Shell Environment";
 "onboarding.shell_config_description" = "SmartLLM Router will add environment variables to your ~/.zshrc so Claude Code can use it automatically";

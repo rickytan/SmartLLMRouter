@@ -8,8 +8,6 @@ struct SmartLLMRouterApp: App {
     @ObservedObject private var channelStore = ChannelStore.shared
     @Environment(\.openWindow) private var openWindow
 
-    @State private var onboardingShown = false
-
     var body: some Scene {
         // Settings window
         Settings {
