@@ -321,6 +321,12 @@ internal enum L10n {
     internal static var shellConfigDescription: String {
       NSLocalizedString("onboarding.shell_config_description", comment: "")
     }
+    internal static var shellConfigTargetFile: String {
+      NSLocalizedString("onboarding.shell_config_target_file", comment: "")
+    }
+    internal static var shellConfigWillAdd: String {
+      NSLocalizedString("onboarding.shell_config_will_add", comment: "")
+    }
     internal static var shellConfigure: String {
       NSLocalizedString("onboarding.shell_configure", comment: "")
     }

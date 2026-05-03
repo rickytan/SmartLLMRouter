@@ -297,7 +297,7 @@ struct OnboardingView: View {
 
                 // Show the target file path
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                    Text("Target file:")
+                    Text(L10n.Onboarding.shellConfigTargetFile)
                         .font(DesignToken.Font.caption())
                         .foregroundColor(DesignToken.Colors.textSecondary)
                     Text("~/.zshenv")
@@ -313,7 +313,7 @@ struct OnboardingView: View {
 
                 // Preview of export commands
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                    Text("Will add:")
+                    Text(L10n.Onboarding.shellConfigWillAdd)
                         .font(DesignToken.Font.caption())
                         .foregroundColor(DesignToken.Colors.textSecondary)
                     Text(shellConfig.getExportCommands(port: appState.port))

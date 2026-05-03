@@ -63,8 +63,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set accessory policy: no Dock icon, stays alive without windows
         NSApp.setActivationPolicy(.accessory)
 
-        // Initialize logger only — proxy starts from MenuBarExtra.onAppear
+        // Initialize logger
         LoggerManager.setup()
+
+        // Start proxy server immediately
+        Task { @MainActor in
+            guard !ProxyServer.shared.isRunning else { return }
+            ProxyServer.shared.start(port: AppState.shared.port)
+            Log.info("Proxy server started on port \(AppState.shared.port)")
+        }
+
+        // Show onboarding if not completed
+        if !AppState.shared.onboardingCompleted {
+            Task { @MainActor in
+                // Small delay to ensure windows are ready
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "onboarding" }) {
+                    window.makeKeyAndOrderFront(nil)
+                }
+            }
+        }
 
         // Sparkle is already started via lazy property above
         _ = updaterController

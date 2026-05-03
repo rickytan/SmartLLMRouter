@@ -1,8 +1,9 @@
-input_dir: Resources
-output_dir: Sources/Generated
+# SwiftGen Configuration
+# Generates type-safe code for assets
+# Note: L10n.swift is hand-written to match project API conventions
 
 xcassets:
-  inputs: Assets.xcassets
+  inputs: Resources/Assets.xcassets
   outputs:
     templateName: swift5
-    output: Assets+Generated.swift
+    output: Sources/Generated/Assets+Generated.swift

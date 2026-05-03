@@ -122,6 +122,8 @@
 "onboarding.api_key_placeholder" = "Enter your API key";
 "onboarding.test_connection" = "Test your connection";
 "onboarding.shell_config" = "Configure Shell Environment";
+"onboarding.shell_config_target_file" = "Target file:";
+"onboarding.shell_config_will_add" = "Will add:";
 "onboarding.shell_config_description" = "SmartLLM Router adds environment variables to ~/.zshenv so all shell sessions (including Claude Code, scripts, IDEs) use the proxy automatically";
 "onboarding.shell_configure" = "Write to ~/.zshenv";
 "onboarding.shell_configured" = "Shell Configured ✓";
