@@ -1,0 +1,128 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAI Chat Completions API",
+    "description": "Specification for /v1/chat/completions endpoint",
+    "version": "2023-10-01"
+  },
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Create a chat completion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": { "type": "string", "description": "ID of the model to use" },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": { "type": "string", "enum": ["system", "user", "assistant", "tool"] },
+                        "content": { "type": ["string", "array", "null"] },
+                        "tool_calls": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "type": { "type": "string", "enum": ["function"] },
+                              "function": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "arguments": { "type": "string" }
+                                },
+                                "required": ["name", "arguments"]
+                              }
+                            },
+                            "required": ["id", "type", "function"]
+                          }
+                        },
+                        "tool_call_id": { "type": "string" }
+                      },
+                      "required": ["role"]
+                    }
+                  },
+                  "stream": { "type": "boolean", "description": "If set, partial message deltas will be sent" },
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["function"] },
+                        "function": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "description": { "type": "string" },
+                            "parameters": { "type": "object" }
+                          },
+                          "required": ["name", "description", "parameters"]
+                        }
+                      },
+                      "required": ["type", "function"]
+                    }
+                  }
+                },
+                "required": ["model", "messages"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "object": { "type": "string", "enum": ["chat.completion"] },
+                    "created": { "type": "integer" },
+                    "model": { "type": "string" },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": { "type": "integer" },
+                          "message": {
+                            "type": "object",
+                            "properties": {
+                              "role": { "type": "string" },
+                              "content": { "type": ["string", "null"] },
+                              "tool_calls": { "type": "array" }
+                            }
+                          },
+                          "finish_reason": { "type": "string" }
+                        }
+                      }
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "prompt_tokens": { "type": "integer" },
+                        "completion_tokens": { "type": "integer" },
+                        "total_tokens": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              },
+              "text/event-stream": {
+                "schema": { "type": "string" },
+                "example": "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"gpt-4\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

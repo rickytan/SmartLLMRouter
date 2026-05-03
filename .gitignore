@@ -52,7 +52,6 @@ Sources/Generated/
 
 # API Specs reference (large external files)
 Resources/specs/*.ts
-Resources/specs/*.json
 
 # System & Tooling
 .claude/
