@@ -18,18 +18,21 @@ enum DesignToken {
     // MARK: - Colors
 
     enum Colors {
-        static let statusOnline = Color(red: 0.0, green: 0.784, blue: 0.325)
-        static let statusOffline = Color(red: 1.0, green: 0.322, blue: 0.322)
-        static let statusWarning = Color(red: 1.0, green: 0.698, blue: 0.0)
-        static let accent = Color(red: 0.0, green: 0.478, blue: 1.0)
+        // Fixed hex colors (status/accent)
+        static let statusOnline = Color("StatusOnline")
+        static let statusOffline = Color("StatusOffline")
+        static let statusWarning = Color("StatusWarning")
+        static let accent = Color("Accent")
 
-        static let bgPrimary = Color(NSColor.windowBackgroundColor)
-        static let bgSecondary = Color(NSColor.controlBackgroundColor)
-        static let hoverFill = Color.gray.opacity(0.08)
+        // Reference colors (adapt to Light/Dark automatically)
+        static let bgPrimary = Color("BgPrimary")
+        static let bgSecondary = Color("BgSecondary")
+        static let textPrimary = Color("TextPrimary")
+        static let textSecondary = Color("TextSecondary")
+        static let textTertiary = Color("TextTertiary")
 
-        static let textPrimary = Color.primary
-        static let textSecondary = Color.secondary
-        static let textTertiary = Color.gray.opacity(0.5)
+        // Hover fill (alpha adapts to appearance)
+        static let hoverFill = Color("HoverFill")
 
         // Latency colors (aliases matching status colors)
         static let latencyFast = statusOnline
