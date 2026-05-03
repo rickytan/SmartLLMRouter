@@ -45,7 +45,7 @@
 "settings.general.shellEnv" = "Shell Environment";
 "settings.general.updateShellConfig" = "✅ Update Shell Config";
 "settings.general.setupShellEnv" = "⚙️ Setup Shell Environment";
-"settings.general.shellConfigured" = "Variables already added to ~/.zshrc";
+"settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
 
 // Channel Settings
@@ -122,8 +122,8 @@
 "onboarding.api_key_placeholder" = "Enter your API key";
 "onboarding.test_connection" = "Test your connection";
 "onboarding.shell_config" = "Configure Shell Environment";
-"onboarding.shell_config_description" = "SmartLLM Router will add environment variables to your ~/.zshrc so Claude Code can use it automatically";
-"onboarding.shell_configure" = "Configure Shell";
+"onboarding.shell_config_description" = "SmartLLM Router adds environment variables to ~/.zshenv so all shell sessions (including Claude Code, scripts, IDEs) use the proxy automatically";
+"onboarding.shell_configure" = "Write to ~/.zshenv";
 "onboarding.shell_configured" = "Shell Configured ✓";
 "onboarding.shell_config_success" = "Environment variables added successfully";
 "onboarding.shell_config_skipped" = "You can configure this later in Settings";

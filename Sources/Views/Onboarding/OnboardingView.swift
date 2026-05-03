@@ -295,6 +295,41 @@ struct OnboardingView: View {
                     .padding(.horizontal, DesignToken.Spacing.xl)
                     .accessibilityIdentifier("onboarding.shellconfig.description")
 
+                // Show the target file path
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                    Text("Target file:")
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                    Text("~/.zshenv")
+                        .font(DesignToken.Font.mono())
+                        .foregroundColor(DesignToken.Colors.accent)
+                        .padding(.horizontal, DesignToken.Spacing.xs)
+                        .padding(.vertical, DesignToken.Spacing.xxs)
+                        .background(DesignToken.Colors.hoverFill)
+                        .cornerRadius(4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DesignToken.Spacing.xl)
+
+                // Preview of export commands
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                    Text("Will add:")
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                    Text(shellConfig.getExportCommands(port: appState.port))
+                        .font(DesignToken.Font.mono())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                        .padding(DesignToken.Spacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(DesignToken.Colors.bgSecondary)
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(DesignToken.Colors.hoverFill, lineWidth: 1)
+                        )
+                }
+                .padding(.horizontal, DesignToken.Spacing.xl)
+
                 // Config button
                 HoverButton(
                     title: shellConfig.isConfigured ? L10n.Onboarding.shellConfigured : L10n.Onboarding.shellConfigure,
