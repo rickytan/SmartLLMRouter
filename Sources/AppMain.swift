@@ -19,8 +19,8 @@ struct SmartLLMRouterApp: App {
         Window(L10n.Onboarding.title, id: "onboarding") {
             OnboardingView(onComplete: {
                 appState.completeOnboarding()
-                // On macOS 13, we close by having the view dismiss itself
-                NSApplication.shared.windows.first { $0.identifier?.rawValue == "onboarding" }?.close()
+                // macOS 13-safe: find and close the onboarding window by its scene identifier
+                Self.closeOnboardingWindow()
             })
         }
         .windowStyle(.hiddenTitleBar)
@@ -45,6 +45,12 @@ struct SmartLLMRouterApp: App {
         guard !proxy.isRunning else { return }
         proxy.start(port: appState.port)
     }
+
+    /// macOS 13-safe window close: find the onboarding window by scene identifier and close it.
+    /// Uses `NSApp.windows` instead of the deprecated `NSApplication.shared.windows`.
+    private static func closeOnboardingWindow() {
+        NSApp.windows.first { $0.identifier?.rawValue == "onboarding" }?.close()
+    }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -58,13 +64,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_: Notification) {
-        // Initialize logger
+        // Initialize logger only — proxy starts from MenuBarExtra.onAppear
         LoggerManager.setup()
-
-        // Ensure proxy starts
-        Task { @MainActor in
-            ProxyServer.shared.start(port: AppState.shared.port)
-        }
 
         // Sparkle is already started via lazy property above
         // It will automatically check for updates based on the feed URL in Info.plist

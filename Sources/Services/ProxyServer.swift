@@ -17,6 +17,13 @@ final class ProxyServer: ObservableObject {
     }
 
     func start(port: Int? = nil) {
+        // Thread-safe early exit: if already running, do nothing.
+        // Since this class is @MainActor, calls are serialized on the main queue.
+        guard !isRunning else {
+            Log.info("Proxy already running on port \(self.port), skipping start")
+            return
+        }
+
         let usePort = port ?? self.port
         do {
             try httpServer.start(in_port_t(usePort), forceIPv4: true)

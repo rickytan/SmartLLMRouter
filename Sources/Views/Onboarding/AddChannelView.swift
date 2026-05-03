@@ -155,7 +155,8 @@ struct AddChannelView: View {
             ForEach(channelManager.providerTemplates) { template in
                 ProviderCard(
                     template: template,
-                    isSelected: selectedProviderId == template.id
+                    isSelected: selectedProviderId == template.id,
+                    iconSymbol: ProviderIconMapper.symbol(for: template.id)
                 ) {
                     selectedProviderId = template.id
                     let channel = channelManager.createChannelFromTemplate(

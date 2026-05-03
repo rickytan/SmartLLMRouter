@@ -58,6 +58,8 @@ struct OnboardingView: View {
             navigationButtons
                 .padding(DesignToken.Spacing.lg)
         }
+        // ScrollView wrapper + top padding to clear traffic lights from .hiddenTitleBar
+        .safeAreaInset(edge: .top) { Color.clear.frame(height: 8) }
         .frame(width: DesignToken.Layout.onboardingWidth, height: DesignToken.Layout.onboardingHeight)
         .background(DesignToken.Colors.bgPrimary)
         .transition(.opacity)
@@ -97,34 +99,36 @@ struct OnboardingView: View {
     // MARK: - Welcome Step
 
     private var welcomeStep: some View {
-        VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
-            Image(systemName: "network")
-                .font(.system(size: DesignToken.Layout.heroIconSize))
-                .foregroundColor(DesignToken.Colors.accent)
-                .accessibilityIdentifier("onboarding.welcome.icon")
+        ScrollView {
+            VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
+                Image(systemName: "network")
+                    .font(.system(size: DesignToken.Layout.heroIconSize))
+                    .foregroundColor(DesignToken.Colors.accent)
+                    .accessibilityIdentifier("onboarding.welcome.icon")
 
-            Text(L10n.Onboarding.title)
-                .font(DesignToken.Font.h1())
-                .accessibilityIdentifier("onboarding.welcome.title")
+                Text(L10n.Onboarding.title)
+                    .font(DesignToken.Font.h1())
+                    .accessibilityIdentifier("onboarding.welcome.title")
 
-            Text(L10n.Onboarding.subtitle)
-                .font(DesignToken.Font.body())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DesignToken.Layout.cardPadding * 2)
-                .accessibilityIdentifier("onboarding.welcome.subtitle")
+                Text(L10n.Onboarding.subtitle)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignToken.Layout.cardPadding * 2)
+                    .accessibilityIdentifier("onboarding.welcome.subtitle")
 
-            VStack(spacing: DesignToken.Spacing.md) {
-                featureRow(icon: "arrow.triangle.2.circlepath", text: L10n.Onboarding.featureFailover)
-                    .accessibilityIdentifier("onboarding.welcome.feature.failover")
-                featureRow(icon: "key.fill", text: L10n.Onboarding.featureMultiKey)
-                    .accessibilityIdentifier("onboarding.welcome.feature.multikey")
-                featureRow(icon: "shield.fill", text: L10n.Onboarding.featurePrivacy)
-                    .accessibilityIdentifier("onboarding.welcome.feature.privacy")
+                VStack(spacing: DesignToken.Spacing.md) {
+                    featureRow(icon: "arrow.triangle.2.circlepath", text: L10n.Onboarding.featureFailover)
+                        .accessibilityIdentifier("onboarding.welcome.feature.failover")
+                    featureRow(icon: "key.fill", text: L10n.Onboarding.featureMultiKey)
+                        .accessibilityIdentifier("onboarding.welcome.feature.multikey")
+                    featureRow(icon: "shield.fill", text: L10n.Onboarding.featurePrivacy)
+                        .accessibilityIdentifier("onboarding.welcome.feature.privacy")
+                }
+                .padding(.top, DesignToken.Spacing.sm)
             }
-            .padding(.top, DesignToken.Spacing.sm)
+            .padding(.horizontal, DesignToken.Spacing.xl)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl)
     }
 
     private func featureRow(icon: String, text: String) -> some View {
@@ -144,26 +148,28 @@ struct OnboardingView: View {
     // MARK: - Add Channel Step
 
     private var addChannelStep: some View {
-        VStack(spacing: DesignToken.Spacing.lg) {
-            Text(L10n.Onboarding.addChannel)
-                .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("onboarding.addchannel.title")
+        ScrollView {
+            VStack(spacing: DesignToken.Spacing.lg) {
+                Text(L10n.Onboarding.addChannel)
+                    .font(DesignToken.Font.h2())
+                    .accessibilityIdentifier("onboarding.addchannel.title")
 
-            // Provider grid
-            providerGrid
-                .accessibilityIdentifier("onboarding.addchannel.providerGrid")
+                // Provider grid
+                providerGrid
+                    .accessibilityIdentifier("onboarding.addchannel.providerGrid")
 
-            // API Key input (shown when provider selected)
-            if selectedProviderId != nil {
-                apiKeySection
+                // API Key input (shown when provider selected)
+                if selectedProviderId != nil {
+                    apiKeySection
+                }
+
+                // Connection test result
+                if let result = connectionTestResult {
+                    connectionTestStatus(result: result)
+                }
             }
-
-            // Connection test result
-            if let result = connectionTestResult {
-                connectionTestStatus(result: result)
-            }
+            .padding(.horizontal, DesignToken.Spacing.xl)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl)
     }
 
     private var providerGrid: some View {
@@ -178,7 +184,8 @@ struct OnboardingView: View {
             ForEach(channelManager.providerTemplates) { template in
                 ProviderCard(
                     template: template,
-                    isSelected: selectedProviderId == template.id
+                    isSelected: selectedProviderId == template.id,
+                    iconSymbol: ProviderIconMapper.symbol(for: template.id)
                 ) {
                     selectedProviderId = template.id
                     connectionTestResult = nil
@@ -186,7 +193,6 @@ struct OnboardingView: View {
                 .accessibilityIdentifier("onboarding.provider.\(template.id)")
             }
         }
-        .frame(maxHeight: DesignToken.Layout.gridMaxHeight)
     }
 
     private var apiKeySection: some View {
@@ -272,39 +278,41 @@ struct OnboardingView: View {
     // MARK: - Shell Config Step
 
     private var shellConfigStep: some View {
-        VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
-            Text(L10n.Onboarding.shellConfig)
-                .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("onboarding.shellconfig.title")
+        ScrollView {
+            VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
+                Text(L10n.Onboarding.shellConfig)
+                    .font(DesignToken.Font.h2())
+                    .accessibilityIdentifier("onboarding.shellconfig.title")
 
-            Image(systemName: "terminal")
-                .font(.system(size: DesignToken.Layout.largeIconSize))
-                .foregroundColor(DesignToken.Colors.accent)
+                Image(systemName: "terminal")
+                    .font(.system(size: DesignToken.Layout.largeIconSize))
+                    .foregroundColor(DesignToken.Colors.accent)
 
-            Text(L10n.Onboarding.shellConfigDescription)
-                .font(DesignToken.Font.body())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DesignToken.Spacing.xl)
-                .accessibilityIdentifier("onboarding.shellconfig.description")
+                Text(L10n.Onboarding.shellConfigDescription)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignToken.Spacing.xl)
+                    .accessibilityIdentifier("onboarding.shellconfig.description")
 
-            // Config button
-            HoverButton(
-                title: shellConfig.isConfigured ? L10n.Onboarding.shellConfigured : L10n.Onboarding.shellConfigure,
-                icon: shellConfig.isConfigured ? "checkmark.circle.fill" : "gearshape"
-            ) {
-                Task {
-                    await configureShell()
+                // Config button
+                HoverButton(
+                    title: shellConfig.isConfigured ? L10n.Onboarding.shellConfigured : L10n.Onboarding.shellConfigure,
+                    icon: shellConfig.isConfigured ? "checkmark.circle.fill" : "gearshape"
+                ) {
+                    Task {
+                        await configureShell()
+                    }
+                }
+                .accessibilityIdentifier("onboarding.shellconfig.configureButton")
+
+                // Status
+                if let result = shellConfigResult {
+                    shellConfigStatus(result: result)
                 }
             }
-            .accessibilityIdentifier("onboarding.shellconfig.configureButton")
-
-            // Status
-            if let result = shellConfigResult {
-                shellConfigStatus(result: result)
-            }
+            .padding(.horizontal, DesignToken.Spacing.xl)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl)
     }
 
     private func shellConfigStatus(result: ShellConfigResult) -> some View {
@@ -336,24 +344,26 @@ struct OnboardingView: View {
     // MARK: - Done Step
 
     private var doneStep: some View {
-        VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: DesignToken.Layout.heroIconSize))
-                .foregroundColor(DesignToken.Colors.statusOnline)
-                .accessibilityIdentifier("onboarding.done.icon")
+        ScrollView {
+            VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.xs) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: DesignToken.Layout.heroIconSize))
+                    .foregroundColor(DesignToken.Colors.statusOnline)
+                    .accessibilityIdentifier("onboarding.done.icon")
 
-            Text(L10n.Onboarding.done)
-                .font(DesignToken.Font.h1())
-                .accessibilityIdentifier("onboarding.done.title")
+                Text(L10n.Onboarding.done)
+                    .font(DesignToken.Font.h1())
+                    .accessibilityIdentifier("onboarding.done.title")
 
-            Text(L10n.Onboarding.doneDescription)
-                .font(DesignToken.Font.body())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DesignToken.Layout.cardPadding * 2)
-                .accessibilityIdentifier("onboarding.done.description")
+                Text(L10n.Onboarding.doneDescription)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignToken.Layout.cardPadding * 2)
+                    .accessibilityIdentifier("onboarding.done.description")
+            }
+            .padding(.horizontal, DesignToken.Spacing.xl)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl)
     }
 
     // MARK: - Navigation Buttons
@@ -451,6 +461,7 @@ struct OnboardingView: View {
     private func completeOnboarding() {
         onComplete()
     }
+
 }
 
 // MARK: - Provider Card
@@ -458,41 +469,47 @@ struct OnboardingView: View {
 struct ProviderCard: View {
     let template: ProviderTemplate
     let isSelected: Bool
+    let iconSymbol: String
     let action: () -> Void
 
     @State private var isHovered: Bool = false
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: DesignToken.Spacing.xs) {
-                Image(systemName: "globe")
-                    .font(.system(size: DesignToken.Layout.cardIconSize, weight: .medium))
+            VStack(spacing: DesignToken.Spacing.sm) {
+                // Icon
+                Image(systemName: iconSymbol)
+                    .font(.system(size: 28, weight: .medium))
                     .foregroundColor(isSelected
                         ? DesignToken.Colors.accent
-                        : DesignToken.Colors.textSecondary)
+                        : (isHovered ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary))
 
+                // Provider name
                 Text(template.nameEn)
-                    .font(DesignToken.Font.micro())
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundColor(isSelected ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary)
+                    .font(DesignToken.Font.caption())
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(isSelected
+                        ? DesignToken.Colors.textPrimary
+                        : (isHovered ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary))
             }
             .frame(maxWidth: .infinity)
+            .frame(height: 80)
             .padding(.vertical, DesignToken.Spacing.sm)
             .padding(.horizontal, DesignToken.Spacing.xs)
             .background(
                 isSelected
-                    ? DesignToken.Colors.accent.opacity(0.1)
-                    : isHovered ? DesignToken.Colors.hoverFill : Color.clear
+                    ? DesignToken.Colors.accent.opacity(0.12)
+                    : (isHovered ? DesignToken.Colors.hoverFill : Color.clear)
             )
-            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .cornerRadius(DesignToken.Layout.cardCornerRadius)
             .overlay(
-                RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
                     .stroke(
                         isSelected
                             ? DesignToken.Colors.accent
-                            : Color.clear,
-                        lineWidth: 1
+                            : (isHovered ? DesignToken.Colors.textTertiary : Color.clear),
+                        lineWidth: isSelected ? 1.5 : 1
                     )
             )
         }
