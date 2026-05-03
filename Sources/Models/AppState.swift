@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
     @Published var port: Int = 1897
     @Published var autoFailover: Bool = true
     @Published var isLoading: Bool = false
+    @Published var launchAtLogin: Bool = false
 
     private init() {
         port = UserDefaults.standard.integer(forKey: "smartllm_port")
@@ -17,6 +18,7 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(port, forKey: "smartllm_port")
         }
         autoFailover = UserDefaults.standard.object(forKey: "smartllm_auto_failover") as? Bool ?? true
+        launchAtLogin = UserDefaults.standard.object(forKey: "smartllm_launch_at_login") as? Bool ?? false
     }
 
     func savePort(_ newPort: Int) {
@@ -28,5 +30,11 @@ final class AppState: ObservableObject {
     func toggleAutoFailover() {
         autoFailover.toggle()
         UserDefaults.standard.set(autoFailover, forKey: "smartllm_auto_failover")
+    }
+
+    func toggleLaunchAtLogin() {
+        launchAtLogin.toggle()
+        UserDefaults.standard.set(launchAtLogin, forKey: "smartllm_launch_at_login")
+        // TODO: Actually register with SMLoginItemSetEnabled
     }
 }
