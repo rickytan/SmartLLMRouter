@@ -67,7 +67,10 @@ targets:
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: NO
         PRODUCT_NAME: SmartLLMRouterTests
-    dependencies: []
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/SmartLLMRouter.app/Contents/MacOS/SmartLLMRouter
+        BUNDLE_LOADER: $(TEST_HOST)
+    dependencies:
+      - target: SmartLLMRouter
 
   SmartLLMRouterUITests:
     type: bundle.ui-testing
