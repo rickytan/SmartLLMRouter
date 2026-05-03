@@ -6,7 +6,14 @@
 *~
 
 # Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+
+## Build generated
+build/
 DerivedData/
+
+## Various settings
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -16,22 +23,39 @@ DerivedData/
 *.perspectivev3
 !default.perspectivev3
 xcuserdata/
+
+## Other
 *.moved-aside
-build/
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-# CocoaPods
-Pods/
-*.xcworkspace
-!*.xcworkspace
-
-# Swift Package Manager
-.build/
-Package.resolved
-
-# IDE
 *.xcscmblueprint
 *.xccheckout
+
+## Swift Package Manager
+#
+# Add this line if you don't want to commit the resolved dependencies and Package.resolved cache
+Package.resolved
+.build/
+
+# CocoaPods
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
+#
+Pods/
+*.xcworkspace
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+!*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# SwiftGen
+Sources/Generated/
+
+# API Specs reference (large external files)
+Resources/specs/*.ts
+Resources/specs/*.json
+
+# System & Tooling
+.claude/
+.hermes/
+Gemfile.lock
+Podfile.lock

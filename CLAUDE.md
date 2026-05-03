@@ -36,7 +36,7 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ## Current State
 - **Phase 1-2**: ✅ Complete — All core services
 - **Phase 3 UI**: ✅ MenuView & SettingsView fully rewritten with DesignTokens
-- **Onboarding**: ✅ Integrated, 4-step flow complete
+- **Onboarding**: ✅ **FIXED** — UI overlap resolved (safeAreaInset + ScrollView), provider icons added (SF Symbols), crash protection verified.
 - **Phase 4**: ✅ **COMPLETE** — UsageTab stacked bar chart (grouped by channel), Sparkle auto-update integrated, zero hardcoded visual values across all Views
 - **Static Linking**: ✅ `use_frameworks! :linkage => :static` enabled, app size 8.6 MB
 
