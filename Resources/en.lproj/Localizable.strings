@@ -1,55 +1,107 @@
-/* App Status */
-"app.title" = "SmartLLM Router";
-"app.status_running" = "Running";
-"app.status_stopped" = "Stopped";
-"app.status_no_providers" = "No Providers";
+// App
+"app.name" = "SmartLLM Router";
+"app.status.running" = "Running";
+"app.status.stopped" = "Stopped";
+"app.status.starting" = "Starting...";
+"app.status.error" = "Error";
 
-/* Menu Items */
-"menu.auto_switch" = "⚡ Auto Switch";
-"menu.manual_mode" = "🔘 Manual Mode";
-"menu.settings" = "⚙️ Settings";
-"menu.quit" = "❌ Quit";
-"menu.recent_requests" = "📋 Recent Requests";
-"menu.copy_env_config" = "📋 Copy Env Config";
-"menu.test_active_key" = "🧪 Test Active Key";
+// Menu Bar
+"menu.stats.requests" = "Requests: %lld";
+"menu.stats.tokens" = "Tokens: %lld";
+"menu.failover.auto" = "Auto-Failover";
+"menu.failover.manual" = "Manual Mode";
+"menu.channel.active" = "Active: %@";
+"menu.requests.recent" = "Recent Requests";
+"menu.requests.none" = "No recent requests";
+"menu.copy.env" = "Copy Env Config";
+"menu.test.key" = "Test Active Key";
+"menu.settings" = "Settings...";
+"menu.quit" = "Quit";
+"menu.speed" = "Speed: %lldms";
 
-/* Settings Window */
+// Settings
 "settings.title" = "Settings";
 "settings.general" = "General";
 "settings.channels" = "Channels";
 "settings.advanced" = "Advanced";
 "settings.usage" = "Usage";
 "settings.about" = "About";
-"settings.local_port" = "Local Port";
-"settings.launch_at_login" = "Launch at Login";
-"settings.setup_shell" = "⚙️ Setup Shell Environment";
-"settings.service_control" = "Service Control";
-"settings.environment" = "Environment Setup";
-"settings.cooldown_duration" = "Cooldown Duration";
-"settings.retry_count" = "Retry Count";
-"settings.fetch_models" = "Fetch Models";
-"settings.test_connection" = "Test Connection";
-"settings.save" = "Save";
-"settings.delete" = "Delete";
 
-/* Onboarding */
-"onboarding.welcome_title" = "Welcome";
-"onboarding.welcome_desc" = "First run detected.";
-"onboarding.skip" = "Set up Later";
-"onboarding.copy_env" = "Copy Env Variables";
-"onboarding.help_config" = "Help me configure";
+// General Settings
+"settings.general.port" = "Port";
+"settings.general.port.placeholder" = "1897";
+"settings.general.language" = "Language";
+"settings.general.auto_start" = "Auto-start at login";
+"settings.general.dark_mode" = "Dark mode";
+"settings.general.default_protocol" = "Default Protocol";
+"settings.general.protocol.auto" = "Auto-detect";
+"settings.general.protocol.openai" = "OpenAI";
+"settings.general.protocol.anthropic" = "Anthropic";
 
-/* About */
-"about.check_updates" = "Check for Updates";
-"about.github_repo" = "View on GitHub";
-"about.privacy" = "Privacy Policy";
-"about.copy_diagnostics" = "Copy Diagnostics";
-"about.credits" = "Credits";
+// Channel Settings
+"settings.channels.add" = "Add Channel";
+"settings.channels.edit" = "Edit Channel";
+"settings.channels.delete" = "Delete";
+"settings.channels.name" = "Name";
+"settings.channels.base_url" = "Base URL";
+"settings.channels.api_key" = "API Key";
+"settings.channels.models" = "Models";
+"settings.channels.fetch_models" = "Fetch Models";
+"settings.channels.priority" = "Priority";
+"settings.channels.protocol" = "Protocol";
+"settings.channels.test_connection" = "Test Connection";
 
-/* Common */
-"common.copy" = "Copy";
-"common.success" = "Success";
-"common.error" = "Error";
-"common.cancel" = "Cancel";
-"common.start" = "Start";
-"common.stop" = "Stop";
+// Advanced Settings
+"settings.advanced.failover" = "Auto-Failover";
+"settings.advanced.cooldown" = "Cooldown Period";
+"settings.advanced.cooldown.429" = "Rate Limit (429)";
+"settings.advanced.cooldown.5xx" = "Server Error (5xx)";
+"settings.advanced.cooldown.401" = "Auth Error (401)";
+"settings.advanced.retry_count" = "Max Retries";
+"settings.advanced.timeout" = "Request Timeout (seconds)";
+
+// Usage Settings
+"settings.usage.today" = "Today";
+"settings.usage.this_week" = "This Week";
+"settings.usage.this_month" = "This Month";
+"settings.usage.total_requests" = "Total Requests";
+"settings.usage.total_tokens" = "Total Tokens";
+"settings.usage.total_cost" = "Estimated Cost";
+"settings.usage.input_tokens" = "Input Tokens";
+"settings.usage.output_tokens" = "Output Tokens";
+"settings.usage.clear_history" = "Clear History";
+
+// About Settings
+"settings.about.version" = "Version %@";
+"settings.about.check_update" = "Check for Updates";
+"settings.about.github" = "GitHub Repository";
+"settings.about.license" = "License";
+
+// Error Messages
+"error.network" = "Network Error: %@";
+"error.auth" = "Authentication Failed";
+"error.rate_limit" = "Rate Limit Exceeded";
+"error.server" = "Server Error";
+"error.unknown" = "Unknown Error";
+"error.channel_unavailable" = "All channels unavailable";
+"error.invalid_request" = "Invalid Request";
+"error.no_api_key" = "No API key configured";
+"error.invalid_port" = "Invalid port number";
+
+// Onboarding
+"onboarding.title" = "Welcome to SmartLLM Router";
+"onboarding.subtitle" = "Your local LLM proxy and router";
+"onboarding.setup" = "Set Up Now";
+"onboarding.skip" = "Set Up Later";
+"onboarding.add_channel" = "Add your first channel";
+"onboarding.test_connection" = "Test your connection";
+
+// Status Messages
+"status.copied" = "Copied to clipboard";
+"status.testing" = "Testing connection...";
+"status.connected" = "Connected";
+"status.disconnected" = "Disconnected";
+"status.fetching_models" = "Fetching models...";
+"status.models_fetched" = "Models fetched successfully";
+"status.saving" = "Saving...";
+"status.saved" = "Saved successfully";

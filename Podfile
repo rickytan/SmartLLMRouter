@@ -1,3 +1,4 @@
+source "https://cdn.cocoapods.org/"
 platform :osx, '13.0'
 use_frameworks!
 
@@ -11,6 +12,20 @@ target 'SmartLLMRouter' do
   # 应用更新检查
   pod 'Sparkle', '~> 2.6'
   
-  # SwiftGen 资源生成
-  pod 'SwiftGen', '~> 6.6.0'
+  # SwiftLint — Build phase linting
+  pod 'SwiftLint'
+  
+  # 高性能异步日志系统
+  pod 'CocoaLumberjack/Swift', '~> 3.8.5'
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      # Fix unsupported Swift version
+      config.build_settings['SWIFT_VERSION'] = '5.9'
+      # Fix deployment target too low for Xcode 15
+      config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '13.0'
+    end
+  end
 end

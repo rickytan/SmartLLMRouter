@@ -46,7 +46,8 @@
 *   **HTTP Client**: Alamofire (v5.9.0+)
 *   **Security**: KeychainAccess (v4.2.2)
 *   **Updates**: Sparkle (v2.6)
-*   **Tooling**: XcodeGen, SwiftGen, CocoaPods
+*   **Logging**: CocoaLumberjack/Swift (v3.9+) — 异步高性能日志，支持多输出（Console + File），分级日志（DDLogVerbose/Debug/Info/Warn/Error），自动日志轮转
+*   **Tooling**: XcodeGen, SwiftGen, CocoaPods, SwiftLint, SwiftFormat
 
 ---
 
@@ -193,8 +194,13 @@ struct ModelEntry: Identifiable, Codable {
 ## 5. 非功能性需求
 
 1.  **性能**: 冷启动 < 2s, 转发延迟 < 10ms, 内存 < 50MB.
-2.  **隐私**: 严禁数据外发, Keychain 存储, 日志脱敏.
-3.  **工程**: XcodeGen 管理工程, SwiftGen 管理多语言.
+2.  **隐私**: 严禁数据外发, Keychain 存储, **日志脱敏**（API Key / Secret 必须脱敏为 `[REDACTED]`，禁止明文出现在日志中）.
+3.  **日志系统**: 采用 CocoaLumberjack/Swift，全模块统一通过 `DDLog` 输出：
+    *   支持 Console + File 双输出，日志文件自动轮转（单文件最大 1MB，保留最近 7 天）
+    *   分级：Debug（开发调试）、Info（常规操作）、Warn（可恢复异常）、Error（不可恢复错误）
+    *   Proxy 层记录请求路由决策、协议转换、上游响应状态码；Router 层记录故障切换、冷却期触发
+    *   Release 构建默认 `DDLogLevelInfo`，Debug 构建默认 `DDLogLevelDebug`
+4.  **工程**: XcodeGen 管理工程, SwiftGen 管理多语言, SwiftLint + SwiftFormat 自动格式化.
 
 ---
 

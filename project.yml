@@ -6,17 +6,6 @@ options:
   createIntermediateGroups: true
   groupSortPosition: top
 
-packages:
-  Swifter:
-    url: https://github.com/httpswift/swifter.git
-    majorVersion: 1.5.0
-  Alamofire:
-    url: https://github.com/Alamofire/Alamofire.git
-    majorVersion: 5.9.0
-  KeychainAccess:
-    url: https://github.com/kishikawakatsumi/KeychainAccess.git
-    majorVersion: 4.2.2
-
 settings:
   base:
     SWIFT_VERSION: 5.9
@@ -44,6 +33,12 @@ targets:
     dependencies:
       - sdk: Cocoa.framework
       - sdk: SystemConfiguration.framework
-      - package: Swifter
-      - package: Alamofire
-      - package: KeychainAccess
+    preBuildScripts:
+      - name: SwiftLint
+        script: |
+          if [ -f "${PODS_ROOT}/SwiftLint/swiftlint" ]; then
+            "${PODS_ROOT}/SwiftLint/swiftlint" --config "${SRCROOT}/.swiftlint.yml" || echo "warning: SwiftLint found issues"
+          else
+            echo "warning: SwiftLint not found in Pods"
+          fi
+        basedir: "${SRCROOT}"

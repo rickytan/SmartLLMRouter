@@ -42,3 +42,13 @@ Pods/
 
 # SwiftGen
 Sources/Generated/
+
+# API Specs reference (large external files)
+Resources/specs/*.ts
+
+# System & Tooling
+.DS_Store
+.claude/
+.hermes/
+Gemfile.lock
+Podfile.lock

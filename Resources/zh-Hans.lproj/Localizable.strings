@@ -1,55 +1,107 @@
-/* App Status */
-"app.title" = "SmartLLM Router";
-"app.status_running" = "运行中";
-"app.status_stopped" = "已停止";
-"app.status_no_providers" = "无可用服务";
+// App
+"app.name" = "SmartLLM Router";
+"app.status.running" = "运行中";
+"app.status.stopped" = "已停止";
+"app.status.starting" = "启动中...";
+"app.status.error" = "错误";
 
-/* Menu Items */
-"menu.auto_switch" = "⚡ 自动切换";
-"menu.manual_mode" = "🔘 手动模式";
-"menu.settings" = "⚙️ 设置";
-"menu.quit" = "❌ 退出";
-"menu.recent_requests" = "📋 最近请求";
-"menu.copy_env_config" = "📋 复制环境变量";
-"menu.test_active_key" = "🧪 测试当前 Key";
+// Menu Bar
+"menu.stats.requests" = "请求数: %lld";
+"menu.stats.tokens" = "Token数: %lld";
+"menu.failover.auto" = "自动故障转移";
+"menu.failover.manual" = "手动模式";
+"menu.channel.active" = "当前: %@";
+"menu.requests.recent" = "最近请求";
+"menu.requests.none" = "暂无请求记录";
+"menu.copy.env" = "复制环境变量配置";
+"menu.test.key" = "测试当前密钥";
+"menu.settings" = "设置...";
+"menu.quit" = "退出";
+"menu.speed" = "延迟: %lldms";
 
-/* Settings Window */
+// Settings
 "settings.title" = "设置";
-"settings.general" = "常规";
-"settings.channels" = "渠道管理";
-"settings.advanced" = "高级设置";
-"settings.usage" = "使用量统计";
+"settings.general" = "通用";
+"settings.channels" = "通道";
+"settings.advanced" = "高级";
+"settings.usage" = "使用情况";
 "settings.about" = "关于";
-"settings.local_port" = "本地端口";
-"settings.launch_at_login" = "登录时启动";
-"settings.setup_shell" = "⚙️ 一键配置终端";
-"settings.service_control" = "服务控制";
-"settings.environment" = "环境配置";
-"settings.cooldown_duration" = "冷却时间";
-"settings.retry_count" = "重试次数";
-"settings.fetch_models" = "获取模型列表";
-"settings.test_connection" = "测试连接";
-"settings.save" = "保存";
-"settings.delete" = "删除";
 
-/* Onboarding */
-"onboarding.welcome_title" = "欢迎使用";
-"onboarding.welcome_desc" = "检测到首次运行";
+// General Settings
+"settings.general.port" = "端口";
+"settings.general.port.placeholder" = "1897";
+"settings.general.language" = "语言";
+"settings.general.auto_start" = "登录时自动启动";
+"settings.general.dark_mode" = "深色模式";
+"settings.general.default_protocol" = "默认协议";
+"settings.general.protocol.auto" = "自动检测";
+"settings.general.protocol.openai" = "OpenAI";
+"settings.general.protocol.anthropic" = "Anthropic";
+
+// Channel Settings
+"settings.channels.add" = "添加通道";
+"settings.channels.edit" = "编辑通道";
+"settings.channels.delete" = "删除";
+"settings.channels.name" = "名称";
+"settings.channels.base_url" = "基础 URL";
+"settings.channels.api_key" = "API 密钥";
+"settings.channels.models" = "模型";
+"settings.channels.fetch_models" = "获取模型列表";
+"settings.channels.priority" = "优先级";
+"settings.channels.protocol" = "协议";
+"settings.channels.test_connection" = "测试连接";
+
+// Advanced Settings
+"settings.advanced.failover" = "自动故障转移";
+"settings.advanced.cooldown" = "冷却期";
+"settings.advanced.cooldown.429" = "频率限制 (429)";
+"settings.advanced.cooldown.5xx" = "服务器错误 (5xx)";
+"settings.advanced.cooldown.401" = "认证错误 (401)";
+"settings.advanced.retry_count" = "最大重试次数";
+"settings.advanced.timeout" = "请求超时 (秒)";
+
+// Usage Settings
+"settings.usage.today" = "今天";
+"settings.usage.this_week" = "本周";
+"settings.usage.this_month" = "本月";
+"settings.usage.total_requests" = "总请求数";
+"settings.usage.total_tokens" = "总 Token 数";
+"settings.usage.total_cost" = "预估费用";
+"settings.usage.input_tokens" = "输入 Token";
+"settings.usage.output_tokens" = "输出 Token";
+"settings.usage.clear_history" = "清除历史记录";
+
+// About Settings
+"settings.about.version" = "版本 %@";
+"settings.about.check_update" = "检查更新";
+"settings.about.github" = "GitHub 仓库";
+"settings.about.license" = "许可证";
+
+// Error Messages
+"error.network" = "网络错误: %@";
+"error.auth" = "认证失败";
+"error.rate_limit" = "超过频率限制";
+"error.server" = "服务器错误";
+"error.unknown" = "未知错误";
+"error.channel_unavailable" = "所有通道不可用";
+"error.invalid_request" = "无效请求";
+"error.no_api_key" = "未配置 API 密钥";
+"error.invalid_port" = "无效端口号";
+
+// Onboarding
+"onboarding.title" = "欢迎使用 SmartLLM Router";
+"onboarding.subtitle" = "您的本地 LLM 代理和路由器";
+"onboarding.setup" = "立即设置";
 "onboarding.skip" = "稍后设置";
-"onboarding.copy_env" = "复制环境变量";
-"onboarding.help_config" = "帮我配置";
+"onboarding.add_channel" = "添加您的第一个通道";
+"onboarding.test_connection" = "测试您的连接";
 
-/* About */
-"about.check_updates" = "检查更新";
-"about.github_repo" = "查看 GitHub";
-"about.privacy" = "隐私政策";
-"about.copy_diagnostics" = "复制诊断信息";
-"about.credits" = "致谢";
-
-/* Common */
-"common.copy" = "复制";
-"common.success" = "成功";
-"common.error" = "错误";
-"common.cancel" = "取消";
-"common.start" = "启动";
-"common.stop" = "停止";
+// Status Messages
+"status.copied" = "已复制到剪贴板";
+"status.testing" = "正在测试连接...";
+"status.connected" = "已连接";
+"status.disconnected" = "未连接";
+"status.fetching_models" = "正在获取模型...";
+"status.models_fetched" = "模型获取成功";
+"status.saving" = "保存中...";
+"status.saved" = "保存成功";

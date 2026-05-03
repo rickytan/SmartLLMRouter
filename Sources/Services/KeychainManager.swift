@@ -1,21 +1,40 @@
 import Foundation
 import KeychainAccess
 
-class KeychainManager {
+/// Secure wrapper for API Keys using macOS Keychain
+final class KeychainManager {
     static let shared = KeychainManager()
-    private let keychain = Keychain(service: "com.smartllmrouter.keys")
-    
-    private init() {}
-    
-    func saveKey(id: String, key: String) throws {
-        try keychain.set(key, key: id)
+
+    private let keychain: Keychain
+    private let servicePrefix = "smartllm.apikey."
+
+    private init() {
+        keychain = Keychain(service: "com.smartllmrouter.keys")
+            .accessibility(.afterFirstUnlockThisDeviceOnly)
     }
-    
-    func getKey(id: String) -> String? {
-        return try? keychain.get(id)
+
+    /// Store an API key for a channel
+    func setAPIKey(_ key: String, for channelID: String) throws {
+        try keychain.set(key, key: servicePrefix + channelID)
     }
-    
-    func deleteKey(id: String) throws {
-        try keychain.remove(id)
+
+    /// Retrieve an API key for a channel
+    func getAPIKey(for channelID: String) -> String? {
+        try? keychain.getString(servicePrefix + channelID)
+    }
+
+    /// Remove an API key for a channel
+    func removeAPIKey(for channelID: String) throws {
+        try keychain.remove(servicePrefix + channelID)
+    }
+
+    /// Clear all stored keys
+    func clearAll() throws {
+        try keychain.removeAll()
+    }
+
+    /// Check if a key exists for a channel
+    func hasAPIKey(for channelID: String) -> Bool {
+        getAPIKey(for: channelID) != nil
     }
 }

@@ -1,0 +1,390 @@
+import Foundation
+
+/// Provider template from providers.json
+struct ProviderTemplate: Codable, Identifiable {
+    let id: String
+    let nameEn: String
+    let nameZh: String
+    let baseURL: String
+    let supportsProtocols: [String]
+    let defaultModels: [ProviderModel]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case nameEn = "name_en"
+        case nameZh = "name_zh"
+        case baseURL = "base_url"
+        case supportsProtocols = "supports_protocols"
+        case defaultModels = "default_models"
+    }
+}
+
+struct ProviderModel: Codable {
+    let model: String
+    let `protocol`: String
+    let contextLength: Int
+    let inputPrice: Double
+    let outputPrice: Double
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case `protocol`
+        case contextLength = "context_length"
+        case inputPrice = "input_price"
+        case outputPrice = "output_price"
+    }
+}
+
+/// Manages channels with templates, model fetching, and testing capabilities
+@MainActor
+final class ChannelManager: ObservableObject {
+    static let shared = ChannelManager()
+
+    @Published private(set) var providerTemplates: [ProviderTemplate] = []
+    @Published var isLoadingModels: Bool = false
+    @Published var isSpeedTesting: Bool = false
+    @Published var lastSpeedTestResults: [String: TimeInterval] = [:]
+
+    private init() {
+        loadProviderTemplates()
+    }
+
+    // MARK: - Provider Templates
+
+    /// Load provider templates from providers.json
+    private func loadProviderTemplates() {
+        guard let url = Bundle.main.url(forResource: "providers", withExtension: "json") else {
+            Log.error("providers.json not found in bundle")
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let json = try JSONDecoder().decode(ProvidersFile.self, from: data)
+            providerTemplates = json.providers
+            let count = providerTemplates.count
+            Log.info("Loaded \(count) provider templates")
+        } catch {
+            Log.error("Failed to load providers.json: \(error.localizedDescription)")
+        }
+    }
+
+    /// Get provider template by ID
+    func getProviderTemplate(id: String) -> ProviderTemplate? {
+        providerTemplates.first { $0.id == id }
+    }
+
+    /// Create a new channel from a provider template
+    func createChannelFromTemplate(templateId: String, apiKey: String) -> Channel? {
+        guard let template = getProviderTemplate(id: templateId) else {
+            Log.warn("Template not found: \(templateId)")
+            return nil
+        }
+
+        let protocolString = template.supportsProtocols.first ?? "openai"
+        let apiProtocol = APIProtocol(rawValue: protocolString.capitalized) ?? .auto
+
+        let models = template.defaultModels.map { pm in
+            ModelEntry(
+                id: UUID().uuidString,
+                identifier: pm.model,
+                displayName: pm.model,
+                contextLength: pm.contextLength,
+                inputPricePer1M: pm.inputPrice,
+                outputPricePer1M: pm.outputPrice,
+                isEnabled: true
+            )
+        }
+
+        let channel = Channel(
+            id: UUID().uuidString,
+            name: template.nameEn,
+            providerId: template.id,
+            baseURL: template.baseURL,
+            priority: ChannelStore.shared.channels.count + 1,
+            protocol: apiProtocol,
+            models: models
+        )
+
+        do {
+            try KeychainManager.shared.setAPIKey(apiKey, for: channel.id)
+        } catch {
+            Log.error("Failed to save API key: \(error.localizedDescription)")
+            return nil
+        }
+
+        return channel
+    }
+
+    // MARK: - Fetch Models
+
+    /// Fetch available models from an upstream API
+    func fetchModels(channel: Channel) async -> [ModelEntry] {
+        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+              !apiKey.isEmpty
+        else {
+            Log.warn("No API key for channel \(channel.id)")
+            return []
+        }
+
+        isLoadingModels = true
+
+        let baseURL = channel.baseURL
+        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
+        } else {
+            URL(string: baseURL + "/v1/models")
+        }
+
+        guard let url = modelsURL else {
+            isLoadingModels = false
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+
+        switch channel.protocol {
+        case .anthropic:
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openai, .auto:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            if statusCode == 200 {
+                let models = parseModelsResponse(data: data, channel: channel)
+                isLoadingModels = false
+                Log.info("Fetched \(models.count) models for channel \(channel.name)")
+                return models
+            } else {
+                Log.error("Failed to fetch models: status \(statusCode)")
+                isLoadingModels = false
+                return []
+            }
+        } catch {
+            Log.error("Fetch models error: \(error.localizedDescription)")
+            isLoadingModels = false
+            return []
+        }
+    }
+
+    /// Parse OpenAI-style models response
+    private func parseModelsResponse(data: Data, channel _: Channel) -> [ModelEntry] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modelList = json["data"] as? [[String: Any]]
+        else {
+            return []
+        }
+
+        return modelList.compactMap { modelDict -> ModelEntry? in
+            guard let modelId = modelDict["id"] as? String else { return nil }
+
+            return ModelEntry(
+                id: UUID().uuidString,
+                identifier: modelId,
+                displayName: modelId,
+                contextLength: nil,
+                inputPricePer1M: nil,
+                outputPricePer1M: nil,
+                isEnabled: true
+            )
+        }
+    }
+
+    // MARK: - Test Connection
+
+    /// Test connection to a channel by sending a minimal request
+    func testConnection(channel: Channel) async -> Bool {
+        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+              !apiKey.isEmpty
+        else {
+            Log.warn("No API key for connection test")
+            return false
+        }
+
+        let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
+
+        var testURL: URL?
+        let baseURL = channel.baseURL
+
+        if channel.protocol == .anthropic || baseURL.contains("anthropic") {
+            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+                testURL = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/messages")
+            } else {
+                testURL = URL(string: baseURL + "/v1/messages")
+            }
+        } else {
+            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+                testURL = URL(string: baseURL
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions")
+            } else {
+                testURL = URL(string: baseURL + "/v1/chat/completions")
+            }
+        }
+
+        guard let url = testURL else { return false }
+
+        let testBody: [String: Any] = [
+            "model": testModel,
+            "messages": [["role": "user", "content": "Hi"]],
+            "max_tokens": 1,
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if channel.protocol == .anthropic {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            let success = statusCode > 0 && statusCode < 500
+
+            Log.info("Connection test for \(channel.name): status \(statusCode)")
+            return success
+        } catch {
+            Log.error("Connection test failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    // MARK: - Speed Test
+
+    /// Run speed test (TTFT - Time to First Token) for a channel
+    func speedTest(channel: Channel) async -> TimeInterval? {
+        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+              !apiKey.isEmpty
+        else {
+            Log.warn("No API key for speed test")
+            return nil
+        }
+
+        isSpeedTesting = true
+        let startTime = Date()
+
+        let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
+
+        var testURL: URL?
+        let baseURL = channel.baseURL
+
+        if channel.protocol == .anthropic || baseURL.contains("anthropic") {
+            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+                testURL = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/messages")
+            } else {
+                testURL = URL(string: baseURL + "/v1/messages")
+            }
+        } else {
+            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+                testURL = URL(string: baseURL
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions")
+            } else {
+                testURL = URL(string: baseURL + "/v1/chat/completions")
+            }
+        }
+
+        guard let url = testURL else {
+            isSpeedTesting = false
+            return nil
+        }
+
+        let testBody: [String: Any] = [
+            "model": testModel,
+            "messages": [["role": "user", "content": "Hi"]],
+            "max_tokens": 1,
+            "stream": true,
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if channel.protocol == .anthropic {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+
+            let ttft = Date().timeIntervalSince(startTime) * 1000
+
+            lastSpeedTestResults[channel.id] = ttft
+
+            var updatedChannel = channel
+            updatedChannel.lastLatencyMs = ttft
+            ChannelStore.shared.updateChannel(updatedChannel)
+
+            isSpeedTesting = false
+            Log.info("Speed test for \(channel.name): \(ttft)ms")
+            return ttft
+        } catch {
+            Log.error("Speed test failed: \(error.localizedDescription)")
+            isSpeedTesting = false
+            return nil
+        }
+    }
+
+    /// Run speed test for all channels
+    func speedTestAllChannels() async {
+        let channels = ChannelStore.shared.channels
+
+        for channel in channels {
+            if !CooldownEngine.shared.isCoolingDown(channelID: channel.id) {
+                _ = await speedTest(channel: channel)
+            }
+        }
+    }
+
+    /// Get latency indicator emoji based on ms
+    func latencyEmoji(latencyMs: TimeInterval) -> String {
+        if latencyMs < 500 {
+            "🟢"
+        } else if latencyMs < 1000 {
+            "🟡"
+        } else {
+            "🔴"
+        }
+    }
+
+    /// Get latency description
+    func latencyDescription(latencyMs: TimeInterval) -> String {
+        if latencyMs < 500 {
+            "< 500ms"
+        } else if latencyMs < 1000 {
+            "500-1000ms"
+        } else {
+            "> 1000ms"
+        }
+    }
+}
+
+// MARK: - Supporting Types
+
+struct ProvidersFile: Codable {
+    let version: String
+    let providers: [ProviderTemplate]
+}
