@@ -35,16 +35,16 @@ struct AddChannelView: View {
         VStack(spacing: 0) {
             // Header
             headerView
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, DesignToken.Spacing.lg)
+                .padding(.top, DesignToken.Spacing.md)
+                .padding(.bottom, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DesignToken.Spacing.lg)
 
             // Scrollable form content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DesignToken.Spacing.lg) {
                     // Provider template selection (only when adding new)
                     if editingChannel == nil {
                         providerSection
@@ -59,22 +59,22 @@ struct AddChannelView: View {
                     // Error message
                     if let error = errorMessage {
                         Text(error)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color(#colorLiteral(red: 1, green: 0.322, blue: 0.322, alpha: 1)))
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.statusOffline)
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding(16)
+                .padding(DesignToken.Spacing.lg)
             }
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DesignToken.Spacing.lg)
 
             // Footer buttons
             footerButtons
-                .padding(16)
+                .padding(DesignToken.Spacing.lg)
         }
-        .frame(width: 480, height: 420)
+        .frame(width: DesignToken.Layout.addChannelWidth, height: DesignToken.Layout.addChannelHeight)
         .sheet(isPresented: $showingModelEditor) {
             if let index = editingModelIndex, index < models.count {
                 ModelMetadataEditorView(
@@ -107,7 +107,7 @@ struct AddChannelView: View {
     private var headerView: some View {
         HStack {
             Text(editingChannel != nil ? L10n.Settings.channelsEdit : L10n.Settings.channelsAdd)
-                .font(.system(size: 15, weight: .semibold))
+                .font(DesignToken.Font.h2())
                 .accessibilityIdentifier("addchannel.title")
 
             Spacer()
@@ -116,8 +116,8 @@ struct AddChannelView: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: DesignToken.Layout.closeIconSize))
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("addchannel.close")
@@ -127,17 +127,17 @@ struct AddChannelView: View {
     // MARK: - Provider Section
 
     private var providerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
             Text(L10n.Onboarding.addChannel)
-                .font(.system(size: 13, weight: .semibold))
+                .font(DesignToken.Font.h3())
 
             if showProviderGrid {
                 providerGrid
             } else {
                 Text(selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 4)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .padding(.vertical, DesignToken.Spacing.xs)
             }
         }
         .accessibilityIdentifier("addchannel.providerSection")
@@ -145,13 +145,13 @@ struct AddChannelView: View {
 
     private var providerGrid: some View {
         let columns = [
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8)
+            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
+            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
+            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
+            GridItem(.flexible(), spacing: DesignToken.Spacing.sm)
         ]
 
-        return LazyVGrid(columns: columns, spacing: 8) {
+        return LazyVGrid(columns: columns, spacing: DesignToken.Spacing.sm) {
             ForEach(channelManager.providerTemplates) { template in
                 ProviderCard(
                     template: template,
@@ -171,14 +171,14 @@ struct AddChannelView: View {
                 .accessibilityIdentifier("addchannel.provider.\(template.id)")
             }
         }
-        .frame(maxHeight: 100)
+        .frame(maxHeight: DesignToken.Layout.addChannelGridMaxHeight)
         .accessibilityIdentifier("addchannel.providerGrid")
     }
 
     // MARK: - Basic Info Section
 
     private var basicInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
             // Name
             formRow(label: L10n.Settings.channelsName) {
                 TextField("", text: $name)
@@ -190,7 +190,7 @@ struct AddChannelView: View {
             formRow(label: L10n.Settings.channelsBaseUrl) {
                 TextField("", text: $baseURL)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(DesignToken.Font.mono())
                     .accessibilityIdentifier("addchannel.baseURL")
             }
 
@@ -198,7 +198,7 @@ struct AddChannelView: View {
             formRow(label: L10n.Settings.channelsApiKey) {
                 SecureField("", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(DesignToken.Font.mono())
                     .accessibilityIdentifier("addchannel.apiKey")
             }
 
@@ -210,7 +210,7 @@ struct AddChannelView: View {
                             .tag(protocolType)
                     }
                 }
-                .frame(width: 120)
+                .frame(width: DesignToken.Layout.protocolPickerWidth)
                 .accessibilityIdentifier("addchannel.protocol")
             }
 
@@ -218,7 +218,7 @@ struct AddChannelView: View {
             formRow(label: L10n.Settings.channelsPriority) {
                 TextField("", value: $priority, formatter: NumberFormatter())
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 60)
+                    .frame(width: DesignToken.Layout.priorityFieldWidth)
                     .multilineTextAlignment(.trailing)
                     .accessibilityIdentifier("addchannel.priority")
             }
@@ -227,10 +227,10 @@ struct AddChannelView: View {
     }
 
     private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignToken.Spacing.md) {
             Text(label)
-                .font(.system(size: 13))
-                .frame(width: 100, alignment: .trailing)
+                .font(DesignToken.Font.body())
+                .frame(width: DesignToken.Layout.formLabelWidth, alignment: .trailing)
 
             content()
         }
@@ -239,10 +239,10 @@ struct AddChannelView: View {
     // MARK: - Models Section
 
     private var modelsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
             HStack {
                 Text(L10n.Settings.channelsModels)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DesignToken.Font.h3())
 
                 Spacer()
 
@@ -260,24 +260,24 @@ struct AddChannelView: View {
             // Model list
             if models.isEmpty {
                 Text(L10n.Menu.requestsNone)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, DesignToken.Spacing.md)
             } else {
-                VStack(spacing: 4) {
+                VStack(spacing: DesignToken.Spacing.xs) {
                     ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
                         modelRow(model: model, index: index)
                     }
                 }
-                .frame(maxHeight: 120)
+                .frame(maxHeight: DesignToken.Layout.modelListMaxHeight)
             }
 
             // Add model manually
-            HStack(spacing: 8) {
+            HStack(spacing: DesignToken.Spacing.sm) {
                 TextField("", text: $newModelName, prompt: Text(L10n.AddChannel.modelPlaceholder))
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DesignToken.Font.monoCaption())
                     .accessibilityIdentifier("addchannel.newModelName")
 
                 HoverButton(title: "+", icon: "plus") {
@@ -291,9 +291,9 @@ struct AddChannelView: View {
     }
 
     private func modelRow(model: ModelEntry, index: Int) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignToken.Spacing.sm) {
             Text(model.identifier)
-                .font(.system(size: 11))
+                .font(DesignToken.Font.caption())
                 .lineLimit(1)
                 .truncationMode(.tail)
 
@@ -304,13 +304,13 @@ struct AddChannelView: View {
                 HStack(spacing: 2) {
                     if let ctx = model.contextLength {
                         Text(formatContext(ctx))
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(DesignToken.Font.monoMicro())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
                     }
                     if let price = model.inputPricePer1M {
                         Text("$" + String(format: "%.1f", price))
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(DesignToken.Font.monoMicro())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
                     }
                 }
             }
@@ -324,7 +324,7 @@ struct AddChannelView: View {
                     .font(.system(size: 11))
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
+            .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addchannel.model.edit.\(index)")
 
             // Remove button
@@ -335,20 +335,20 @@ struct AddChannelView: View {
                     .font(.system(size: 11))
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
+            .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addchannel.model.remove.\(index)")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(4)
+        .padding(.horizontal, DesignToken.Spacing.sm)
+        .padding(.vertical, DesignToken.Spacing.xs)
+        .background(DesignToken.Colors.hoverFill.opacity(0.625))
+        .cornerRadius(DesignToken.Layout.rowCornerRadius)
     }
 
     private func formatContext(_ length: Int) -> String {
         if length >= 1_000_000 {
             return String(format: "%.0fM", Double(length) / 1_000_000)
         } else if length >= 1000 {
-            return String(format: "%.0fK", Double(length) / 1_000)
+            return String(format: "%.0fK", Double(length) / 1000)
         }
         return "\(length)"
     }
@@ -407,7 +407,7 @@ struct AddChannelView: View {
                 dismiss()
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
+            .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addchannel.cancel")
 
             Spacer()
@@ -512,7 +512,7 @@ struct ModelMetadataEditorView: View {
             // Header
             HStack {
                 Text(model.identifier)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DesignToken.Font.h3())
 
                 Spacer()
 
@@ -520,20 +520,20 @@ struct ModelMetadataEditorView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: DesignToken.Layout.closeIconSize))
+                        .foregroundColor(DesignToken.Colors.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, DesignToken.Spacing.lg)
+            .padding(.top, DesignToken.Spacing.md)
+            .padding(.bottom, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DesignToken.Spacing.lg)
 
             // Form fields
-            VStack(spacing: 16) {
+            VStack(spacing: DesignToken.Spacing.lg) {
                 // Context Length
                 formRow(label: L10n.ModelEditor.contextLength) {
                     TextField("e.g. 128000", text: $contextLength)
@@ -555,10 +555,10 @@ struct ModelMetadataEditorView: View {
                         .accessibilityIdentifier("modelEditor.outputPrice")
                 }
             }
-            .padding(16)
+            .padding(DesignToken.Spacing.lg)
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DesignToken.Spacing.lg)
 
             // Footer
             HStack {
@@ -566,7 +566,7 @@ struct ModelMetadataEditorView: View {
                     dismiss()
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
                 Spacer()
 
@@ -575,16 +575,16 @@ struct ModelMetadataEditorView: View {
                 }
                 .accessibilityIdentifier("modelEditor.save")
             }
-            .padding(16)
+            .padding(DesignToken.Spacing.lg)
         }
-        .frame(width: 360, height: 280)
+        .frame(width: DesignToken.Layout.modelEditorWidth, height: DesignToken.Layout.modelEditorHeight)
     }
 
     private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.micro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
             content()
         }
