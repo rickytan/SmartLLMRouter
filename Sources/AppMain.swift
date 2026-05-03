@@ -35,7 +35,7 @@ struct SmartLLMRouterApp: App {
                     }
                 }
         } label: {
-            Image(systemName: proxy.isRunning ? "network" : "network.slash")
+            Image(systemName: proxy.isRunning ? "network" : "wifi.slash")
         }
     }
 

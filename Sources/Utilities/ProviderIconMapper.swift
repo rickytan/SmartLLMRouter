@@ -35,7 +35,7 @@ enum ProviderIconMapper {
         case "fireworks":
             return "sparkle"
         case "openrouter":
-            return "router.fill"
+            return "link.circle.fill"
         case "siliconflow":
             return "cpu.fill"
         case "xiaomi_mimo":
