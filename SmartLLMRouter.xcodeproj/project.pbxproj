@@ -1,0 +1,733 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		085E0720B562DDB7FB33635C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F1DC679DB4239568DCB33D9D /* Localizable.strings */; };
+		139D0806B15912B3E2253D59 /* UITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = D135EC4B82B1B19292A8CE85 /* UITestCase.swift */; };
+		187CDA9C5354F19B6D61DB3C /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B03F56A090D222CF65320F /* Channel.swift */; };
+		1B78774C3E69A40A1968C184 /* ChannelCRUDUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413765CB49B55F622881304D /* ChannelCRUDUITests.swift */; };
+		217830E40414B949AB0F80DC /* openai-shared.ts in Resources */ = {isa = PBXBuildFile; fileRef = 2729C6EF7103099B402EAAE4 /* openai-shared.ts */; };
+		3498CD7BC2590E594ED0B15B /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3ED871ED3D6572CF10F1D6 /* KeychainManager.swift */; };
+		3B59BA2384234E8DC07B27E3 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5422DEC9022F694E189C7BB /* L10n.swift */; };
+		447C5984499FABEAC355FBB0 /* SmartLLMRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E42F2B023E9D9888EF4305 /* SmartLLMRouterTests.swift */; };
+		46655E715C984A73A0D333D9 /* AppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F9725EF4309B45C644878E /* AppMain.swift */; };
+		4968777B365CEDB04E2F6BDC /* anthropic-messages.json in Resources */ = {isa = PBXBuildFile; fileRef = F66EDEAAA771186C0163AFF1 /* anthropic-messages.json */; };
+		543A2F42D1DF79D007882038 /* Pods_SmartLLMRouter.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */; };
+		606AFDED2311552F4BA3E657 /* RequestForwarder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB11B76F2553689C6D960157 /* RequestForwarder.swift */; };
+		64F8E75DFDAF1D81768131F1 /* AddChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4448B464A87133021F611B8 /* AddChannelView.swift */; };
+		70AA651D032F363D8229A59D /* AccessibilityCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621280B030EAC6988C771FAD /* AccessibilityCoverageTests.swift */; };
+		756DA9FDAAAE5F437B7A855A /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 013F0A5C186089CD112E7A61 /* DesignTokens.swift */; };
+		8BBC31EC61BB609E73FAABCE /* ProtocolConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9131589A54BB76DBCFBEB758 /* ProtocolConverter.swift */; };
+		8F806DA927320729E813C1C1 /* LoggerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1A075F24789855903336C6 /* LoggerManager.swift */; };
+		951C89DFDAE156F0896476CA /* providers.json in Resources */ = {isa = PBXBuildFile; fileRef = CA76A13FAEC9657314758FA9 /* providers.json */; };
+		9CCB881796FC4A4637157A3E /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = F4A01F652C96A21D3F7158BE /* README.md */; };
+		A5AD8F7D256701C83DC95AFA /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68B67CBADAAD18B6EC7468D7 /* MenuView.swift */; };
+		A5F7D02EC86DBDF15463B724 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED71D39C048CC9604A28602 /* MockData.swift */; };
+		A6AAF6D5CB20CB9757267C59 /* openai-chat-messages.ts in Resources */ = {isa = PBXBuildFile; fileRef = 6991643C5CE43761F5163A36 /* openai-chat-messages.ts */; };
+		B4DE0EE2CBDE002301EAFD41 /* openai-chat-completions.json in Resources */ = {isa = PBXBuildFile; fileRef = D62E6D82330458687242B685 /* openai-chat-completions.json */; };
+		BCE8D48195ACD3ED528F2B1A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14DE1D9F9057CBAEE3926F4B /* AppState.swift */; };
+		BE5DCA3544C342CCFCBCCA3B /* anthropic-messages-types.ts in Resources */ = {isa = PBXBuildFile; fileRef = 4F6EB75D0A5B6E5E0534F6C3 /* anthropic-messages-types.ts */; };
+		C26C143975DEC87CE3122B77 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 641A141D241E3805C63C6E33 /* Cocoa.framework */; };
+		C5869C8A085D990027611707 /* ShellConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4081809DC9C9A19C1C630BF4 /* ShellConfigManager.swift */; };
+		C8DBF795095AAB15AB6C4B89 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3716FC78C129361D3646ED /* SettingsView.swift */; };
+		C9A29B6ACDBB84E22063E27F /* openai-chat-types.ts in Resources */ = {isa = PBXBuildFile; fileRef = 686D70815786AD8B1B6B32DE /* openai-chat-types.ts */; };
+		CF635F74A1194BD9608378FB /* UsageTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743B2485FC9FDF70B08839CE /* UsageTracker.swift */; };
+		DBB8A541C8FDC6A64D19D616 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95FD0F8BD7D7A116EABFD721 /* SystemConfiguration.framework */; };
+		E0AF3CDC18CC40C223ACD690 /* MenuViewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15AFDE3362CF7A01AFB25F26 /* MenuViewUITests.swift */; };
+		E3109D901475FCA58D8B274E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85BEB47492F01B9F875FF12 /* OnboardingView.swift */; };
+		EFC41EEF20B4EA913F297E33 /* ChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E5B3917D048287705080E9 /* ChannelManager.swift */; };
+		F4457B148938D9FA488DA0C7 /* SettingsViewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03131747C7F6542102DD77D1 /* SettingsViewUITests.swift */; };
+		F91CB879D27BC93954697B80 /* CooldownEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88E8F18E16E7CFD044DB9A5 /* CooldownEngine.swift */; };
+		FCACEE1CC0E345652A5DEAEA /* SmartRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22ECDA71B101B3ECAC84C063 /* SmartRouter.swift */; };
+		FDCE701C79F43EF174101D97 /* ProxyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4E1666E71D1F65A8D99A0D /* ProxyServer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		053C24B907C3C080DB01E50D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FABDD73B922FCED4DDA2756C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1BDF333EC70DB2ADFB01EB78;
+			remoteInfo = SmartLLMRouter;
+		};
+		27F03F2F2B7894384A6732A4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FABDD73B922FCED4DDA2756C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1BDF333EC70DB2ADFB01EB78;
+			remoteInfo = SmartLLMRouter;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		013F0A5C186089CD112E7A61 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
+		03131747C7F6542102DD77D1 /* SettingsViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewUITests.swift; sourceTree = "<group>"; };
+		0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.debug.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.debug.xcconfig"; sourceTree = "<group>"; };
+		0F3716FC78C129361D3646ED /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		14DE1D9F9057CBAEE3926F4B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		15AFDE3362CF7A01AFB25F26 /* MenuViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuViewUITests.swift; sourceTree = "<group>"; };
+		1E67E43DF74D949E95A122DF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		22ECDA71B101B3ECAC84C063 /* SmartRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartRouter.swift; sourceTree = "<group>"; };
+		26E5B3917D048287705080E9 /* ChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelManager.swift; sourceTree = "<group>"; };
+		2729C6EF7103099B402EAAE4 /* openai-shared.ts */ = {isa = PBXFileReference; path = "openai-shared.ts"; sourceTree = "<group>"; };
+		4081809DC9C9A19C1C630BF4 /* ShellConfigManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellConfigManager.swift; sourceTree = "<group>"; };
+		413765CB49B55F622881304D /* ChannelCRUDUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelCRUDUITests.swift; sourceTree = "<group>"; };
+		4D4E1666E71D1F65A8D99A0D /* ProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyServer.swift; sourceTree = "<group>"; };
+		4F6EB75D0A5B6E5E0534F6C3 /* anthropic-messages-types.ts */ = {isa = PBXFileReference; path = "anthropic-messages-types.ts"; sourceTree = "<group>"; };
+		621280B030EAC6988C771FAD /* AccessibilityCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityCoverageTests.swift; sourceTree = "<group>"; };
+		641A141D241E3805C63C6E33 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		686D70815786AD8B1B6B32DE /* openai-chat-types.ts */ = {isa = PBXFileReference; path = "openai-chat-types.ts"; sourceTree = "<group>"; };
+		68B67CBADAAD18B6EC7468D7 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
+		6991643C5CE43761F5163A36 /* openai-chat-messages.ts */ = {isa = PBXFileReference; path = "openai-chat-messages.ts"; sourceTree = "<group>"; };
+		6A3ED871ED3D6572CF10F1D6 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		6F5974A5D8122928ED753A3D /* SmartLLMRouterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartLLMRouterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SmartLLMRouter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		743B2485FC9FDF70B08839CE /* UsageTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageTracker.swift; sourceTree = "<group>"; };
+		78E42F2B023E9D9888EF4305 /* SmartLLMRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartLLMRouterTests.swift; sourceTree = "<group>"; };
+		9131589A54BB76DBCFBEB758 /* ProtocolConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolConverter.swift; sourceTree = "<group>"; };
+		95FD0F8BD7D7A116EABFD721 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		97814A5AB435913CB94CBC65 /* SmartLLMRouter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartLLMRouter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SmartLLMRouter.release.xcconfig"; path = "Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter.release.xcconfig"; sourceTree = "<group>"; };
+		BD1A075F24789855903336C6 /* LoggerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerManager.swift; sourceTree = "<group>"; };
+		BED71D39C048CC9604A28602 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
+		C0237AB39BC6ADEAE3E29EB5 /* SmartLLMRouterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartLLMRouterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C3F9725EF4309B45C644878E /* AppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMain.swift; sourceTree = "<group>"; };
+		C4448B464A87133021F611B8 /* AddChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddChannelView.swift; sourceTree = "<group>"; };
+		CA76A13FAEC9657314758FA9 /* providers.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = providers.json; sourceTree = "<group>"; };
+		D135EC4B82B1B19292A8CE85 /* UITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestCase.swift; sourceTree = "<group>"; };
+		D5422DEC9022F694E189C7BB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		D62E6D82330458687242B685 /* openai-chat-completions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "openai-chat-completions.json"; sourceTree = "<group>"; };
+		E88E8F18E16E7CFD044DB9A5 /* CooldownEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CooldownEngine.swift; sourceTree = "<group>"; };
+		EB11B76F2553689C6D960157 /* RequestForwarder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestForwarder.swift; sourceTree = "<group>"; };
+		ED6C21932894E14C491FCCE5 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		F4A01F652C96A21D3F7158BE /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		F66EDEAAA771186C0163AFF1 /* anthropic-messages.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "anthropic-messages.json"; sourceTree = "<group>"; };
+		F7B03F56A090D222CF65320F /* Channel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Channel.swift; sourceTree = "<group>"; };
+		F85BEB47492F01B9F875FF12 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		45D83AC171B90C47DD9E6847 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C26C143975DEC87CE3122B77 /* Cocoa.framework in Frameworks */,
+				DBB8A541C8FDC6A64D19D616 /* SystemConfiguration.framework in Frameworks */,
+				543A2F42D1DF79D007882038 /* Pods_SmartLLMRouter.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		073D5B8B262E8B0D7BA5D06F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				14DE1D9F9057CBAEE3926F4B /* AppState.swift */,
+				F7B03F56A090D222CF65320F /* Channel.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		0C7BCB264F49635A30177155 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				97814A5AB435913CB94CBC65 /* SmartLLMRouter.app */,
+				C0237AB39BC6ADEAE3E29EB5 /* SmartLLMRouterTests.xctest */,
+				6F5974A5D8122928ED753A3D /* SmartLLMRouterUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		20836DBECC5B0C5EF4890728 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */,
+				BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		2D0A79C37A7F57B30B36492C /* Unit */ = {
+			isa = PBXGroup;
+			children = (
+				BED71D39C048CC9604A28602 /* MockData.swift */,
+				78E42F2B023E9D9888EF4305 /* SmartLLMRouterTests.swift */,
+			);
+			path = Unit;
+			sourceTree = "<group>";
+		};
+		355B4E547384F021361DE5FB /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				D5422DEC9022F694E189C7BB /* L10n.swift */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		44A5F154CB4E6CB1829006CD /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				93DFB797E6F48C4AD49526F0 /* specs */,
+				F1DC679DB4239568DCB33D9D /* Localizable.strings */,
+				CA76A13FAEC9657314758FA9 /* providers.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5354AD58870C5C2A17208505 = {
+			isa = PBXGroup;
+			children = (
+				44A5F154CB4E6CB1829006CD /* Resources */,
+				B0464326DB7513BB1187143C /* Sources */,
+				E9B800669FBFCAB51ABF6168 /* Tests */,
+				8091A9963CC261AB870EF5B6 /* Frameworks */,
+				0C7BCB264F49635A30177155 /* Products */,
+				20836DBECC5B0C5EF4890728 /* Pods */,
+			);
+			sourceTree = "<group>";
+		};
+		7E85F6728EC69D43FB153D2F /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				013F0A5C186089CD112E7A61 /* DesignTokens.swift */,
+				BD1A075F24789855903336C6 /* LoggerManager.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		8091A9963CC261AB870EF5B6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				641A141D241E3805C63C6E33 /* Cocoa.framework */,
+				95FD0F8BD7D7A116EABFD721 /* SystemConfiguration.framework */,
+				7158AD01E9512DD71C5FC475 /* Pods_SmartLLMRouter.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		858D1ED16ADF7EEE89A24C89 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				C4448B464A87133021F611B8 /* AddChannelView.swift */,
+				F85BEB47492F01B9F875FF12 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		93DFB797E6F48C4AD49526F0 /* specs */ = {
+			isa = PBXGroup;
+			children = (
+				4F6EB75D0A5B6E5E0534F6C3 /* anthropic-messages-types.ts */,
+				F66EDEAAA771186C0163AFF1 /* anthropic-messages.json */,
+				D62E6D82330458687242B685 /* openai-chat-completions.json */,
+				6991643C5CE43761F5163A36 /* openai-chat-messages.ts */,
+				686D70815786AD8B1B6B32DE /* openai-chat-types.ts */,
+				2729C6EF7103099B402EAAE4 /* openai-shared.ts */,
+				F4A01F652C96A21D3F7158BE /* README.md */,
+			);
+			path = specs;
+			sourceTree = "<group>";
+		};
+		B0464326DB7513BB1187143C /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				355B4E547384F021361DE5FB /* Generated */,
+				073D5B8B262E8B0D7BA5D06F /* Models */,
+				EEA026C63A2D69A61FE8A4F5 /* Services */,
+				7E85F6728EC69D43FB153D2F /* Utilities */,
+				EDA73879ACC8C85FC1788C82 /* Views */,
+				C3F9725EF4309B45C644878E /* AppMain.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		E9B800669FBFCAB51ABF6168 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				F74E4EE5434A9E5B7428454A /* UI */,
+				2D0A79C37A7F57B30B36492C /* Unit */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		EDA73879ACC8C85FC1788C82 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				858D1ED16ADF7EEE89A24C89 /* Onboarding */,
+				68B67CBADAAD18B6EC7468D7 /* MenuView.swift */,
+				0F3716FC78C129361D3646ED /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		EEA026C63A2D69A61FE8A4F5 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				26E5B3917D048287705080E9 /* ChannelManager.swift */,
+				E88E8F18E16E7CFD044DB9A5 /* CooldownEngine.swift */,
+				6A3ED871ED3D6572CF10F1D6 /* KeychainManager.swift */,
+				9131589A54BB76DBCFBEB758 /* ProtocolConverter.swift */,
+				4D4E1666E71D1F65A8D99A0D /* ProxyServer.swift */,
+				EB11B76F2553689C6D960157 /* RequestForwarder.swift */,
+				4081809DC9C9A19C1C630BF4 /* ShellConfigManager.swift */,
+				22ECDA71B101B3ECAC84C063 /* SmartRouter.swift */,
+				743B2485FC9FDF70B08839CE /* UsageTracker.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		F74E4EE5434A9E5B7428454A /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				621280B030EAC6988C771FAD /* AccessibilityCoverageTests.swift */,
+				413765CB49B55F622881304D /* ChannelCRUDUITests.swift */,
+				15AFDE3362CF7A01AFB25F26 /* MenuViewUITests.swift */,
+				03131747C7F6542102DD77D1 /* SettingsViewUITests.swift */,
+				D135EC4B82B1B19292A8CE85 /* UITestCase.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0B933723424824820A5256CE /* SmartLLMRouterTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 37A8D9E8AC81A155BD5E0C1F /* Build configuration list for PBXNativeTarget "SmartLLMRouterTests" */;
+			buildPhases = (
+				58E2BEBCF0339771C7DC8286 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1B77FC9CC3695BA4234BD9E2 /* PBXTargetDependency */,
+			);
+			name = SmartLLMRouterTests;
+			productName = SmartLLMRouterTests;
+			productReference = C0237AB39BC6ADEAE3E29EB5 /* SmartLLMRouterTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		1BDF333EC70DB2ADFB01EB78 /* SmartLLMRouter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 84702DA1C579FE6266B01010 /* Build configuration list for PBXNativeTarget "SmartLLMRouter" */;
+			buildPhases = (
+				4B38FA1B6B24B2401A2D9C81 /* [CP] Check Pods Manifest.lock */,
+				F5CBB08E40EF7EB03AE9108C /* SwiftLint */,
+				4EF168A221A67208077A7B47 /* Sources */,
+				F9261CB913B1AA39B6A9B085 /* Resources */,
+				45D83AC171B90C47DD9E6847 /* Frameworks */,
+				393922D09547B1D301E45060 /* [CP] Embed Pods Frameworks */,
+				85FD99FFC27170A0BF0EDA43 /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SmartLLMRouter;
+			productName = SmartLLMRouter;
+			productReference = 97814A5AB435913CB94CBC65 /* SmartLLMRouter.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7713F244A66202AF29661753 /* SmartLLMRouterUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1DC2D57132B0628AFF91682 /* Build configuration list for PBXNativeTarget "SmartLLMRouterUITests" */;
+			buildPhases = (
+				CF4B382E8F4769F2BA2BEBD9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E26AEFBBFF9023B26E068095 /* PBXTargetDependency */,
+			);
+			name = SmartLLMRouterUITests;
+			productName = SmartLLMRouterUITests;
+			productReference = 6F5974A5D8122928ED753A3D /* SmartLLMRouterUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FABDD73B922FCED4DDA2756C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					7713F244A66202AF29661753 = {
+						TestTargetID = 1BDF333EC70DB2ADFB01EB78;
+					};
+				};
+			};
+			buildConfigurationList = CFBB8DA7E921662BDBBE88EB /* Build configuration list for PBXProject "SmartLLMRouter" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hans",
+			);
+			mainGroup = 5354AD58870C5C2A17208505;
+			productRefGroup = 0C7BCB264F49635A30177155 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1BDF333EC70DB2ADFB01EB78 /* SmartLLMRouter */,
+				0B933723424824820A5256CE /* SmartLLMRouterTests */,
+				7713F244A66202AF29661753 /* SmartLLMRouterUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F9261CB913B1AA39B6A9B085 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				085E0720B562DDB7FB33635C /* Localizable.strings in Resources */,
+				9CCB881796FC4A4637157A3E /* README.md in Resources */,
+				BE5DCA3544C342CCFCBCCA3B /* anthropic-messages-types.ts in Resources */,
+				4968777B365CEDB04E2F6BDC /* anthropic-messages.json in Resources */,
+				B4DE0EE2CBDE002301EAFD41 /* openai-chat-completions.json in Resources */,
+				A6AAF6D5CB20CB9757267C59 /* openai-chat-messages.ts in Resources */,
+				C9A29B6ACDBB84E22063E27F /* openai-chat-types.ts in Resources */,
+				217830E40414B949AB0F80DC /* openai-shared.ts in Resources */,
+				951C89DFDAE156F0896476CA /* providers.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		393922D09547B1D301E45060 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		4B38FA1B6B24B2401A2D9C81 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-SmartLLMRouter-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		85FD99FFC27170A0BF0EDA43 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SmartLLMRouter/Pods-SmartLLMRouter-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F5CBB08E40EF7EB03AE9108C /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -f \"${PODS_ROOT}/SwiftLint/swiftlint\" ]; then\n  \"${PODS_ROOT}/SwiftLint/swiftlint\" --config \"${SRCROOT}/.swiftlint.yml\" || echo \"warning: SwiftLint found issues\"\nelse\n  echo \"warning: SwiftLint not found in Pods\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4EF168A221A67208077A7B47 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64F8E75DFDAF1D81768131F1 /* AddChannelView.swift in Sources */,
+				46655E715C984A73A0D333D9 /* AppMain.swift in Sources */,
+				BCE8D48195ACD3ED528F2B1A /* AppState.swift in Sources */,
+				187CDA9C5354F19B6D61DB3C /* Channel.swift in Sources */,
+				EFC41EEF20B4EA913F297E33 /* ChannelManager.swift in Sources */,
+				F91CB879D27BC93954697B80 /* CooldownEngine.swift in Sources */,
+				756DA9FDAAAE5F437B7A855A /* DesignTokens.swift in Sources */,
+				3498CD7BC2590E594ED0B15B /* KeychainManager.swift in Sources */,
+				3B59BA2384234E8DC07B27E3 /* L10n.swift in Sources */,
+				8F806DA927320729E813C1C1 /* LoggerManager.swift in Sources */,
+				A5AD8F7D256701C83DC95AFA /* MenuView.swift in Sources */,
+				E3109D901475FCA58D8B274E /* OnboardingView.swift in Sources */,
+				8BBC31EC61BB609E73FAABCE /* ProtocolConverter.swift in Sources */,
+				FDCE701C79F43EF174101D97 /* ProxyServer.swift in Sources */,
+				606AFDED2311552F4BA3E657 /* RequestForwarder.swift in Sources */,
+				C8DBF795095AAB15AB6C4B89 /* SettingsView.swift in Sources */,
+				C5869C8A085D990027611707 /* ShellConfigManager.swift in Sources */,
+				FCACEE1CC0E345652A5DEAEA /* SmartRouter.swift in Sources */,
+				CF635F74A1194BD9608378FB /* UsageTracker.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		58E2BEBCF0339771C7DC8286 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5F7D02EC86DBDF15463B724 /* MockData.swift in Sources */,
+				447C5984499FABEAC355FBB0 /* SmartLLMRouterTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CF4B382E8F4769F2BA2BEBD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				70AA651D032F363D8229A59D /* AccessibilityCoverageTests.swift in Sources */,
+				1B78774C3E69A40A1968C184 /* ChannelCRUDUITests.swift in Sources */,
+				E0AF3CDC18CC40C223ACD690 /* MenuViewUITests.swift in Sources */,
+				F4457B148938D9FA488DA0C7 /* SettingsViewUITests.swift in Sources */,
+				139D0806B15912B3E2253D59 /* UITestCase.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1B77FC9CC3695BA4234BD9E2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1BDF333EC70DB2ADFB01EB78 /* SmartLLMRouter */;
+			targetProxy = 053C24B907C3C080DB01E50D /* PBXContainerItemProxy */;
+		};
+		E26AEFBBFF9023B26E068095 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1BDF333EC70DB2ADFB01EB78 /* SmartLLMRouter */;
+			targetProxy = 27F03F2F2B7894384A6732A4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		F1DC679DB4239568DCB33D9D /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				1E67E43DF74D949E95A122DF /* en */,
+				ED6C21932894E14C491FCCE5 /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		1A3895831151DF0C77C49907 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SmartLLMRouter;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = SmartLLMRouter;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SUFeedURL = "https://smartllmrouter.github.io/appcast.xml";
+				SUPublicEDKey = change_me;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		478F6ADC16AC5C94B5AEF8EC /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BCE908113E374B7F6992DB6D /* Pods-SmartLLMRouter.release.xcconfig */;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				ENABLE_TESTABILITY = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smartllmrouter.SmartLLMRouter;
+				PRODUCT_MODULE_NAME = SmartLLMRouter;
+				PRODUCT_NAME = SmartLLMRouter;
+			};
+			name = Release;
+		};
+		7F524ADBD2FB723FFE2F53D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smartllmrouter.tests;
+				PRODUCT_MODULE_NAME = SmartLLMRouterTests;
+				PRODUCT_NAME = SmartLLMRouterTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmartLLMRouter.app/Contents/MacOS/SmartLLMRouter";
+			};
+			name = Release;
+		};
+		966E12C3DB2CB73471E44C90 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smartllmrouter.tests;
+				PRODUCT_MODULE_NAME = SmartLLMRouterTests;
+				PRODUCT_NAME = SmartLLMRouterTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmartLLMRouter.app/Contents/MacOS/SmartLLMRouter";
+			};
+			name = Debug;
+		};
+		C0BD929FEDE6A8B46A643152 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0640E2FEF2ACBB8381FF3C99 /* Pods-SmartLLMRouter.debug.xcconfig */;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				ENABLE_TESTABILITY = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smartllmrouter.SmartLLMRouter;
+				PRODUCT_MODULE_NAME = SmartLLMRouter;
+				PRODUCT_NAME = SmartLLMRouter;
+			};
+			name = Debug;
+		};
+		C3252FE7D6C6AD5075B1568B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.smartllmrouter.ui-tests";
+				PRODUCT_MODULE_NAME = SmartLLMRouterUITests;
+				PRODUCT_NAME = SmartLLMRouterUITests;
+				TEST_TARGET_NAME = SmartLLMRouter;
+			};
+			name = Release;
+		};
+		D713F19A64A4A10445D30FAD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SmartLLMRouter;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = SmartLLMRouter;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SUFeedURL = "https://smartllmrouter.github.io/appcast.xml";
+				SUPublicEDKey = change_me;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		E0359C8A68D638ADFFD8EE63 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.smartllmrouter.ui-tests";
+				PRODUCT_MODULE_NAME = SmartLLMRouterUITests;
+				PRODUCT_NAME = SmartLLMRouterUITests;
+				TEST_TARGET_NAME = SmartLLMRouter;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		37A8D9E8AC81A155BD5E0C1F /* Build configuration list for PBXNativeTarget "SmartLLMRouterTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				966E12C3DB2CB73471E44C90 /* Debug */,
+				7F524ADBD2FB723FFE2F53D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		84702DA1C579FE6266B01010 /* Build configuration list for PBXNativeTarget "SmartLLMRouter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0BD929FEDE6A8B46A643152 /* Debug */,
+				478F6ADC16AC5C94B5AEF8EC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CFBB8DA7E921662BDBBE88EB /* Build configuration list for PBXProject "SmartLLMRouter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D713F19A64A4A10445D30FAD /* Debug */,
+				1A3895831151DF0C77C49907 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D1DC2D57132B0628AFF91682 /* Build configuration list for PBXNativeTarget "SmartLLMRouterUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E0359C8A68D638ADFFD8EE63 /* Debug */,
+				C3252FE7D6C6AD5075B1568B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = FABDD73B922FCED4DDA2756C /* Project object */;
+}
