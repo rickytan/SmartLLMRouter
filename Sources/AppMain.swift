@@ -64,6 +64,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_: Notification) {
+        // Set accessory policy: no Dock icon, stays alive without windows
+        NSApp.setActivationPolicy(.accessory)
+
         // Initialize logger only — proxy starts from MenuBarExtra.onAppear
         LoggerManager.setup()
 
