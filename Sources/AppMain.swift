@@ -1,4 +1,5 @@
 import SwiftUI
+import Sparkle
 
 @main
 struct SmartLLMRouterApp: App {
@@ -47,6 +48,15 @@ struct SmartLLMRouterApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    // Sparkle updater controller — starts automatically and handles background checks
+    private lazy var updaterController: SPUStandardUpdaterController = {
+        SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }()
+
     func applicationDidFinishLaunching(_: Notification) {
         // Initialize logger
         LoggerManager.setup()
@@ -55,5 +65,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             ProxyServer.shared.start(port: AppState.shared.port)
         }
+
+        // Sparkle is already started via lazy property above
+        // It will automatically check for updates based on the feed URL in Info.plist
+        _ = updaterController
     }
 }

@@ -1,6 +1,8 @@
 source "https://cdn.cocoapods.org/"
 platform :osx, '13.0'
-use_frameworks!
+
+# Use static linking (no dynamic frameworks → smaller binary)
+use_frameworks! :linkage => :static
 
 target 'SmartLLMRouter' do
   # 轻量级 HTTP Server

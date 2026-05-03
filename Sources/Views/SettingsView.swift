@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import Sparkle
 
 // MARK: - SettingsView
 
@@ -47,7 +48,7 @@ struct SettingsView: View {
                 .tag(4)
                 .accessibilityIdentifier("settings.tab.about")
         }
-        .frame(width: 560, height: 420)
+        .frame(width: DesignToken.Layout.settingsFrameWidth, height: DesignToken.Layout.settingsFrameHeight)
     }
 }
 
@@ -60,26 +61,26 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: DesignToken.Spacing.xl) {
                 // Service Control Section
                 serviceSection
 
                 Divider()
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
 
                 // Shell Environment Section
                 shellSection
             }
-            .padding(16)
+            .padding(DesignToken.Layout.cardPadding)
         }
     }
 
     // MARK: - Service Section
 
     private var serviceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
             Text(L10n.Settings.generalService)
-                .font(.system(size: 15, weight: .semibold))
+                .font(DesignToken.Font.h2())
                 .accessibilityIdentifier("settings.general.serviceHeader")
 
             // Start/Stop Button
@@ -98,30 +99,30 @@ struct GeneralSettingsTab: View {
             .accessibilityIdentifier(proxy.isRunning ? "settings.general.stop" : "settings.general.start")
 
             // Status Line
-            HStack(spacing: 6) {
+            HStack(spacing: DesignToken.Spacing.xs) {
                 StatusIndicatorView(isRunning: proxy.isRunning, isCooldown: false)
-                    .frame(width: 6, height: 6)
+                    .frame(width: DesignToken.Layout.statusIndicatorSmall, height: DesignToken.Layout.statusIndicatorSmall)
                     .accessibilityIdentifier(proxy.isRunning ? "menu.status.running" : "menu.status.stopped")
 
                 Text(proxy.isRunning
                      ? L10n.Settings.generalRunningOnPort(proxy.port)
                      : L10n.Settings.generalServiceStopped)
-                    .font(.system(size: 11))
+                    .font(DesignToken.Font.caption())
                     .foregroundColor(proxy.isRunning
-                        ? Color(#colorLiteral(red: 0, green: 0.784, blue: 0.325, alpha: 1))
-                        : .secondary)
+                        ? DesignToken.Colors.statusOnline
+                        : DesignToken.Colors.textSecondary)
             }
 
             // Port Input
             HStack {
                 Text(L10n.Settings.generalPort)
-                    .font(.system(size: 13))
+                    .font(DesignToken.Font.body())
 
                 Spacer()
 
                 TextField("", value: $appState.port, formatter: NumberFormatter())
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
+                    .frame(width: DesignToken.Layout.formLabelWidth)
                     .multilineTextAlignment(.trailing)
                     .accessibilityIdentifier("settings.general.port")
             }
@@ -129,7 +130,7 @@ struct GeneralSettingsTab: View {
             // Launch at Login Toggle
             Toggle(isOn: $appState.launchAtLogin) {
                 Text(L10n.Settings.generalAutoStart)
-                    .font(.system(size: 13))
+                    .font(DesignToken.Font.body())
             }
             .toggleStyle(.switch)
             .accessibilityIdentifier("settings.general.launchAtLogin")
@@ -139,9 +140,9 @@ struct GeneralSettingsTab: View {
     // MARK: - Shell Section
 
     private var shellSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
             Text(L10n.Settings.generalShellEnv)
-                .font(.system(size: 15, weight: .semibold))
+                .font(DesignToken.Font.h2())
                 .accessibilityIdentifier("settings.general.shellHeader")
 
             HoverButton(
@@ -155,17 +156,17 @@ struct GeneralSettingsTab: View {
             .accessibilityIdentifier("settings.general.shellConfigure")
 
             // Status
-            HStack(spacing: 6) {
+            HStack(spacing: DesignToken.Spacing.xs) {
                 if shellConfig.isConfigured {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(#colorLiteral(red: 0, green: 0.784, blue: 0.325, alpha: 1)))
+                        .foregroundColor(DesignToken.Colors.statusOnline)
                     Text(L10n.Settings.generalShellConfigured)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
                 } else {
                     Text(L10n.Settings.generalNotConfigured)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
                 }
             }
             .accessibilityIdentifier("settings.general.shellStatus")
@@ -182,7 +183,7 @@ struct ChannelsTab: View {
     @State private var isTestingAll = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignToken.Spacing.md) {
             // Toolbar
             HStack {
                 HoverButton(
@@ -208,7 +209,7 @@ struct ChannelsTab: View {
                 }
                 .accessibilityIdentifier("settings.channels.add")
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DesignToken.Layout.cardPadding)
 
             Divider()
 
@@ -227,11 +228,11 @@ struct ChannelsTab: View {
 
             // Hint
             Text(L10n.Settings.channelsReorderHint)
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-                .padding(.bottom, 4)
+                .font(DesignToken.Font.micro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .padding(.bottom, DesignToken.Spacing.xs)
         }
-        .padding(16)
+        .padding(DesignToken.Layout.cardPadding)
         .sheet(isPresented: $showingAddChannel) {
             AddChannelView()
         }
@@ -248,20 +249,20 @@ struct ChannelRowView: View {
     @State private var isTesting = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignToken.Spacing.sm) {
             // Status Indicator
             StatusIndicatorView(
                 isRunning: !channel.isCoolingDown,
                 isCooldown: channel.isCoolingDown
             )
-            .frame(width: 8, height: 8)
+            .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
             .accessibilityIdentifier("channel.status.\(index)")
 
             // Channel Info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
                 HStack {
                     Text(channel.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(DesignToken.Font.h3())
                         .lineLimit(1)
                         .accessibilityIdentifier("channel.name.\(index)")
 
@@ -273,20 +274,20 @@ struct ChannelRowView: View {
                 }
 
                 Text(channel.baseURL)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
                     .lineLimit(1)
 
                 if !channel.models.isEmpty {
                     Text(channel.models.map(\.identifier).prefix(3).joined(separator: ", "))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .font(DesignToken.Font.micro())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
                         .lineLimit(1)
                 }
             }
 
             // Actions
-            HStack(spacing: 4) {
+            HStack(spacing: DesignToken.Spacing.xs) {
                 Button {
                     Task {
                         isTesting = true
@@ -295,39 +296,39 @@ struct ChannelRowView: View {
                     }
                 } label: {
                     Image(systemName: isTesting ? "ellipsis.circle.fill" : "bolt.fill")
-                        .font(.system(size: 12))
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize))
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("channel.speedtest.\(index)")
 
                 Button {
                     // Edit channel
                 } label: {
                     Image(systemName: "pencil")
-                        .font(.system(size: 12))
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize))
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("channel.edit.\(index)")
 
                 Button {
                     ChannelStore.shared.removeChannel(id: channel.id)
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12))
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize))
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("channel.delete.\(index)")
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(isHovered ? Color.gray.opacity(0.08) : Color.clear)
-        .cornerRadius(6)
+        .padding(.vertical, DesignToken.Spacing.sm)
+        .padding(.horizontal, DesignToken.Spacing.md)
+        .background(isHovered ? DesignToken.Colors.hoverFill : Color.clear)
+        .cornerRadius(DesignToken.Layout.buttonCornerRadius)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
         }
@@ -339,20 +340,20 @@ struct ChannelRowView: View {
 
 struct EmptyChannelView: View {
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignToken.Spacing.md) {
             Image(systemName: "server.rack")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .font(.system(size: DesignToken.Layout.heroIconSize))
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
             Text(L10n.Settings.channelsEmptyTitle)
-                .font(.system(size: 13, weight: .medium))
+                .font(DesignToken.Font.system(size: 13, weight: .medium))
 
             Text(L10n.Settings.channelsEmptySubtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
+        .padding(DesignToken.Spacing.xl)
         .accessibilityIdentifier("settings.channels.emptyState")
     }
 }
@@ -365,11 +366,11 @@ struct AdvancedTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: DesignToken.Spacing.xl) {
                 // Failover Section
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                     Text(L10n.Settings.advancedFailover)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(DesignToken.Font.h2())
 
                     Toggle(L10n.Settings.advancedFailover, isOn: $appState.autoFailover)
                         .toggleStyle(.switch)
@@ -377,12 +378,12 @@ struct AdvancedTab: View {
                 }
 
                 Divider()
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
 
                 // Cooldown Section
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                     Text(L10n.Settings.advancedCooldown)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(DesignToken.Font.h2())
 
                     cooldownRow(title: L10n.Settings.advancedCooldown429, value: "30m")
                         .accessibilityIdentifier("settings.advanced.cooldown.429")
@@ -392,29 +393,30 @@ struct AdvancedTab: View {
                         .accessibilityIdentifier("settings.advanced.cooldown.401")
                 }
             }
-            .padding(16)
+            .padding(DesignToken.Layout.cardPadding)
         }
     }
 
     private func cooldownRow(title: String, value: String) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 13))
+                .font(DesignToken.Font.body())
 
             Spacer()
 
             Text(value)
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundColor(DesignToken.Colors.textSecondary)
         }
     }
 }
 
-// MARK: - Daily Usage Data for Charts
+// MARK: - Daily Channel Usage Data for Stacked Bar Chart
 
-struct DailyUsage: Identifiable {
+struct DailyChannelUsage: Identifiable {
     let id = UUID()
     let date: Date
+    let channelName: String
     let tokens: Int
     let requests: Int
     let cost: Double
@@ -428,6 +430,21 @@ struct ChannelStat: Identifiable {
     let cost: Double
 }
 
+// Channel colors for chart legend
+extension Color {
+    static let channelColors: [Color] = [
+        .blue, .green, .orange, .purple, .red,
+        .yellow, .pink, .cyan, .mint, .indigo,
+        .teal, .brown, .gray
+    ]
+
+    static func channelColor(for name: String) -> Color {
+        let hash = name.hashValue
+        let index = abs(hash) % channelColors.count
+        return channelColors[index]
+    }
+}
+
 // MARK: - Usage Tab
 
 struct UsageTab: View {
@@ -436,9 +453,9 @@ struct UsageTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.sm) {
                 // Stat Cards
-                HStack(spacing: 12) {
+                HStack(spacing: DesignToken.Spacing.md) {
                     StatCard(
                         title: L10n.Settings.usageTotalRequests,
                         value: "\(usage.todayStats.totalRequests)",
@@ -460,35 +477,34 @@ struct UsageTab: View {
                     )
                     .accessibilityIdentifier("usage.totalCost")
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DesignToken.Layout.cardPadding)
 
-                // 30-day bar chart
-                if dailyUsageData.isEmpty {
-                    VStack(spacing: 8) {
+                // 30-day stacked bar chart by channel
+                if dailyChannelUsageData.isEmpty {
+                    VStack(spacing: DesignToken.Spacing.sm) {
                         Image(systemName: "chart.bar.xaxis")
-                            .font(.system(size: 32))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: DesignToken.Layout.largeIconSize))
+                            .foregroundColor(DesignToken.Colors.textSecondary)
                         Text(L10n.Settings.usageNoData)
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
+                            .font(DesignToken.Font.body())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, DesignToken.Spacing.xl)
                     .accessibilityIdentifier("usage.chart.empty")
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
                         Text(L10n.Settings.usageChartTitle)
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 16)
+                            .font(DesignToken.Font.h3())
+                            .padding(.horizontal, DesignToken.Layout.cardPadding)
 
                         Chart {
-                            ForEach(dailyUsageData) { day in
+                            ForEach(dailyChannelUsageData) { item in
                                 BarMark(
-                                    x: .value("Date", day.date, unit: .day),
-                                    y: .value("Tokens", day.tokens)
+                                    x: .value("Date", item.date, unit: .day),
+                                    y: .value("Tokens", item.tokens)
                                 )
-                                .foregroundStyle(Color.accentColor.opacity(0.75))
-                                .cornerRadius(3)
+                                .foregroundStyle(Color.channelColor(for: item.channelName))
                             }
                         }
                         .chartXAxis {
@@ -507,68 +523,92 @@ struct UsageTab: View {
                                 }
                             }
                         }
-                        .frame(height: 140)
-                        .padding(.horizontal, 8)
+                        .frame(height: DesignToken.Layout.chartHeight)
+                        .padding(.horizontal, DesignToken.Spacing.sm)
                         .accessibilityIdentifier("usage.chart.bar")
+
+                        // Channel legend
+                        if !channelNamesInChart.isEmpty {
+                            HStack(spacing: DesignToken.Spacing.sm) {
+                                ForEach(channelNamesInChart, id: \.self) { name in
+                                    HStack(spacing: DesignToken.Spacing.xs) {
+                                        Circle()
+                                            .fill(Color.channelColor(for: name))
+                                            .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
+                                        Text(name)
+                                            .font(DesignToken.Font.micro())
+                                            .foregroundColor(DesignToken.Colors.textSecondary)
+                                    }
+                                }
+                            }
+                            .padding(.top, DesignToken.Spacing.xs)
+                            .padding(.horizontal, DesignToken.Layout.cardPadding)
+                        }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DesignToken.Spacing.xs)
                 }
 
                 // Channel Statistics
                 if channelStats.isEmpty {
                     EmptyChannelStats()
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
                         Text(L10n.Settings.usageChannelStats)
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 16)
+                            .font(DesignToken.Font.h3())
+                            .padding(.horizontal, DesignToken.Layout.cardPadding)
 
-                        VStack(spacing: 4) {
+                        VStack(spacing: DesignToken.Spacing.xs) {
                             ForEach(channelStats) { stat in
                                 ChannelStatRow(stat: stat)
                             }
                         }
                         .accessibilityIdentifier("usage.channelStats")
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DesignToken.Spacing.xs)
                 }
 
                 Spacer()
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, DesignToken.Layout.cardPadding)
         }
     }
 
-    // Compute daily usage for the last 30 days
-    private var dailyUsageData: [DailyUsage] {
+    // Compute daily channel usage for the last 30 days (stacked by channel)
+    private var dailyChannelUsageData: [DailyChannelUsage] {
         let calendar = Calendar.current
         let now = Date()
         let startDate = calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: now))!
 
-        var dailyMap: [Date: (tokens: Int, requests: Int, cost: Double)] = [:]
-
-        // Initialize all 30 days with zero
-        for dayOffset in 0 ..< 30 {
-            if let date = calendar.date(byAdding: .day, value: dayOffset, to: startDate) {
-                dailyMap[calendar.startOfDay(for: date)] = (0, 0, 0)
-            }
+    // Key: date+channel -> usage data
+        struct DayChannelKey: Hashable {
+            let date: Date
+            let channelName: String
         }
+        var dailyChannelMap: [DayChannelKey: (tokens: Int, requests: Int, cost: Double)] = [:]
 
         // Aggregate records
         for record in usage.records where record.timestamp >= startDate {
             let dayStart = calendar.startOfDay(for: record.timestamp)
-            if let existing = dailyMap[dayStart] {
-                dailyMap[dayStart] = (
+            let key = DayChannelKey(date: dayStart, channelName: record.channelName)
+            if let existing = dailyChannelMap[key] {
+                dailyChannelMap[key] = (
                     existing.tokens + record.totalTokens,
                     existing.requests + 1,
                     existing.cost + record.estimatedCost
                 )
+            } else {
+                dailyChannelMap[key] = (record.totalTokens, 1, record.estimatedCost)
             }
         }
 
-        return dailyMap
-            .map { DailyUsage(date: $0.key, tokens: $0.value.tokens, requests: $0.value.requests, cost: $0.value.cost) }
-            .sorted { $0.date < $1.date }
+        return dailyChannelMap
+            .map { DailyChannelUsage(date: $0.key.date, channelName: $0.key.channelName, tokens: $0.value.tokens, requests: $0.value.requests, cost: $0.value.cost) }
+            .sorted { $0.date < $1.date || ($0.date == $1.date && $0.channelName < $1.channelName) }
+    }
+
+    // Get sorted unique channel names in the chart data
+    private var channelNamesInChart: [String] {
+        Set(dailyChannelUsageData.map(\.channelName)).sorted()
     }
 
     // Compute per-channel stats from today's records
@@ -579,22 +619,21 @@ struct UsageTab: View {
         var statsMap: [String: (requests: Int, tokens: Int, cost: Double)] = [:]
 
         for record in usage.records where record.timestamp >= todayStart {
-            if let existing = statsMap[record.channelID] {
-                statsMap[record.channelID] = (
+            if let existing = statsMap[record.channelName] {
+                statsMap[record.channelName] = (
                     existing.requests + 1,
                     existing.tokens + record.totalTokens,
                     existing.cost + record.estimatedCost
                 )
             } else {
-                statsMap[record.channelID] = (1, record.totalTokens, record.estimatedCost)
+                statsMap[record.channelName] = (1, record.totalTokens, record.estimatedCost)
             }
         }
 
         return statsMap
-            .map { channelID, value in
+            .map { channelName, value in
                 ChannelStat(
-                    channelName: value.requests > 0 ?
-                        (usage.records.first { $0.channelID == channelID }?.channelName ?? channelID) : channelID,
+                    channelName: channelName,
                     requests: value.requests,
                     tokens: value.tokens,
                     cost: value.cost)
@@ -619,37 +658,37 @@ struct ChannelStatRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignToken.Spacing.md) {
             Text(stat.channelName)
-                .font(.system(size: 12, weight: .medium))
+                .font(DesignToken.Font.system(size: 12, weight: .medium))
                 .lineLimit(1)
 
             Spacer()
 
-            HStack(spacing: 16) {
+            HStack(spacing: DesignToken.Spacing.lg) {
                 statItem(label: L10n.Settings.usageRequests, value: "\(stat.requests)")
                 statItem(label: L10n.Settings.usageTokens, value: formatTokens(stat.tokens))
                 statItem(label: L10n.Settings.usageCost, value: String(format: "$%.2f", stat.cost))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(isHovered ? Color.gray.opacity(0.08) : Color(NSColor.controlBackgroundColor))
-        .cornerRadius(6)
+        .padding(.horizontal, DesignToken.Spacing.md)
+        .padding(.vertical, DesignToken.Spacing.sm)
+        .background(isHovered ? DesignToken.Colors.hoverFill : DesignToken.Colors.bgSecondary)
+        .cornerRadius(DesignToken.Layout.buttonCornerRadius)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
         }
     }
 
     private func statItem(label: String, value: String) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: DesignToken.Spacing.xs) {
             Text(value)
-                .font(.system(size: 12, weight: .semibold))
+                .font(DesignToken.Font.system(size: 12, weight: .semibold))
             Text(label)
-                .font(.system(size: 9))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.microSmall())
+                .foregroundColor(DesignToken.Colors.textSecondary)
         }
     }
 
@@ -667,13 +706,13 @@ struct ChannelStatRow: View {
 
 struct EmptyChannelStats: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DesignToken.Spacing.sm) {
             Text(L10n.Settings.usageNoData)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, DesignToken.Spacing.md)
         .accessibilityIdentifier("usage.channelStats.empty")
     }
 }
@@ -688,31 +727,31 @@ struct StatCard: View {
     @State private var isHovered = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DesignToken.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(.accentColor)
+                .font(.system(size: DesignToken.Layout.statCardIconSize))
+                .foregroundColor(DesignToken.Colors.accent)
 
             Text(value)
-                .font(.system(size: 24, weight: .bold))
+                .font(DesignToken.Font.value())
 
             Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(16)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(10)
+        .padding(DesignToken.Layout.cardPadding)
+        .background(DesignToken.Colors.bgSecondary)
+        .cornerRadius(DesignToken.Layout.cardCornerRadius)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHovered ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
+                .stroke(isHovered ? DesignToken.Colors.accent.opacity(0.3) : Color.clear, lineWidth: DesignToken.Layout.rowHoverBorderWidth)
         )
     }
 }
@@ -720,21 +759,32 @@ struct StatCard: View {
 // MARK: - About Tab
 
 struct AboutTab: View {
+    @StateObject private var updaterDelegate = SparkleUpdaterDelegate.shared
+
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.sm) {
             Image(systemName: "network")
-                .font(.system(size: 48))
-                .foregroundColor(.accentColor)
+                .font(.system(size: DesignToken.Layout.heroIconSize))
+                .foregroundColor(DesignToken.Colors.accent)
 
             Text(L10n.About.appName)
-                .font(.system(size: 20, weight: .bold))
+                .font(DesignToken.Font.h1())
 
             Text(L10n.Settings.aboutVersion("1.0.0"))
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.body())
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("about.version")
 
-            VStack(spacing: 12) {
+            VStack(spacing: DesignToken.Spacing.md) {
+                // Check for Updates button (Sparkle)
+                HoverButton(
+                    title: L10n.Settings.aboutCheckUpdate,
+                    icon: "arrow.down.circle"
+                ) {
+                    updaterDelegate.checkForUpdates()
+                }
+                .accessibilityIdentifier("about.checkForUpdates")
+
                 HoverButton(
                     title: L10n.Settings.aboutGithub,
                     icon: "link"
@@ -755,7 +805,29 @@ struct AboutTab: View {
 
             Spacer()
         }
-        .padding(32)
+        .padding(DesignToken.Spacing.xl)
+    }
+}
+
+// MARK: - Sparkle Updater Delegate
+
+@MainActor
+final class SparkleUpdaterDelegate: ObservableObject {
+    static let shared = SparkleUpdaterDelegate()
+
+    private let updaterController: SPUStandardUpdaterController
+
+    private init() {
+        // SPUStandardUpdaterController starts looking for updates automatically
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }
+
+    func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 }
 

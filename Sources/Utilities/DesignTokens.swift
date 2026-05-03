@@ -30,6 +30,14 @@ enum DesignToken {
         static let textPrimary = Color.primary
         static let textSecondary = Color.secondary
         static let textTertiary = Color.gray.opacity(0.5)
+
+        // Latency colors (aliases matching status colors)
+        static let latencyFast = statusOnline
+        static let latencyNormal = statusWarning
+        static let latencySlow = statusOffline
+
+        // Status indicator overlay
+        static let statusPulseOverlay = statusOnline.opacity(0.3)
     }
 
     // MARK: - Font
@@ -41,6 +49,7 @@ enum DesignToken {
         static func body() -> SwiftUI.Font { .system(size: 13) }
         static func caption() -> SwiftUI.Font { .system(size: 11) }
         static func micro() -> SwiftUI.Font { .system(size: 10, weight: .medium) }
+        static func microSmall() -> SwiftUI.Font { .system(size: 9) }
         static func value() -> SwiftUI.Font { .system(size: 24, weight: .bold) }
         static func mono() -> SwiftUI.Font { .system(size: 12, design: .monospaced) }
         static func monoCaption() -> SwiftUI.Font { .system(size: 11, design: .monospaced) }
@@ -88,6 +97,16 @@ enum DesignToken {
         static let closeIconSize: CGFloat = 16
         static let featureIconSize: CGFloat = 14
         static let rowCornerRadius: CGFloat = 4
+
+        // Settings & Usage
+        static let settingsFrameWidth: CGFloat = 560
+        static let settingsFrameHeight: CGFloat = 420
+        static let chartHeight: CGFloat = 140
+        static let statusIndicatorSmall: CGFloat = 6
+        static let chartBarCornerRadius: CGFloat = 3
+        static let rowHoverBorderWidth: CGFloat = 1
+        static let statCardIconSize: CGFloat = 20
+        static let smallIconSize: CGFloat = 11
     }
 
     // MARK: - Animation

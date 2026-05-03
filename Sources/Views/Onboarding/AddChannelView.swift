@@ -301,7 +301,7 @@ struct AddChannelView: View {
 
             // Metadata indicator
             if model.contextLength != nil || model.inputPricePer1M != nil {
-                HStack(spacing: 2) {
+                HStack(spacing: DesignToken.Spacing.xxs) {
                     if let ctx = model.contextLength {
                         Text(formatContext(ctx))
                             .font(DesignToken.Font.monoMicro())
@@ -321,7 +321,7 @@ struct AddChannelView: View {
                 showingModelEditor = true
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 11))
+                    .font(.system(size: DesignToken.Layout.smallIconSize))
             }
             .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
@@ -332,7 +332,7 @@ struct AddChannelView: View {
                 models.remove(at: index)
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 11))
+                    .font(.system(size: DesignToken.Layout.smallIconSize))
             }
             .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
@@ -536,21 +536,21 @@ struct ModelMetadataEditorView: View {
             VStack(spacing: DesignToken.Spacing.lg) {
                 // Context Length
                 formRow(label: L10n.ModelEditor.contextLength) {
-                    TextField("e.g. 128000", text: $contextLength)
+                    TextField(L10n.ModelEditor.contextLengthPlaceholder, text: $contextLength)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("modelEditor.contextLength")
                 }
 
                 // Input Price
                 formRow(label: L10n.ModelEditor.inputPrice) {
-                    TextField("e.g. 5.00", text: $inputPrice)
+                    TextField(L10n.ModelEditor.inputPricePlaceholder, text: $inputPrice)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("modelEditor.inputPrice")
                 }
 
                 // Output Price
                 formRow(label: L10n.ModelEditor.outputPrice) {
-                    TextField("e.g. 15.00", text: $outputPrice)
+                    TextField(L10n.ModelEditor.outputPricePlaceholder, text: $outputPrice)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("modelEditor.outputPrice")
                 }

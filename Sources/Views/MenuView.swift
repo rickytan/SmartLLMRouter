@@ -10,63 +10,63 @@ struct MenuView: View {
     @ObservedObject private var channelManager = ChannelManager.shared
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: .zero) {
             // Status Header
             statusHeader
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.top, DesignToken.Layout.menuPadding)
+                .padding(.bottom, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Quick Stats
             quickStats
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Auto-Failover Toggle
             failoverToggle
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Active Channel
             activeChannelInfo
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Recent Requests
             recentRequests
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Actions
             actionButtons
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.top, DesignToken.Spacing.sm)
+                .padding(.bottom, DesignToken.Spacing.xs)
 
             Divider()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
 
             // Settings & Quit
             footerButtons
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DesignToken.Layout.menuPadding)
+                .padding(.vertical, DesignToken.Spacing.sm)
         }
-        .frame(width: 300)
+        .frame(width: DesignToken.Layout.menuWidth)
     }
 
     // MARK: - Status Header
@@ -77,13 +77,13 @@ struct MenuView: View {
                 .accessibilityIdentifier("menu.status.running")
 
             Text(proxy.isRunning ? L10n.App.statusRunning : L10n.App.statusStopped)
-                .font(.system(size: 13, weight: .semibold))
+                .font(DesignToken.Font.h3())
 
             Spacer()
 
             Text(":\(proxy.port)")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.monoMicro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("menu.port.label")
         }
     }
@@ -91,17 +91,17 @@ struct MenuView: View {
     // MARK: - Quick Stats
 
     private var quickStats: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: DesignToken.Spacing.lg) {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
                 Text(L10n.Menu.statsRequests(Int64(usage.todayStats.totalRequests)))
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
                 Text(L10n.Menu.statsTokens(Int64(usage.todayStats.totalTokens)))
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
             Spacer()
@@ -118,7 +118,7 @@ struct MenuView: View {
                 set: { _ in appState.toggleAutoFailover() }
             )
         )
-        .font(.system(size: 12))
+        .font(DesignToken.Font.system(size: 12))
         .toggleStyle(.switch)
         .accessibilityIdentifier("menu.failover.toggle")
     }
@@ -126,11 +126,11 @@ struct MenuView: View {
     // MARK: - Active Channel Info
 
     private var activeChannelInfo: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             if let channel = channelStore.activeChannel {
-                HStack(spacing: 6) {
+                HStack(spacing: DesignToken.Spacing.xs) {
                     Text(L10n.Menu.channelActive(channel.name))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(DesignToken.Font.system(size: 12, weight: .medium))
                         .lineLimit(1)
 
                     if channel.lastLatencyMs > 0 {
@@ -139,14 +139,14 @@ struct MenuView: View {
                 }
 
                 Text(channel.baseURL)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             } else {
                 Text(L10n.Menu.channelActive(L10n.Settings.channelsAdd))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.system(size: 12, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
         }
         .accessibilityIdentifier("menu.active.channel")
@@ -155,19 +155,19 @@ struct MenuView: View {
     // MARK: - Recent Requests
 
     private var recentRequests: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             Text(L10n.Menu.requestsRecent)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
+                .font(DesignToken.Font.system(size: 11, weight: .medium))
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
             if usage.todayStats.totalRequests == 0 {
                 Text(L10n.Menu.requestsNone)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             } else {
                 Text(L10n.Menu.statsRequests(Int64(usage.todayStats.totalRequests)))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
         }
         .accessibilityIdentifier("menu.recent.requests")
@@ -176,7 +176,7 @@ struct MenuView: View {
     // MARK: - Action Buttons
 
     private var actionButtons: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DesignToken.Spacing.xs) {
             HoverButton(title: L10n.Menu.copyEnv, icon: "square.and.arrow.up") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(
@@ -191,13 +191,13 @@ struct MenuView: View {
             }
             .accessibilityIdentifier("menu测试密钥")
         }
-        .font(.system(size: 12))
+        .font(DesignToken.Font.system(size: 12))
     }
 
     // MARK: - Footer Buttons
 
     private var footerButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignToken.Spacing.lg) {
             HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
@@ -210,7 +210,7 @@ struct MenuView: View {
             }
             .accessibilityIdentifier("menu.quit")
         }
-        .font(.system(size: 12))
+        .font(DesignToken.Font.system(size: 12))
     }
 }
 
@@ -223,11 +223,11 @@ struct StatusIndicatorView: View {
     var body: some View {
         Circle()
             .fill(statusColor)
-            .frame(width: 8, height: 8)
+            .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
             .overlay(
                 Circle()
-                    .fill(statusColor.opacity(0.3))
-                    .frame(width: 14, height: 14)
+                    .fill(statusPulseColor)
+                    .frame(width: DesignToken.Layout.statusDotPulseSize, height: DesignToken.Layout.statusDotPulseSize)
                     .opacity(showPulse ? 0.6 : 0)
                     .animation(
                         Animation.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true),
@@ -238,11 +238,21 @@ struct StatusIndicatorView: View {
 
     private var statusColor: Color {
         if isCooldown {
-            return Color(#colorLiteral(red: 1, green: 0.698, blue: 0, alpha: 1)) // #FFB300
+            return DesignToken.Colors.statusWarning
         } else if isRunning {
-            return Color(#colorLiteral(red: 0, green: 0.784, blue: 0.325, alpha: 1)) // #00C853
+            return DesignToken.Colors.statusOnline
         } else {
-            return Color(#colorLiteral(red: 1, green: 0.322, blue: 0.322, alpha: 1)) // #FF5252
+            return DesignToken.Colors.statusOffline
+        }
+    }
+
+    private var statusPulseColor: Color {
+        if isCooldown {
+            return DesignToken.Colors.statusWarning.opacity(0.3)
+        } else if isRunning {
+            return DesignToken.Colors.statusOnline.opacity(0.3)
+        } else {
+            return DesignToken.Colors.statusOffline.opacity(0.3)
         }
     }
 
@@ -251,7 +261,7 @@ struct StatusIndicatorView: View {
     }
 
     private var pulseDuration: TimeInterval {
-        isCooldown ? 2.0 : 1.5
+        isCooldown ? DesignToken.Animation.pulseDurationSlow : DesignToken.Animation.pulseDuration
     }
 }
 
@@ -261,27 +271,27 @@ struct LatencyChip: View {
     let latencyMs: Double
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DesignToken.Spacing.xs) {
             Circle()
                 .fill(latencyColor)
-                .frame(width: 6, height: 6)
+                .frame(width: DesignToken.Layout.statusDotPulseSize / 2 - 1, height: DesignToken.Layout.statusDotPulseSize / 2 - 1)
 
             Text(String(format: "%.0fms", latencyMs))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(DesignToken.Font.monoMicro())
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DesignToken.Layout.badgePaddingH)
+        .padding(.vertical, DesignToken.Layout.badgePaddingV)
         .background(latencyColor.opacity(0.12))
-        .cornerRadius(4)
+        .cornerRadius(DesignToken.Layout.badgeCornerRadius)
     }
 
     private var latencyColor: Color {
-        if latencyMs < 300 {
-            return Color(#colorLiteral(red: 0, green: 0.784, blue: 0.325, alpha: 1))
-        } else if latencyMs < 800 {
-            return Color(#colorLiteral(red: 1, green: 0.698, blue: 0, alpha: 1))
+        if latencyMs < Double(DesignToken.Latency.fastThreshold) {
+            return DesignToken.Colors.latencyFast
+        } else if latencyMs < Double(DesignToken.Latency.normalThreshold) {
+            return DesignToken.Colors.latencyNormal
         } else {
-            return Color(#colorLiteral(red: 1, green: 0.322, blue: 0.322, alpha: 1))
+            return DesignToken.Colors.latencySlow
         }
     }
 }
@@ -298,33 +308,33 @@ struct HoverButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: DesignToken.Spacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DesignToken.Font.system(size: 12, weight: .medium))
             }
-            .frame(maxWidth: .infinity, minHeight: 28)
-            .background(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
-            .foregroundColor(isHovered ? .accentColor : .primary)
-            .cornerRadius(6)
-            .scaleEffect(isPressed ? 0.98 : 1.0)
+            .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
+            .background(isHovered ? DesignToken.Colors.accent.opacity(0.1) : Color.clear)
+            .foregroundColor(isHovered ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .scaleEffect(isPressed ? DesignToken.Animation.pressScale : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    withAnimation(.easeInOut(duration: 0.1)) {
+                    withAnimation(.easeInOut(duration: DesignToken.Animation.pressDuration)) {
                         isPressed = true
                     }
                 }
                 .onEnded { _ in
-                    withAnimation(.easeInOut(duration: 0.1)) {
+                    withAnimation(.easeInOut(duration: DesignToken.Animation.pressDuration)) {
                         isPressed = false
                     }
                 }
