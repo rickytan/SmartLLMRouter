@@ -29,16 +29,15 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ```
 
 ## Current State
-- **Phase 1-2**: ✅ Complete — All core services (ProxyServer, SmartRouter, CooldownEngine, ChannelManager, ProtocolConverter, RequestForwarder, UsageTracker, KeychainManager, ShellConfigManager, LoggerManager)
-- **Phase 3 UI**: ✅ MenuView & SettingsView rewritten per DESIGN.md
-- **Onboarding**: ✅ Integrated into AppMain.swift — shows on first launch via `AppState.onboardingCompleted`, 4-step flow (welcome → addChannel → shellConfig → done)
-- **DesignTokens**: ✅ 62 constants (Spacing.xxs added), all View files use DesignToken.xxx — zero hardcoded visual values
-- **Phase 4**: ❌ Missing — Usage 30-day chart, Sparkle auto-update
+- **Phase 1-2**: ✅ Complete — All core services
+- **Phase 3 UI**: ✅ MenuView & SettingsView fully rewritten with DesignTokens
+- **Onboarding**: ✅ Integrated, 4-step flow complete
+- **Phase 4**: ✅ **COMPLETE** — UsageTab stacked bar chart (grouped by channel), Sparkle auto-update integrated, zero hardcoded visual values across all Views
+- **Static Linking**: ✅ `use_frameworks! :linkage => :static` enabled, app size 8.6 MB
 
-## Pending Tasks (Priority Order)
-1. **UsageTab 30-day chart** — Use Swift Charts framework (iOS 16+/macOS 13+) to render bar charts, grouped by channel
-2. **Complete AddChannelView CRUD** — Ensure full model metadata management, Keychain integration
-3. **Sparkle auto-update** — Already in Podfile, needs AppMain integration
+## Pending Tasks
+- **UI Test expansion**: Add UITest cases for Onboarding flow, AddChannel CRUD, Settings tabs
+- **UsageTracker integration in Proxy**: Ensure `UsageTracker.recordUsage` is called from `RequestForwarder` on every proxied request
 
 ## Key Files
 - Sources/Views/Onboarding/OnboardingView.swift — First-launch wizard (4 steps)
