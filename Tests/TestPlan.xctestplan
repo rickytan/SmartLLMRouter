@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "8A6D0473-33B3-4E65-9C6D-B0A8C3D8F7C1",
+      "name" : "Default Configuration",
+      "options" : {
+        
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "commandLineArgumentEntries" : [
+      
+    ],
+    "environmentVariables" : [
+      
+    ],
+    "systemAttachmentLifetime" : 2
+  },
+  "targetTests" : [
+    {
+      "targetIdentifiers" : [
+        "SmartLLMRouterTests"
+      ],
+      "testPlans" : [
+        
+      ]
+    }
+  ],
+  "version" : 4
+}
