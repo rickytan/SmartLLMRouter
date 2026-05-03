@@ -45,9 +45,6 @@ Package.resolved
 Pods/
 SmartLLMRouter.xcworkspace/
 
-# SwiftGen
-Sources/Generated/
-
 # API Specs reference (large external files)
 Resources/specs/*.ts
 

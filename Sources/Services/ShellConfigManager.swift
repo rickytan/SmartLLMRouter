@@ -152,8 +152,9 @@ final class ShellConfigManager: ObservableObject {
     
     private func getShellConfigFile() -> URL? {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let zshrcPath = ".zshrc"
-        return homeDir.appendingPathComponent(zshrcPath)
+        // Use .zshenv because it is sourced for ALL shell invocations (interactive, non-interactive, scripts, IDEs)
+        // .zshrc is only for interactive shells and often misses tools like Claude Code, CI scripts, etc.
+        return homeDir.appendingPathComponent(".zshenv")
     }
     
     private func generateConfigBlock(port: Int) -> String {

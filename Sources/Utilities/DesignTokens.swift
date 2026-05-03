@@ -18,21 +18,21 @@ enum DesignToken {
     // MARK: - Colors
 
     enum Colors {
-        // Fixed hex colors (status/accent)
-        static let statusOnline = Color("StatusOnline")
-        static let statusOffline = Color("StatusOffline")
-        static let statusWarning = Color("StatusWarning")
-        static let accent = Color("Accent")
+        // Fixed hex colors (status/accent) from Assets.xcassets
+        static let statusOnline = Asset.statusOnline.swiftUIColor
+        static let statusOffline = Asset.statusOffline.swiftUIColor
+        static let statusWarning = Asset.statusWarning.swiftUIColor
+        static let accent = Asset.accent.swiftUIColor
 
         // Reference colors (adapt to Light/Dark automatically)
-        static let bgPrimary = Color("BgPrimary")
-        static let bgSecondary = Color("BgSecondary")
-        static let textPrimary = Color("TextPrimary")
-        static let textSecondary = Color("TextSecondary")
-        static let textTertiary = Color("TextTertiary")
+        static let bgPrimary = Asset.bgPrimary.swiftUIColor
+        static let bgSecondary = Asset.bgSecondary.swiftUIColor
+        static let textPrimary = Asset.textPrimary.swiftUIColor
+        static let textSecondary = Asset.textSecondary.swiftUIColor
+        static let textTertiary = Asset.textTertiary.swiftUIColor
 
         // Hover fill (alpha adapts to appearance)
-        static let hoverFill = Color("HoverFill")
+        static let hoverFill = Asset.hoverFill.swiftUIColor
 
         // Latency colors (aliases matching status colors)
         static let latencyFast = statusOnline
