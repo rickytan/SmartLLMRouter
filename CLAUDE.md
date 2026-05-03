@@ -41,11 +41,7 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 - **Static Linking**: ✅ `use_frameworks! :linkage => :static` enabled, app size 8.6 MB
 
 ## Pending Tasks
-- **Phase 5: Unified Model Switcher** (IN PROGRESS)
-  - Implement `ModelSwitcher` service to manage active model.
-  - Update `MenuView` to allow selecting models from the active channel.
-  - Update `RequestForwarder` to replace `model` field in requests.
-  - **Strict Protocol Consistency**: Only allow switching models that support the active channel's protocol.
+- **Phase 5**: ✅ **COMPLETE** — Unified Model Switcher integrated with Protocol Consistency enforcement
 - **UI Test expansion**: Add UITest cases for Onboarding flow, AddChannel CRUD, Settings tabs
 - **UsageTracker integration in Proxy**: Ensure `UsageTracker.recordUsage` is called from `RequestForwarder` on every proxied request
 
