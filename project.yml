@@ -21,6 +21,7 @@ targets:
     scheme:
       testTargets:
         - SmartLLMRouterTests
+        - SmartLLMRouterUITests
     sources:
       - Sources
       - Resources
@@ -54,7 +55,7 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - Tests
+      - path: Tests/Unit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.smartllmrouter.tests
@@ -67,3 +68,22 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         PRODUCT_NAME: SmartLLMRouterTests
     dependencies: []
+
+  SmartLLMRouterUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: Tests/UI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.smartllmrouter.ui-tests
+        PRODUCT_MODULE_NAME: SmartLLMRouterUITests
+        GENERATE_INFOPLIST_FILE: YES
+        ONLY_ACTIVE_ARCH: YES
+        ARCHS: arm64
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        PRODUCT_NAME: SmartLLMRouterUITests
+    dependencies:
+      - target: SmartLLMRouter
