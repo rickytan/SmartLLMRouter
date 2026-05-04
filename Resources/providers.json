@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "providers": [
     {
       "id": "anthropic",
@@ -105,26 +105,44 @@
       "id": "deepseek",
       "name_en": "DeepSeek",
       "name_zh": "DeepSeek",
-      "base_url": "https://api.deepseek.com/v1",
       "supports_protocols": [
-        "openai"
+        "openai",
+        "anthropic"
       ],
       "default_models": [
         {
-          "model": "deepseek-chat",
+          "model": "deepseek-v4-flash",
           "protocol": "openai",
-          "context_length": 64000,
-          "input_price": 0.27,
-          "output_price": 1.1
+          "context_length": 1000000,
+          "input_price": 0.14,
+          "output_price": 0.28
         },
         {
-          "model": "deepseek-reasoner",
+          "model": "deepseek-v4-pro",
           "protocol": "openai",
-          "context_length": 64000,
-          "input_price": 0.55,
-          "output_price": 2.19
+          "context_length": 1000000,
+          "input_price": 0.435,
+          "output_price": 0.87
+        },
+        {
+          "model": "deepseek-v4-flash",
+          "protocol": "anthropic",
+          "context_length": 1000000,
+          "input_price": 0.14,
+          "output_price": 0.28
+        },
+        {
+          "model": "deepseek-v4-pro",
+          "protocol": "anthropic",
+          "context_length": 1000000,
+          "input_price": 0.435,
+          "output_price": 0.87
         }
-      ]
+      ],
+      "base_urls": {
+        "openai": "https://api.deepseek.com",
+        "anthropic": "https://api.deepseek.com/anthropic"
+      }
     },
     {
       "id": "dashscope",
@@ -172,8 +190,8 @@
         }
       ],
       "base_urls": {
-        "openai": "https://coding.dashscope.aliyuncs.com/v1",
-        "anthropic": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+        "openai": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "anthropic": "https://dashscope.aliyuncs.com/compatible-mode/anthropic"
       }
     },
     {
@@ -408,7 +426,6 @@
       "id": "openrouter",
       "name_en": "OpenRouter",
       "name_zh": "OpenRouter (聚合)",
-      "base_url": "https://openrouter.ai/api/v1",
       "supports_protocols": [
         "openai",
         "anthropic"
@@ -470,7 +487,6 @@
       "id": "xiaomi_mimo",
       "name_en": "Xiaomi Mimo",
       "name_zh": "小米 Mimo",
-      "base_url": "PLACEHOLDER_URL",
       "supports_protocols": [
         "openai",
         "anthropic"

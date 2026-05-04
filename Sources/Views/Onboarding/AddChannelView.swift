@@ -415,12 +415,12 @@ struct AddChannelView: View {
             try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
         }
 
-        let success = await channelManager.testConnection(channel: tempChannel)
+        let result = await channelManager.testConnection(channel: tempChannel)
 
-        if success {
+        if result.success {
             testResult = .success
         } else {
-            testResult = .failure("Connection failed")
+            testResult = .failure(result.errorMessage ?? "Unknown error")
         }
         isTesting = false
     }

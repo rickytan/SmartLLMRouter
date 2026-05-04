@@ -407,22 +407,39 @@ struct OnboardingView: View {
             try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
         }
 
-        let success = await channelManager.testConnection(channel: tempChannel)
+        let result = await channelManager.testConnection(channel: tempChannel)
 
-        connectionTestResult = success ? .success : .failure
+        if result.success {
+            connectionTestResult = .success
+        } else {
+            connectionTestResult = .failure
+            errorMessage = result.errorMessage ?? "Connection failed"
+        }
         isTestingConnection = false
     }
 
-    private func connectionTestStatus(result: ConnectionTestResult) -> some View {
-        HStack(spacing: DesignToken.Spacing.xxs) {
-            Image(systemName: result == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundColor(result == .success
-                    ? DesignToken.Colors.statusOnline
-                    : DesignToken.Colors.statusOffline)
+    @State private var errorMessage: String?
 
-            Text(result == .success ? L10n.Status.connected : L10n.Status.disconnected)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
+    private func connectionTestStatus(result: ConnectionTestResult) -> some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+            HStack(spacing: DesignToken.Spacing.xxs) {
+                Image(systemName: result == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(result == .success
+                        ? DesignToken.Colors.statusOnline
+                        : DesignToken.Colors.statusOffline)
+
+                Text(result == .success ? L10n.Status.connected : L10n.Status.disconnected)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+            }
+
+            if result == .failure, let msg = errorMessage {
+                Text(msg)
+                    .font(DesignToken.Font.system(size: 11))
+                    .foregroundColor(DesignToken.Colors.statusOffline)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
     }

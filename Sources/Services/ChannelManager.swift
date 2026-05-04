@@ -245,13 +245,26 @@ final class ChannelManager: ObservableObject {
 
     // MARK: - Test Connection
 
+    /// Result of a connection test
+    struct ConnectionTestResult: Equatable {
+        let success: Bool
+        let errorMessage: String?
+
+        static func success() -> ConnectionTestResult {
+            ConnectionTestResult(success: true, errorMessage: nil)
+        }
+
+        static func failure(_ message: String) -> ConnectionTestResult {
+            ConnectionTestResult(success: false, errorMessage: message)
+        }
+    }
+
     /// Test connection to a channel by sending a minimal request
-    func testConnection(channel: Channel) async -> Bool {
+    func testConnection(channel: Channel) async -> ConnectionTestResult {
         guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
               !apiKey.isEmpty
         else {
-            Log.warn("No API key for connection test")
-            return false
+            return .failure("API Key is empty")
         }
 
         let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
@@ -274,7 +287,9 @@ final class ChannelManager: ObservableObject {
             }
         }
 
-        guard let url = testURL else { return false }
+        guard let url = testURL else {
+            return .failure("Invalid URL: \(baseURL)")
+        }
 
         let testBody: [String: Any] = [
             "model": testModel,
@@ -297,18 +312,68 @@ final class ChannelManager: ObservableObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
-            let success = statusCode > 0 && statusCode < 500
-
-            Log.info("Connection test for \(channel.name): status \(statusCode)")
-            return success
+            if statusCode == 200 {
+                Log.info("Connection test for \(channel.name): success")
+                return .success()
+            } else if statusCode == 401 {
+                // Try to extract error message from response
+                let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
+                return .failure("❌ Invalid API Key: \(errorMsg)")
+            } else if statusCode == 403 {
+                return .failure("❌ Access Denied: API Key lacks permission")
+            } else if statusCode == 429 {
+                return .failure("❌ Rate Limited: Too many requests")
+            } else if statusCode >= 500 {
+                return .failure("⚠️ Server Error (HTTP \(statusCode)): Provider may be down")
+            } else if statusCode > 0 {
+                let errorMsg = extractErrorMessage(data)
+                return .failure("❌ HTTP \(statusCode): \(errorMsg ?? "Unknown error")")
+            } else {
+                return .failure("❌ No response from server")
+            }
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return .failure("❌ No internet connection")
+            case .cannotFindHost:
+                return .failure("❌ Cannot resolve host: check Base URL")
+            case .cannotConnectToHost:
+                return .failure("❌ Cannot connect to host: check Base URL and port")
+            case .timedOut:
+                return .failure("❌ Connection timed out: server may be slow or unreachable")
+            case .secureConnectionFailed:
+                return .failure("❌ SSL/TLS error: check HTTPS configuration")
+            default:
+                return .failure("❌ Network error: \(urlError.localizedDescription)")
+            }
         } catch {
-            Log.error("Connection test failed: \(error.localizedDescription)")
-            return false
+            return .failure("❌ \(error.localizedDescription)")
         }
+    }
+
+    /// Extract error message from API response JSON
+    private func extractErrorMessage(_ data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                return String(text.prefix(100))
+            }
+            return nil
+        }
+
+        // Common error field patterns
+        if let error = json["error"] as? [String: Any] {
+            if let message = error["message"] as? String { return message }
+            if let type = error["type"] as? String { return type }
+        }
+        if let message = json["message"] as? String { return message }
+        if let error = json["error"] as? String { return error }
+        if let msg = json["msg"] as? String { return msg }
+
+        return nil
     }
 
     // MARK: - Speed Test
