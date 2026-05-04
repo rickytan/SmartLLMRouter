@@ -102,21 +102,10 @@ struct MenuView: View {
     // MARK: - Quick Stats
 
     private var quickStats: some View {
-        HStack(spacing: DesignToken.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                Text(L10n.Menu.statsRequests(Int64(usage.todayStats.totalRequests)))
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-            }
-
-            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                Text(L10n.Menu.statsTokens(Int64(usage.todayStats.totalTokens)))
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-            }
-
-            Spacer()
-        }
+        Text(L10n.Menu.statsSummary(Int64(usage.todayStats.totalRequests), Int64(usage.todayStats.totalTokens)))
+            .font(DesignToken.Font.caption())
+            .foregroundColor(DesignToken.Colors.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     // MARK: - Failover Toggle
@@ -252,20 +241,55 @@ struct MenuView: View {
                 .font(DesignToken.Font.system(size: 11, weight: .medium))
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
-            if usage.todayStats.totalRequests == 0 {
+            let recent = Array(usage.records.suffix(5).reversed())
+            if recent.isEmpty {
                 Text(L10n.Menu.requestsNone)
                     .font(DesignToken.Font.micro())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .foregroundColor(DesignToken.Colors.textTertiary)
             } else {
-                Text(L10n.Menu.statsRequests(Int64(usage.todayStats.totalRequests)))
-                    .font(DesignToken.Font.micro())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
+                ForEach(recent, id: \.timestamp) { record in
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        Text(record.model)
+                            .font(DesignToken.Font.micro())
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        Text("·")
+                            .font(DesignToken.Font.micro())
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+
+                        Text(timeAgo(from: record.timestamp))
+                            .font(DesignToken.Font.micro())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+
+                        Text("·")
+                            .font(DesignToken.Font.micro())
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+
+                        Image(systemName: record.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
+                            .font(DesignToken.Font.system(size: 10))
+                            .foregroundColor(record.isError ? DesignToken.Colors.statusOffline : DesignToken.Colors.statusOnline)
+                    }
+                }
             }
         }
         .accessibilityIdentifier("menu.recent.requests")
     }
 
+    private func timeAgo(from date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        if seconds < 60 {
+            return L10n.Menu.timeSeconds(seconds)
+        } else if seconds < 3600 {
+            return L10n.Menu.timeMinutes(seconds / 60)
+        } else {
+            return L10n.Menu.timeHours(seconds / 3600)
+        }
+    }
+
     // MARK: - Action Buttons
+
+    @State private var isTestingKey: Bool = false
 
     private var actionButtons: some View {
         VStack(spacing: DesignToken.Spacing.xs) {
@@ -278,9 +302,19 @@ struct MenuView: View {
             }
             .accessibilityIdentifier("menu.copy环境变量")
 
-            HoverButton(title: L10n.Menu.testKey, icon: "checkmark.circle") {
-                // Test active key - trigger connection test
+            HoverButton(
+                title: isTestingKey ? L10n.Status.testing : L10n.Menu.testKey,
+                icon: isTestingKey ? "ellipsis.circle.fill" : "checkmark.circle"
+            ) {
+                Task {
+                    isTestingKey = true
+                    if let channel = channelStore.activeChannel {
+                        _ = await channelManager.testConnection(channel: channel)
+                    }
+                    isTestingKey = false
+                }
             }
+            .disabled(channelStore.activeChannel == nil || isTestingKey)
             .accessibilityIdentifier("menu测试密钥")
         }
         .font(DesignToken.Font.system(size: 12))

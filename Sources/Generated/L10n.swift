@@ -30,6 +30,9 @@ internal enum L10n {
     internal static func statsTokens(_ p1: Int64) -> String {
       String(format: NSLocalizedString("menu.stats.tokens", comment: ""), p1)
     }
+    internal static func statsSummary(_ p1: Int64, _ p2: Int64) -> String {
+      String(format: NSLocalizedString("menu.stats.summary", comment: ""), p1, p2)
+    }
     internal static var failoverAuto: String {
       NSLocalizedString("menu.failover.auto", comment: "")
     }
@@ -44,6 +47,15 @@ internal enum L10n {
     }
     internal static var requestsNone: String {
       NSLocalizedString("menu.requests.none", comment: "")
+    }
+    internal static func timeSeconds(_ p1: Int) -> String {
+      String(format: NSLocalizedString("menu.time.seconds", comment: ""), p1)
+    }
+    internal static func timeMinutes(_ p1: Int) -> String {
+      String(format: NSLocalizedString("menu.time.minutes", comment: ""), p1)
+    }
+    internal static func timeHours(_ p1: Int) -> String {
+      String(format: NSLocalizedString("menu.time.hours", comment: ""), p1)
     }
     internal static var copyEnv: String {
       NSLocalizedString("menu.copy.env", comment: "")

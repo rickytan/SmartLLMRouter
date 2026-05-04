@@ -8,11 +8,16 @@
 // Menu Bar
 "menu.stats.requests" = "请求数: %lld";
 "menu.stats.tokens" = "Token数: %lld";
+"menu.stats.summary" = "%lld 次请求 · %lld tokens";
 "menu.failover.auto" = "自动故障转移";
 "menu.failover.manual" = "手动模式";
 "menu.channel.active" = "当前: %@";
 "menu.requests.recent" = "最近请求";
 "menu.requests.none" = "暂无请求记录";
+"menu.request.entry" = "%s · %s · %s";
+"menu.time.seconds" = "%d秒前";
+"menu.time.minutes" = "%d分钟前";
+"menu.time.hours" = "%d小时前";
 "menu.copy.env" = "复制环境变量配置";
 "menu.test.key" = "测试当前密钥";
 "menu.settings" = "设置...";

@@ -9,8 +9,10 @@ final class KeychainManager {
     private let servicePrefix = "smartllm.apikey."
 
     private init() {
+        // Use .always accessibility so the app can access keys without prompting
+        // since the user explicitly stores these keys through the app itself
         keychain = Keychain(service: "com.smartllmrouter.keys")
-            .accessibility(.afterFirstUnlockThisDeviceOnly)
+            .accessibility(.always)
     }
 
     /// Store an API key for a channel

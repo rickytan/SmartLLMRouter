@@ -7,6 +7,7 @@ struct OnboardingView: View {
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var selectedProviderId: String?
+    @State private var selectedProtocol: APIProtocol = .auto
     @State private var apiKey: String = ""
     @State private var isTestingConnection: Bool = false
     @State private var connectionTestResult: ConnectionTestResult?
@@ -160,6 +161,12 @@ struct OnboardingView: View {
 
                 // API Key input (shown when provider selected)
                 if selectedProviderId != nil {
+                    // Protocol selector (only if provider supports multiple protocols)
+                    if let template = channelManager.getProviderTemplate(id: selectedProviderId ?? ""),
+                       template.supportsProtocols.count > 1 {
+                        protocolSelector(template: template)
+                    }
+
                     apiKeySection
                 }
 
@@ -188,6 +195,9 @@ struct OnboardingView: View {
                     iconSymbol: ProviderIconMapper.symbol(for: template.id)
                 ) {
                     selectedProviderId = template.id
+                    selectedProtocol = template.supportsProtocols.count == 1
+                        ? (APIProtocol(rawValue: template.supportsProtocols.first!.capitalized) ?? .openai)
+                        : .auto
                     connectionTestResult = nil
                 }
                 .accessibilityIdentifier("onboarding.provider.\(template.id)")
@@ -248,18 +258,61 @@ struct OnboardingView: View {
         .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
     }
 
+    // MARK: - Protocol Selector
+
+    private func protocolSelector(template: ProviderTemplate) -> some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            Text("API Protocol")
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+
+            HStack(spacing: DesignToken.Spacing.sm) {
+                ForEach(template.supportsProtocols, id: \.self) { proto in
+                    let apiProto = APIProtocol(rawValue: proto.capitalized) ?? .openai
+                    // When .auto, highlight the first protocol visually
+                    let effectivelySelected = selectedProtocol == apiProto
+                        || (selectedProtocol == .auto && proto == template.supportsProtocols.first)
+                    ProtocolChip(
+                        label: proto.capitalized,
+                        isSelected: effectivelySelected
+                    ) {
+                        selectedProtocol = apiProto
+                        connectionTestResult = nil
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, DesignToken.Spacing.xl)
+    }
+
     private func testConnection() async {
-        guard let providerId = selectedProviderId else { return }
+        guard let providerId = selectedProviderId,
+              let template = channelManager.getProviderTemplate(id: providerId)
+        else { return }
 
         isTestingConnection = true
         connectionTestResult = nil
 
+        // Resolve protocol and base URL for testing
+        let resolvedProtocol: APIProtocol
+        if selectedProtocol != .auto {
+            resolvedProtocol = selectedProtocol
+        } else if template.supportsProtocols.count == 1,
+                  let first = template.supportsProtocols.first {
+            resolvedProtocol = APIProtocol(rawValue: first.capitalized) ?? .openai
+        } else {
+            resolvedProtocol = .openai
+        }
+
+        let protocolKey = resolvedProtocol.rawValue.lowercased()
+        let testBaseURL = template.baseURL(for: protocolKey) ?? ""
+
         let tempChannel = Channel(
             id: UUID().uuidString,
-            name: channelManager.getProviderTemplate(id: providerId)?.nameEn ?? "",
+            name: template.nameEn,
             providerId: providerId,
-            baseURL: channelManager.getProviderTemplate(id: providerId)?.baseURL ?? "",
-            protocol: .auto,
+            baseURL: testBaseURL,
+            protocol: resolvedProtocol,
             models: []
         )
 
@@ -469,9 +522,18 @@ struct OnboardingView: View {
             if let providerId = selectedProviderId {
                 if let channel = channelManager.createChannelFromTemplate(
                     templateId: providerId,
-                    apiKey: apiKey
+                    apiKey: apiKey,
+                    protocol: selectedProtocol
                 ) {
-                    ChannelStore.shared.addChannel(channel)
+                    // Append protocol suffix to name if provider supports multiple protocols
+                    if let template = channelManager.getProviderTemplate(id: providerId),
+                       template.supportsProtocols.count > 1 {
+                        var updatedChannel = channel
+                        updatedChannel.name = "\(channel.name) (\(selectedProtocol.rawValue))"
+                        ChannelStore.shared.addChannel(updatedChannel)
+                    } else {
+                        ChannelStore.shared.addChannel(channel)
+                    }
                 }
             }
             currentStep = .shellConfig
@@ -497,6 +559,38 @@ struct OnboardingView: View {
         onComplete()
     }
 
+}
+
+// MARK: - Protocol Chip
+
+struct ProtocolChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(DesignToken.Font.system(size: 11, weight: isSelected ? .semibold : .regular))
+                .padding(.horizontal, DesignToken.Spacing.sm)
+                .padding(.vertical, DesignToken.Spacing.xxs)
+                .background(
+                    isSelected
+                        ? DesignToken.Colors.accent.opacity(0.15)
+                        : (isHovered ? DesignToken.Colors.hoverFill : DesignToken.Colors.bgSecondary)
+                )
+                .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+                .cornerRadius(DesignToken.Layout.badgeCornerRadius)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
+                isHovered = hovering
+            }
+        }
+    }
 }
 
 // MARK: - Provider Card

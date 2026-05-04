@@ -5,7 +5,10 @@ struct ProviderTemplate: Codable, Identifiable {
     let id: String
     let nameEn: String
     let nameZh: String
-    let baseURL: String
+    /// Per-protocol base URL mapping (e.g. "openai" → URL, "anthropic" → URL)
+    let baseUrls: [String: String]?
+    /// Fallback single base URL for backward compatibility (providers.json entries without base_urls)
+    let baseURL: String?
     let supportsProtocols: [String]
     let defaultModels: [ProviderModel]
 
@@ -13,9 +16,30 @@ struct ProviderTemplate: Codable, Identifiable {
         case id
         case nameEn = "name_en"
         case nameZh = "name_zh"
+        case baseUrls = "base_urls"
         case baseURL = "base_url"
         case supportsProtocols = "supports_protocols"
         case defaultModels = "default_models"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        nameEn = try container.decode(String.self, forKey: .nameEn)
+        nameZh = try container.decode(String.self, forKey: .nameZh)
+        baseUrls = try container.decodeIfPresent([String: String].self, forKey: .baseUrls)
+        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
+        supportsProtocols = try container.decode([String].self, forKey: .supportsProtocols)
+        defaultModels = try container.decode([ProviderModel].self, forKey: .defaultModels)
+    }
+
+    /// Get the base URL for a specific protocol. Falls back to legacy single baseURL.
+    func baseURL(for `protocol`: String) -> String? {
+        if let urls = baseUrls, let url = urls[`protocol`] {
+            return url
+        }
+        // Backward compatibility: single base_url
+        return baseURL
     }
 }
 
@@ -74,35 +98,55 @@ final class ChannelManager: ObservableObject {
         providerTemplates.first { $0.id == id }
     }
 
-    /// Create a new channel from a provider template
-    func createChannelFromTemplate(templateId: String, apiKey: String) -> Channel? {
+    /// Create a new channel from a provider template with a specific protocol
+    func createChannelFromTemplate(templateId: String, apiKey: String, protocol: APIProtocol = .auto) -> Channel? {
         guard let template = getProviderTemplate(id: templateId) else {
             Log.warn("Template not found: \(templateId)")
             return nil
         }
 
-        let protocolString = template.supportsProtocols.first ?? "openai"
-        let apiProtocol = APIProtocol(rawValue: protocolString.capitalized) ?? .auto
-
-        let models = template.defaultModels.map { pm in
-            ModelEntry(
-                id: UUID().uuidString,
-                identifier: pm.model,
-                displayName: pm.model,
-                contextLength: pm.contextLength,
-                inputPricePer1M: pm.inputPrice,
-                outputPricePer1M: pm.outputPrice,
-                isEnabled: true
-            )
+        // Resolve the actual protocol
+        let resolvedProtocol: APIProtocol
+        if `protocol` != .auto {
+            resolvedProtocol = `protocol`
+        } else if template.supportsProtocols.count == 1,
+                  let first = template.supportsProtocols.first {
+            resolvedProtocol = APIProtocol(rawValue: first.capitalized) ?? .openai
+        } else {
+            // Default to OpenAI if multiple protocols supported
+            resolvedProtocol = .openai
         }
+
+        let protocolKey = resolvedProtocol.rawValue.lowercased()
+
+        // Get the correct base URL for this protocol
+        guard let baseURL = template.baseURL(for: protocolKey) else {
+            Log.warn("No base URL for protocol '\(protocolKey)' in template \(templateId)")
+            return nil
+        }
+
+        // Filter models for this protocol
+        let models = template.defaultModels
+            .filter { $0.protocol == protocolKey }
+            .map { pm in
+                ModelEntry(
+                    id: UUID().uuidString,
+                    identifier: pm.model,
+                    displayName: pm.model,
+                    contextLength: pm.contextLength,
+                    inputPricePer1M: pm.inputPrice,
+                    outputPricePer1M: pm.outputPrice,
+                    isEnabled: true
+                )
+            }
 
         let channel = Channel(
             id: UUID().uuidString,
             name: template.nameEn,
             providerId: template.id,
-            baseURL: template.baseURL,
+            baseURL: baseURL,
             priority: ChannelStore.shared.channels.count + 1,
-            protocol: apiProtocol,
+            protocol: resolvedProtocol,
             models: models
         )
 
