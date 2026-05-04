@@ -71,10 +71,10 @@ enum DesignToken {
         static let menuPadding: CGFloat = 12
         static let settingsWidth: CGFloat = 560
         static let settingsHeight: CGFloat = 420
-        static let onboardingWidth: CGFloat = 480
-        static let onboardingHeight: CGFloat = 380
-        static let addChannelWidth: CGFloat = 480
-        static let addChannelHeight: CGFloat = 420
+        static let onboardingWidth: CGFloat = 520
+        static let onboardingHeight: CGFloat = 500
+        static let addChannelWidth: CGFloat = 520
+        static let addChannelHeight: CGFloat = 500
         static let modelEditorWidth: CGFloat = 360
         static let modelEditorHeight: CGFloat = 280
         static let buttonMinHeight: CGFloat = 28

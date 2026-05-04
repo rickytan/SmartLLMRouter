@@ -2,8 +2,9 @@
 
 | 项目 | SmartLLM Router (macOS Menu Bar App) |
 | :--- | :--- |
-| **版本** | v1.8.6 |
-| **状态** | Phase 1-5 已完成，持续迭代 |
+| **版本** | v2.0.0 |
+| **状态** | Phase 1-6 已完成，持续迭代 |
+| **最近更新** | 多协议支持、UI 重构、自定义厂商、URL 校准 |
 | **目标平台** | macOS 13.0+ (Ventura) |
 | **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle, CocoaLumberjack) |
 
