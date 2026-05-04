@@ -68,6 +68,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ = updaterController
     }
 
+    // Prevent app from quitting when all windows are closed
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
+
     @MainActor
     private func startProxy() {
         guard !ProxyServer.shared.isRunning else { return }
