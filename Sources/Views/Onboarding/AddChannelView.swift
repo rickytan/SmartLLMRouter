@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - AddChannelView
+// MARK: - AddChannelView (Redesigned: Split-pane layout)
 
 struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,7 +13,7 @@ struct AddChannelView: View {
     @State private var name: String = ""
     @State private var baseURL: String = ""
     @State private var apiKey: String = ""
-    @State private var selectedProtocol: APIProtocol = .auto
+    @State private var selectedProtocol: APIProtocol = .openai
     @State private var priority: Int = 1
     @State private var selectedProviderId: String?
     @State private var models: [ModelEntry] = []
@@ -21,11 +21,25 @@ struct AddChannelView: View {
     @State private var newModelName: String = ""
     @State private var showingModelEditor: Bool = false
     @State private var editingModelIndex: Int?
-    @State private var showProviderGrid: Bool = true
+
+    // Custom provider state
+    @State private var isCustomProvider: Bool = false
+    @State private var customProviderName: String = ""
+    @State private var customProviderIcon: String = "globe"
 
     // Validation
     @State private var errorMessage: String?
     @State private var isSaving: Bool = false
+    @State private var isTesting: Bool = false
+    @State private var testResult: ConnectionTestResult?
+
+    enum ConnectionTestResult {
+        case success
+        case failure(String)
+    }
+
+    // Search
+    @State private var searchQuery: String = ""
 
     init(editingChannel: Channel? = nil) {
         self.editingChannel = editingChannel
@@ -42,29 +56,25 @@ struct AddChannelView: View {
             Divider()
                 .padding(.horizontal, DesignToken.Spacing.lg)
 
-            // Scrollable form content
-            ScrollView {
-                VStack(spacing: DesignToken.Spacing.lg) {
-                    // Provider template selection (only when adding new)
-                    if editingChannel == nil {
-                        providerSection
-                    }
+            // Split-pane content
+            if editingChannel == nil {
+                HStack(spacing: 0) {
+                    // Left pane: Provider list
+                    providerListPane
+                        .frame(width: 220)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 0)
+                                .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
+                        )
 
-                    // Basic info
-                    basicInfoSection
+                    Divider()
 
-                    // Models section
-                    modelsSection
-
-                    // Error message
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.statusOffline)
-                            .multilineTextAlignment(.center)
-                    }
+                    // Right pane: Config form
+                    configFormPane
                 }
-                .padding(DesignToken.Spacing.lg)
+            } else {
+                // Editing mode: just the form
+                configFormPane
             }
 
             Divider()
@@ -75,17 +85,6 @@ struct AddChannelView: View {
                 .padding(DesignToken.Spacing.lg)
         }
         .frame(width: DesignToken.Layout.addChannelWidth, height: DesignToken.Layout.addChannelHeight)
-        .sheet(isPresented: $showingModelEditor) {
-            if let index = editingModelIndex, index < models.count {
-                ModelMetadataEditorView(
-                    model: models[index],
-                    onSave: { updatedModel in
-                        models[index] = updatedModel
-                        showingModelEditor = false
-                    }
-                )
-            }
-        }
         .onAppear {
             if let channel = editingChannel {
                 name = channel.name
@@ -95,9 +94,11 @@ struct AddChannelView: View {
                 models = channel.models
                 selectedProviderId = channel.providerId
                 apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
-                showProviderGrid = false
+                isCustomProvider = (channel.providerId == nil || channel.providerId == "custom")
             } else {
                 priority = channelStore.channels.count + 1
+                selectedProviderId = channelManager.providerTemplates.first?.id
+                applyTemplateSelection()
             }
         }
     }
@@ -108,7 +109,6 @@ struct AddChannelView: View {
         HStack {
             Text(editingChannel != nil ? L10n.Settings.channelsEdit : L10n.Settings.channelsAdd)
                 .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("addchannel.title")
 
             Spacer()
 
@@ -120,121 +120,309 @@ struct AddChannelView: View {
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("addchannel.close")
         }
     }
 
-    // MARK: - Provider Section
+    // MARK: - Left Pane: Provider List
 
-    private var providerSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
-            Text(L10n.Onboarding.addChannel)
-                .font(DesignToken.Font.h3())
-
-            if showProviderGrid {
-                providerGrid
-            } else {
-                Text(selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "")
+    private var providerListPane: some View {
+        VStack(spacing: 0) {
+            // Search bar
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+                    .font(.system(size: 12))
+                TextField("Search providers...", text: $searchQuery)
+                    .textFieldStyle(.plain)
                     .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-                    .padding(.vertical, DesignToken.Spacing.xs)
+                if !searchQuery.isEmpty {
+                    Button {
+                        searchQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-        }
-        .accessibilityIdentifier("addchannel.providerSection")
-    }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .padding(.vertical, DesignToken.Spacing.xs)
+            .background(DesignToken.Colors.bgSecondary)
 
-    private var providerGrid: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm)
-        ]
+            Divider()
 
-        return LazyVGrid(columns: columns, spacing: DesignToken.Spacing.sm) {
-            ForEach(channelManager.providerTemplates) { template in
-                ProviderCard(
-                    template: template,
-                    isSelected: selectedProviderId == template.id,
-                    iconSymbol: ProviderIconMapper.symbol(for: template.id)
-                ) {
-                    selectedProviderId = template.id
-                    let channel = channelManager.createChannelFromTemplate(
-                        templateId: template.id,
-                        apiKey: "" // Will be set from form
+            // Scrollable provider list
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    // Custom provider option (always first)
+                    providerListItem(
+                        id: "custom",
+                        name: "Custom / Local",
+                        icon: "globe",
+                        isSelected: isCustomProvider,
+                        isCustom: true
                     )
-                    if let channel = channel {
-                        name = channel.name
-                        baseURL = channel.baseURL
-                        models = channel.models
+
+                    Divider()
+                        .padding(.horizontal, DesignToken.Spacing.sm)
+
+                    // Built-in providers
+                    ForEach(filteredProviders) { template in
+                        providerListItem(
+                            id: template.id,
+                            name: template.nameEn,
+                            icon: ProviderIconMapper.symbol(for: template.id),
+                            isSelected: selectedProviderId == template.id && !isCustomProvider,
+                            isCustom: false
+                        )
                     }
                 }
-                .accessibilityIdentifier("addchannel.provider.\(template.id)")
+                .padding(.vertical, DesignToken.Spacing.xs)
             }
         }
-        .frame(maxHeight: DesignToken.Layout.addChannelGridMaxHeight)
-        .accessibilityIdentifier("addchannel.providerGrid")
     }
 
-    // MARK: - Basic Info Section
+    private var filteredProviders: [ProviderTemplate] {
+        if searchQuery.isEmpty {
+            return channelManager.providerTemplates
+        }
+        let q = searchQuery.lowercased()
+        return channelManager.providerTemplates.filter {
+            $0.nameEn.lowercased().contains(q) ||
+            $0.id.lowercased().contains(q)
+        }
+    }
 
-    private var basicInfoSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            // Name
-            formRow(label: L10n.Settings.channelsName) {
-                TextField("", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("addchannel.name")
+    private func providerListItem(id: String, name: String, icon: String, isSelected: Bool, isCustom: Bool) -> some View {
+        Button {
+            selectProvider(id: id, isCustom: isCustom)
+        } label: {
+            HStack(spacing: DesignToken.Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textSecondary)
+                    .frame(width: 24)
+
+                Text(name)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(isSelected ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(DesignToken.Colors.accent)
+                }
             }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .padding(.vertical, DesignToken.Spacing.xs)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? DesignToken.Colors.accent.opacity(0.12) : Color.clear
+            )
+        }
+        .buttonStyle(.plain)
+    }
 
-            // Base URL
-            formRow(label: L10n.Settings.channelsBaseUrl) {
-                TextField("", text: $baseURL)
-                    .textFieldStyle(.roundedBorder)
-                    .font(DesignToken.Font.mono())
-                    .accessibilityIdentifier("addchannel.baseURL")
-            }
+    private func selectProvider(id: String, isCustom: Bool) {
+        self.isCustomProvider = isCustom
+        selectedProviderId = isCustom ? nil : id
 
-            // API Key
-            formRow(label: L10n.Settings.channelsApiKey) {
-                SecureField("", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(DesignToken.Font.mono())
-                    .accessibilityIdentifier("addchannel.apiKey")
-            }
+        if isCustom {
+            // Reset to defaults for custom
+            name = ""
+            baseURL = ""
+            apiKey = ""
+            selectedProtocol = .openai
+            models = []
+        } else {
+            applyTemplateSelection()
+        }
+        testResult = nil
+    }
 
-            // Protocol
-            formRow(label: L10n.Settings.channelsProtocol) {
-                Picker("", selection: $selectedProtocol) {
-                    ForEach(APIProtocol.allCases, id: \.self) { protocolType in
-                        Text(protocolType.rawValue)
-                            .tag(protocolType)
+    private func applyTemplateSelection() {
+        guard let templateId = selectedProviderId,
+              let template = channelManager.getProviderTemplate(id: templateId) else { return }
+
+        name = template.nameEn
+        // Use first protocol's URL as default
+        if let firstProtocol = template.supportsProtocols.first {
+            selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
+            baseURL = template.baseURL(for: firstProtocol) ?? ""
+        } else if let fallback = template.baseURL {
+            baseURL = fallback
+        }
+        models = template.defaultModels.map { providerModelToModelEntry($0) }
+        isCustomProvider = false
+    }
+
+    // MARK: - Right Pane: Config Form
+
+    private var configFormPane: some View {
+        ScrollView {
+            VStack(spacing: DesignToken.Spacing.lg) {
+                // Provider name / Custom name
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                    if isCustomProvider {
+                        Text("Provider Name")
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+                        TextField("e.g. Local Ollama", text: $customProviderName)
+                            .textFieldStyle(.roundedBorder)
+                            .onChange(of: customProviderName) { newName in
+                                name = newName
+                            }
+                    } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                        HStack {
+                            Image(systemName: ProviderIconMapper.symbol(for: template.id))
+                                .foregroundColor(DesignToken.Colors.accent)
+                            Text(template.nameEn)
+                                .font(DesignToken.Font.h3())
+                        }
                     }
                 }
-                .frame(width: DesignToken.Layout.protocolPickerWidth)
-                .accessibilityIdentifier("addchannel.protocol")
-            }
 
-            // Priority
-            formRow(label: L10n.Settings.channelsPriority) {
-                TextField("", value: $priority, formatter: NumberFormatter())
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: DesignToken.Layout.priorityFieldWidth)
-                    .multilineTextAlignment(.trailing)
-                    .accessibilityIdentifier("addchannel.priority")
+                // Protocol selector (for custom or multi-protocol providers)
+                protocolSelectorView
+
+                Divider()
+
+                // Connection details
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+                    formRow(label: "Base URL") {
+                        TextField("https://api.example.com/v1", text: $baseURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DesignToken.Font.mono())
+                    }
+
+                    formRow(label: "API Key") {
+                        SecureField("sk-...", text: $apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DesignToken.Font.mono())
+                    }
+
+                    formRow(label: "Priority") {
+                        TextField("", value: $priority, formatter: NumberFormatter())
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                // Test connection
+                testConnectionSection
+
+                Divider()
+
+                // Models section
+                modelsSection
             }
+            .padding(DesignToken.Spacing.lg)
         }
-        .accessibilityIdentifier("addchannel.basicInfo")
     }
 
-    private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
-        HStack(spacing: DesignToken.Spacing.md) {
-            Text(label)
-                .font(DesignToken.Font.body())
-                .frame(width: DesignToken.Layout.formLabelWidth, alignment: .trailing)
+    private var protocolSelectorView: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            Text("Protocol")
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
-            content()
+            HStack(spacing: DesignToken.Spacing.sm) {
+                protocolChip(.openai, label: "OpenAI")
+                protocolChip(.anthropic, label: "Anthropic")
+            }
         }
+    }
+
+    private func protocolChip(_ proto: APIProtocol, label: String) -> some View {
+        Button {
+            selectedProtocol = proto
+            // Update base URL if using a template
+            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                if let url = template.baseURL(for: proto.rawValue.lowercased()) {
+                    baseURL = url
+                }
+            }
+            testResult = nil
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: selectedProtocol == proto ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 10))
+                Text(label)
+                    .font(DesignToken.Font.system(size: 11, weight: selectedProtocol == proto ? .semibold : .regular))
+            }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .padding(.vertical, DesignToken.Spacing.xxs)
+            .background(
+                selectedProtocol == proto
+                    ? DesignToken.Colors.accent.opacity(0.15)
+                    : DesignToken.Colors.bgSecondary
+            )
+            .foregroundColor(selectedProtocol == proto ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var testConnectionSection: some View {
+        VStack(spacing: DesignToken.Spacing.sm) {
+            HStack {
+                HoverButton(
+                    title: isTesting ? "Testing..." : "Test Connection",
+                    icon: isTesting ? "ellipsis.circle.fill" : "checkmark.circle"
+                ) {
+                    Task { await testConnection() }
+                }
+                .disabled(apiKey.isEmpty || baseURL.isEmpty || isTesting)
+
+                Spacer()
+
+                if let result = testResult {
+                    switch result {
+                    case .success:
+                        Label("Connected", systemImage: "checkmark.circle.fill")
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.statusOnline)
+                    case .failure(let msg):
+                        Label(msg, systemImage: "xmark.circle.fill")
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.statusOffline)
+                    }
+                }
+            }
+        }
+    }
+
+    private func testConnection() async {
+        isTesting = true
+        testResult = nil
+
+        let tempChannel = Channel(
+            id: UUID().uuidString,
+            name: name.isEmpty ? "test" : name,
+            providerId: selectedProviderId,
+            baseURL: baseURL,
+            protocol: selectedProtocol,
+            models: []
+        )
+
+        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        defer {
+            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+        }
+
+        let success = await channelManager.testConnection(channel: tempChannel)
+
+        if success {
+            testResult = .success
+        } else {
+            testResult = .failure("Connection failed")
+        }
+        isTesting = false
     }
 
     // MARK: - Models Section
@@ -242,25 +430,22 @@ struct AddChannelView: View {
     private var modelsSection: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
             HStack {
-                Text(L10n.Settings.channelsModels)
+                Text("Models")
                     .font(DesignToken.Font.h3())
 
                 Spacer()
 
-                // Fetch Models button
                 HoverButton(
-                    title: isFetchingModels ? L10n.Status.fetchingModels : L10n.Settings.channelsFetchModels,
+                    title: isFetchingModels ? "Fetching..." : "Fetch Models",
                     icon: isFetchingModels ? "ellipsis.circle.fill" : "arrow.clockwise"
                 ) {
                     Task { await fetchModels() }
                 }
                 .disabled(isFetchingModels || baseURL.isEmpty || apiKey.isEmpty)
-                .accessibilityIdentifier("addchannel.fetchModels")
             }
 
-            // Model list
             if models.isEmpty {
-                Text(L10n.Menu.requestsNone)
+                Text("No models added")
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -271,24 +456,21 @@ struct AddChannelView: View {
                         modelRow(model: model, index: index)
                     }
                 }
-                .frame(maxHeight: DesignToken.Layout.modelListMaxHeight)
+                .frame(maxHeight: 180)
             }
 
             // Add model manually
             HStack(spacing: DesignToken.Spacing.sm) {
-                TextField("", text: $newModelName, prompt: Text(L10n.AddChannel.modelPlaceholder))
+                TextField("e.g. gpt-4, llama3", text: $newModelName)
                     .textFieldStyle(.roundedBorder)
                     .font(DesignToken.Font.monoCaption())
-                    .accessibilityIdentifier("addchannel.newModelName")
 
                 HoverButton(title: "+", icon: "plus") {
                     addManualModel()
                 }
                 .disabled(newModelName.isEmpty)
-                .accessibilityIdentifier("addchannel.addModel")
             }
         }
-        .accessibilityIdentifier("addchannel.modelsSection")
     }
 
     private func modelRow(model: ModelEntry, index: Int) -> some View {
@@ -300,23 +482,12 @@ struct AddChannelView: View {
 
             Spacer()
 
-            // Metadata indicator
-            if model.contextLength != nil || model.inputPricePer1M != nil {
-                HStack(spacing: DesignToken.Spacing.xxs) {
-                    if let ctx = model.contextLength {
-                        Text(formatContext(ctx))
-                            .font(DesignToken.Font.monoMicro())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                    }
-                    if let price = model.inputPricePer1M {
-                        Text("$" + String(format: "%.1f", price))
-                            .font(DesignToken.Font.monoMicro())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                    }
-                }
+            if let ctx = model.contextLength {
+                Text(formatContext(ctx))
+                    .font(DesignToken.Font.monoMicro())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            // Edit metadata button
             Button {
                 editingModelIndex = index
                 showingModelEditor = true
@@ -326,9 +497,7 @@ struct AddChannelView: View {
             }
             .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
-            .accessibilityIdentifier("addchannel.model.edit.\(index)")
 
-            // Remove button
             Button {
                 models.remove(at: index)
             } label: {
@@ -337,7 +506,6 @@ struct AddChannelView: View {
             }
             .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
-            .accessibilityIdentifier("addchannel.model.remove.\(index)")
         }
         .padding(.horizontal, DesignToken.Spacing.sm)
         .padding(.vertical, DesignToken.Spacing.xs)
@@ -369,20 +537,15 @@ struct AddChannelView: View {
             models: models
         )
 
-        // Temporarily store key for fetch
         try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
-
         let fetchedModels = await channelManager.fetchModels(channel: tempChannel)
-
-        // Clean up temp key
         try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
 
         if fetchedModels.isEmpty {
-            errorMessage = L10n.Error.network("No models returned")
+            errorMessage = "No models returned"
         } else {
             models = fetchedModels
         }
-
         isFetchingModels = false
     }
 
@@ -400,6 +563,17 @@ struct AddChannelView: View {
         newModelName = ""
     }
 
+    // MARK: - Helpers
+
+    private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            Text(label)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+            content()
+        }
+    }
+
     // MARK: - Footer
 
     private var footerButtons: some View {
@@ -409,24 +583,24 @@ struct AddChannelView: View {
             }
             .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
-            .accessibilityIdentifier("addchannel.cancel")
 
             Spacer()
 
             HoverButton(
-                title: isSaving ? L10n.Status.saving : (editingChannel != nil ? L10n.Settings.channelsEdit : L10n.Onboarding.setup),
+                title: isSaving ? "Saving..." : (editingChannel != nil ? "Update" : "Add Channel"),
                 icon: isSaving ? "ellipsis.circle.fill" : "checkmark.circle.fill"
             ) {
                 Task { await saveChannel() }
             }
             .disabled(!isValid)
-            .accessibilityIdentifier("addchannel.save")
         }
     }
 
     private var isValid: Bool {
         !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty
     }
+
+    // MARK: - Save
 
     private func saveChannel() async {
         guard isValid else { return }
@@ -436,47 +610,30 @@ struct AddChannelView: View {
 
         do {
             if let existingChannel = editingChannel {
-                // Update existing channel
                 var updated = existingChannel
                 updated.name = name
                 updated.baseURL = baseURL
                 updated.protocol = selectedProtocol
                 updated.priority = priority
                 updated.models = models
+                updated.providerId = isCustomProvider ? "custom" : selectedProviderId
 
                 try KeychainManager.shared.setAPIKey(apiKey, for: existingChannel.id)
                 channelStore.updateChannel(updated)
             } else {
-                // Create new channel
-                if let templateId = selectedProviderId {
-                    if let channel = channelManager.createChannelFromTemplate(
-                        templateId: templateId,
-                        apiKey: apiKey
-                    ) {
-                        var finalChannel = channel
-                        finalChannel.name = name.isEmpty ? channel.name : name
-                        finalChannel.protocol = selectedProtocol
-                        finalChannel.priority = priority
-                        finalChannel.models = models.isEmpty ? channel.models : models
+                let providerId = isCustomProvider ? "custom" : selectedProviderId
+                let newChannel = Channel(
+                    id: UUID().uuidString,
+                    name: name,
+                    providerId: providerId,
+                    baseURL: baseURL,
+                    priority: priority,
+                    protocol: selectedProtocol,
+                    models: models.isEmpty ? defaultModelsForProvider() : models
+                )
 
-                        channelStore.addChannel(finalChannel)
-                    } else {
-                        errorMessage = L10n.Error.unknown
-                    }
-                } else {
-                    // Create from scratch
-                    let newChannel = Channel(
-                        id: UUID().uuidString,
-                        name: name,
-                        baseURL: baseURL,
-                        priority: priority,
-                        protocol: selectedProtocol,
-                        models: models
-                    )
-
-                    try KeychainManager.shared.setAPIKey(apiKey, for: newChannel.id)
-                    channelStore.addChannel(newChannel)
-                }
+                try KeychainManager.shared.setAPIKey(apiKey, for: newChannel.id)
+                channelStore.addChannel(newChannel)
             }
 
             dismiss()
@@ -485,6 +642,27 @@ struct AddChannelView: View {
         }
 
         isSaving = false
+    }
+
+    private func defaultModelsForProvider() -> [ModelEntry] {
+        if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+            return template.defaultModels.map { providerModelToModelEntry($0) }
+        }
+        return []
+    }
+
+    // MARK: - Helpers
+
+    private func providerModelToModelEntry(_ pm: ProviderModel) -> ModelEntry {
+        ModelEntry(
+            id: UUID().uuidString,
+            identifier: pm.model,
+            displayName: pm.model,
+            contextLength: pm.contextLength,
+            inputPricePer1M: pm.inputPrice,
+            outputPricePer1M: pm.outputPrice,
+            isEnabled: true
+        )
     }
 }
 
@@ -503,105 +681,60 @@ struct ModelMetadataEditorView: View {
     init(model: ModelEntry, onSave: @escaping (ModelEntry) -> Void) {
         self.model = model
         self.onSave = onSave
-        _contextLength = State(initialValue: model.contextLength.map { "\($0)" } ?? "")
+        _contextLength = State(initialValue: model.contextLength.map(String.init) ?? "")
         _inputPrice = State(initialValue: model.inputPricePer1M.map { String(format: "%.2f", $0) } ?? "")
         _outputPrice = State(initialValue: model.outputPricePer1M.map { String(format: "%.2f", $0) } ?? "")
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
+        VStack(spacing: DesignToken.Spacing.md) {
             HStack {
-                Text(model.identifier)
+                Text("Edit Model: \(model.identifier)")
                     .font(DesignToken.Font.h3())
-
                 Spacer()
-
                 Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: DesignToken.Layout.closeIconSize))
                         .foregroundColor(DesignToken.Colors.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, DesignToken.Spacing.lg)
-            .padding(.top, DesignToken.Spacing.md)
-            .padding(.bottom, DesignToken.Spacing.sm)
 
             Divider()
-                .padding(.horizontal, DesignToken.Spacing.lg)
 
-            // Form fields
-            VStack(spacing: DesignToken.Spacing.lg) {
-                // Context Length
-                formRow(label: L10n.ModelEditor.contextLength) {
-                    TextField(L10n.ModelEditor.contextLengthPlaceholder, text: $contextLength)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("modelEditor.contextLength")
-                }
-
-                // Input Price
-                formRow(label: L10n.ModelEditor.inputPrice) {
-                    TextField(L10n.ModelEditor.inputPricePlaceholder, text: $inputPrice)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("modelEditor.inputPrice")
-                }
-
-                // Output Price
-                formRow(label: L10n.ModelEditor.outputPrice) {
-                    TextField(L10n.ModelEditor.outputPricePlaceholder, text: $outputPrice)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("modelEditor.outputPrice")
-                }
-            }
-            .padding(DesignToken.Spacing.lg)
+            formField(label: "Context Length (tokens)", text: $contextLength, placeholder: "128000")
+            formField(label: "Input Price ($/1M tokens)", text: $inputPrice, placeholder: "5.00")
+            formField(label: "Output Price ($/1M tokens)", text: $outputPrice, placeholder: "15.00")
 
             Divider()
-                .padding(.horizontal, DesignToken.Spacing.lg)
 
-            // Footer
             HStack {
-                Button(L10n.ModelEditor.cancel) {
-                    dismiss()
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(DesignToken.Colors.textSecondary)
-
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.plain)
                 Spacer()
-
-                HoverButton(title: L10n.Status.saved, icon: "checkmark.circle.fill") {
-                    save()
+                Button("Save") {
+                    var updated = model
+                    updated.contextLength = Int(contextLength)
+                    updated.inputPricePer1M = Double(inputPrice)
+                    updated.outputPricePer1M = Double(outputPrice)
+                    onSave(updated)
                 }
-                .accessibilityIdentifier("modelEditor.save")
+                .buttonStyle(.borderedProminent)
             }
-            .padding(DesignToken.Spacing.lg)
         }
-        .frame(width: DesignToken.Layout.modelEditorWidth, height: DesignToken.Layout.modelEditorHeight)
+        .padding(DesignToken.Spacing.lg)
+        .frame(width: 360, height: 320)
     }
 
-    private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
+    private func formField(label: String, text: Binding<String>, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             Text(label)
-                .font(DesignToken.Font.micro())
+                .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
-
-            content()
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+                .font(DesignToken.Font.mono())
         }
     }
-
-    private func save() {
-        var updated = model
-        updated.contextLength = Int(contextLength)
-        updated.inputPricePer1M = Double(inputPrice)
-        updated.outputPricePer1M = Double(outputPrice)
-        onSave(updated)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    AddChannelView()
 }

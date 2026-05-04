@@ -7,11 +7,15 @@ struct OnboardingView: View {
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var selectedProviderId: String?
-    @State private var selectedProtocol: APIProtocol = .auto
+    @State private var isCustomProvider: Bool = false
+    @State private var selectedProtocol: APIProtocol = .openai
     @State private var apiKey: String = ""
+    @State private var baseURL: String = ""
+    @State private var customProviderName: String = ""
     @State private var isTestingConnection: Bool = false
     @State private var connectionTestResult: ConnectionTestResult?
     @State private var shellConfigResult: ShellConfigResult?
+    @State private var searchQuery: String = ""
 
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var channelManager = ChannelManager.shared
@@ -59,7 +63,6 @@ struct OnboardingView: View {
             navigationButtons
                 .padding(DesignToken.Spacing.lg)
         }
-        // ScrollView wrapper + top padding to clear traffic lights from .hiddenTitleBar
         .safeAreaInset(edge: .top) { Color.clear.frame(height: 8) }
         .frame(width: DesignToken.Layout.onboardingWidth, height: DesignToken.Layout.onboardingHeight)
         .background(DesignToken.Colors.bgPrimary)
@@ -146,102 +149,268 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Add Channel Step
+    // MARK: - Add Channel Step (Redesigned)
 
     private var addChannelStep: some View {
-        ScrollView {
-            VStack(spacing: DesignToken.Spacing.lg) {
-                Text(L10n.Onboarding.addChannel)
-                    .font(DesignToken.Font.h2())
-                    .accessibilityIdentifier("onboarding.addchannel.title")
-
-                // Provider grid
-                providerGrid
-                    .accessibilityIdentifier("onboarding.addchannel.providerGrid")
-
-                // API Key input (shown when provider selected)
-                if selectedProviderId != nil {
-                    // Protocol selector (only if provider supports multiple protocols)
-                    if let template = channelManager.getProviderTemplate(id: selectedProviderId ?? ""),
-                       template.supportsProtocols.count > 1 {
-                        protocolSelector(template: template)
-                    }
-
-                    apiKeySection
-                }
-
-                // Connection test result
-                if let result = connectionTestResult {
-                    connectionTestStatus(result: result)
-                }
-            }
-            .padding(.horizontal, DesignToken.Spacing.xl)
-        }
-    }
-
-    private var providerGrid: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm),
-            GridItem(.flexible(), spacing: DesignToken.Spacing.sm)
-        ]
-
-        return LazyVGrid(columns: columns, spacing: DesignToken.Spacing.sm) {
-            ForEach(channelManager.providerTemplates) { template in
-                ProviderCard(
-                    template: template,
-                    isSelected: selectedProviderId == template.id,
-                    iconSymbol: ProviderIconMapper.symbol(for: template.id)
-                ) {
-                    selectedProviderId = template.id
-                    selectedProtocol = template.supportsProtocols.count == 1
-                        ? (APIProtocol(rawValue: template.supportsProtocols.first!.capitalized) ?? .openai)
-                        : .auto
-                    connectionTestResult = nil
-                }
-                .accessibilityIdentifier("onboarding.provider.\(template.id)")
-            }
-        }
-    }
-
-    private var apiKeySection: some View {
-        VStack(spacing: DesignToken.Spacing.sm) {
-            HStack {
-                Text(L10n.Settings.channelsApiKey)
-                    .font(DesignToken.Font.system(size: 13, weight: .medium))
-
-                Spacer()
-
-                if let template = channelManager.getProviderTemplate(id: selectedProviderId ?? "") {
-                    Text(template.nameEn)
+        HStack(spacing: 0) {
+            // Left pane: Provider list
+            VStack(spacing: 0) {
+                // Search bar
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(DesignToken.Colors.textTertiary)
+                        .font(.system(size: 12))
+                    TextField("Search...", text: $searchQuery)
+                        .textFieldStyle(.plain)
                         .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                }
-            }
-
-            SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
-                .textFieldStyle(.roundedBorder)
-                .font(DesignToken.Font.mono())
-                .accessibilityIdentifier("onboarding.addchannel.apiKey")
-
-            // Test connection button
-            HStack {
-                HoverButton(
-                    title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testConnection,
-                    icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
-                ) {
-                    Task {
-                        await testConnection()
+                    if !searchQuery.isEmpty {
+                        Button {
+                            searchQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(DesignToken.Colors.textTertiary)
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .disabled(apiKey.isEmpty || isTestingConnection)
-                .accessibilityIdentifier("onboarding.addchannel.testConnection")
+                .padding(.horizontal, DesignToken.Spacing.sm)
+                .padding(.vertical, DesignToken.Spacing.xs)
+                .background(DesignToken.Colors.bgSecondary)
 
-                Spacer()
+                Divider()
+
+                // Provider list
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        // Custom provider
+                        providerListItem(
+                            id: "custom",
+                            name: "Custom / Local",
+                            icon: "globe",
+                            isSelected: isCustomProvider
+                        ) {
+                            isCustomProvider = true
+                            selectedProviderId = nil
+                            selectedProtocol = .openai
+                            baseURL = "http://localhost:11434/v1"
+                            connectionTestResult = nil
+                        }
+
+                        Divider().padding(.horizontal, DesignToken.Spacing.sm)
+
+                        // Built-in providers
+                        ForEach(filteredProviders) { template in
+                            providerListItem(
+                                id: template.id,
+                                name: template.nameEn,
+                                icon: ProviderIconMapper.symbol(for: template.id),
+                                isSelected: selectedProviderId == template.id && !isCustomProvider
+                            ) {
+                                isCustomProvider = false
+                                selectProviderTemplate(template)
+                            }
+                        }
+                    }
+                    .padding(.vertical, DesignToken.Spacing.xs)
+                }
+            }
+            .frame(width: 200)
+            .overlay(
+                RoundedRectangle(cornerRadius: 0)
+                    .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
+            )
+
+            Divider()
+
+            // Right pane: Config form
+            ScrollView {
+                VStack(spacing: DesignToken.Spacing.lg) {
+                    // Provider header
+                    if isCustomProvider {
+                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                            Text("Provider Name")
+                                .font(DesignToken.Font.caption())
+                                .foregroundColor(DesignToken.Colors.textSecondary)
+                            TextField("e.g. Local Ollama", text: $customProviderName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                        HStack {
+                            Image(systemName: ProviderIconMapper.symbol(for: template.id))
+                                .foregroundColor(DesignToken.Colors.accent)
+                            Text(template.nameEn)
+                                .font(DesignToken.Font.h3())
+                        }
+                    }
+
+                    // Protocol selector
+                    protocolSelector
+
+                    Divider()
+
+                    // Base URL
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                        Text("Base URL")
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+                        TextField("https://api.example.com/v1", text: $baseURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DesignToken.Font.mono())
+                    }
+
+                    // API Key
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                        Text(L10n.Settings.channelsApiKey)
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+                        SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DesignToken.Font.mono())
+                    }
+
+                    // Test connection
+                    testConnectionButton
+
+                    // Result
+                    if let result = connectionTestResult {
+                        connectionTestStatus(result: result)
+                    }
+                }
+                .padding(DesignToken.Spacing.lg)
             }
         }
-        .padding(.top, DesignToken.Spacing.xs)
+    }
+
+    private var filteredProviders: [ProviderTemplate] {
+        if searchQuery.isEmpty {
+            return channelManager.providerTemplates
+        }
+        let q = searchQuery.lowercased()
+        return channelManager.providerTemplates.filter {
+            $0.nameEn.lowercased().contains(q) || $0.id.lowercased().contains(q)
+        }
+    }
+
+    private func providerListItem(id: String, name: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: DesignToken.Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textSecondary)
+                    .frame(width: 24)
+
+                Text(name)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(isSelected ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(DesignToken.Colors.accent)
+                }
+            }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .padding(.vertical, DesignToken.Spacing.xs)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? DesignToken.Colors.accent.opacity(0.12) : Color.clear)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectProviderTemplate(_ template: ProviderTemplate) {
+        selectedProviderId = template.id
+        if let firstProtocol = template.supportsProtocols.first {
+            selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
+            baseURL = template.baseURL(for: firstProtocol) ?? ""
+        } else if let fallback = template.baseURL {
+            baseURL = fallback
+            selectedProtocol = .openai
+        }
+        connectionTestResult = nil
+    }
+
+    private var protocolSelector: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            Text("API Protocol")
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+
+            HStack(spacing: DesignToken.Spacing.sm) {
+                protocolChip(.openai, label: "OpenAI")
+                protocolChip(.anthropic, label: "Anthropic")
+            }
+        }
+    }
+
+    private func protocolChip(_ proto: APIProtocol, label: String) -> some View {
+        Button {
+            selectedProtocol = proto
+            // Update base URL if using a template
+            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                if let url = template.baseURL(for: proto.rawValue.lowercased()) {
+                    baseURL = url
+                }
+            }
+            connectionTestResult = nil
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: selectedProtocol == proto ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 10))
+                Text(label)
+                    .font(DesignToken.Font.system(size: 11, weight: selectedProtocol == proto ? .semibold : .regular))
+            }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .padding(.vertical, DesignToken.Spacing.xxs)
+            .background(
+                selectedProtocol == proto
+                    ? DesignToken.Colors.accent.opacity(0.15)
+                    : DesignToken.Colors.bgSecondary
+            )
+            .foregroundColor(selectedProtocol == proto ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var testConnectionButton: some View {
+        HoverButton(
+            title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testConnection,
+            icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
+        ) {
+            Task { await testConnection() }
+        }
+        .disabled(apiKey.isEmpty || baseURL.isEmpty || isTestingConnection)
+        .accessibilityIdentifier("onboarding.addchannel.testConnection")
+    }
+
+    private func testConnection() async {
+        isTestingConnection = true
+        connectionTestResult = nil
+
+        let resolvedProtocol = selectedProtocol
+
+        let tempChannel = Channel(
+            id: UUID().uuidString,
+            name: isCustomProvider ? (customProviderName.isEmpty ? "Custom" : customProviderName) : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Test"),
+            providerId: isCustomProvider ? "custom" : selectedProviderId,
+            baseURL: baseURL,
+            protocol: resolvedProtocol,
+            models: []
+        )
+
+        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        defer {
+            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+        }
+
+        let success = await channelManager.testConnection(channel: tempChannel)
+
+        connectionTestResult = success ? .success : .failure
+        isTestingConnection = false
     }
 
     private func connectionTestStatus(result: ConnectionTestResult) -> some View {
@@ -256,76 +425,6 @@ struct OnboardingView: View {
                 .foregroundColor(DesignToken.Colors.textSecondary)
         }
         .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
-    }
-
-    // MARK: - Protocol Selector
-
-    private func protocolSelector(template: ProviderTemplate) -> some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text("API Protocol")
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-
-            HStack(spacing: DesignToken.Spacing.sm) {
-                ForEach(template.supportsProtocols, id: \.self) { proto in
-                    let apiProto = APIProtocol(rawValue: proto.capitalized) ?? .openai
-                    // When .auto, highlight the first protocol visually
-                    let effectivelySelected = selectedProtocol == apiProto
-                        || (selectedProtocol == .auto && proto == template.supportsProtocols.first)
-                    ProtocolChip(
-                        label: proto.capitalized,
-                        isSelected: effectivelySelected
-                    ) {
-                        selectedProtocol = apiProto
-                        connectionTestResult = nil
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, DesignToken.Spacing.xl)
-    }
-
-    private func testConnection() async {
-        guard let providerId = selectedProviderId,
-              let template = channelManager.getProviderTemplate(id: providerId)
-        else { return }
-
-        isTestingConnection = true
-        connectionTestResult = nil
-
-        // Resolve protocol and base URL for testing
-        let resolvedProtocol: APIProtocol
-        if selectedProtocol != .auto {
-            resolvedProtocol = selectedProtocol
-        } else if template.supportsProtocols.count == 1,
-                  let first = template.supportsProtocols.first {
-            resolvedProtocol = APIProtocol(rawValue: first.capitalized) ?? .openai
-        } else {
-            resolvedProtocol = .openai
-        }
-
-        let protocolKey = resolvedProtocol.rawValue.lowercased()
-        let testBaseURL = template.baseURL(for: protocolKey) ?? ""
-
-        let tempChannel = Channel(
-            id: UUID().uuidString,
-            name: template.nameEn,
-            providerId: providerId,
-            baseURL: testBaseURL,
-            protocol: resolvedProtocol,
-            models: []
-        )
-
-        // Temporarily store key for test, always clean up
-        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
-        defer {
-            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
-        }
-
-        let success = await channelManager.testConnection(channel: tempChannel)
-
-        connectionTestResult = success ? .success : .failure
-        isTestingConnection = false
     }
 
     // MARK: - Shell Config Step
@@ -505,7 +604,7 @@ struct OnboardingView: View {
         case .welcome:
             true
         case .addChannel:
-            selectedProviderId != nil && !apiKey.isEmpty
+            !baseURL.isEmpty && !apiKey.isEmpty
         case .shellConfig:
             true
         case .done:
@@ -519,23 +618,24 @@ struct OnboardingView: View {
             currentStep = .addChannel
         case .addChannel:
             // Save the channel
-            if let providerId = selectedProviderId {
-                if let channel = channelManager.createChannelFromTemplate(
-                    templateId: providerId,
-                    apiKey: apiKey,
-                    protocol: selectedProtocol
-                ) {
-                    // Append protocol suffix to name if provider supports multiple protocols
-                    if let template = channelManager.getProviderTemplate(id: providerId),
-                       template.supportsProtocols.count > 1 {
-                        var updatedChannel = channel
-                        updatedChannel.name = "\(channel.name) (\(selectedProtocol.rawValue))"
-                        ChannelStore.shared.addChannel(updatedChannel)
-                    } else {
-                        ChannelStore.shared.addChannel(channel)
-                    }
-                }
-            }
+            let providerId = isCustomProvider ? "custom" : selectedProviderId
+            let channelName = isCustomProvider
+                ? (customProviderName.isEmpty ? "Custom" : customProviderName)
+                : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Channel")
+
+            let newChannel = Channel(
+                id: UUID().uuidString,
+                name: channelName,
+                providerId: providerId,
+                baseURL: baseURL,
+                protocol: selectedProtocol,
+                models: []
+            )
+
+            // Store API key
+            try? KeychainManager.shared.setAPIKey(apiKey, for: newChannel.id)
+            ChannelStore.shared.addChannel(newChannel)
+
             currentStep = .shellConfig
         case .shellConfig:
             currentStep = .done
@@ -559,96 +659,6 @@ struct OnboardingView: View {
         onComplete()
     }
 
-}
-
-// MARK: - Protocol Chip
-
-struct ProtocolChip: View {
-    let label: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    @State private var isHovered: Bool = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(DesignToken.Font.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, DesignToken.Spacing.sm)
-                .padding(.vertical, DesignToken.Spacing.xxs)
-                .background(
-                    isSelected
-                        ? DesignToken.Colors.accent.opacity(0.15)
-                        : (isHovered ? DesignToken.Colors.hoverFill : DesignToken.Colors.bgSecondary)
-                )
-                .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
-                .cornerRadius(DesignToken.Layout.badgeCornerRadius)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
-                isHovered = hovering
-            }
-        }
-    }
-}
-
-// MARK: - Provider Card
-
-struct ProviderCard: View {
-    let template: ProviderTemplate
-    let isSelected: Bool
-    let iconSymbol: String
-    let action: () -> Void
-
-    @State private var isHovered: Bool = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: DesignToken.Spacing.sm) {
-                // Icon
-                Image(systemName: iconSymbol)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundColor(isSelected
-                        ? DesignToken.Colors.accent
-                        : (isHovered ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary))
-
-                // Provider name
-                Text(template.nameEn)
-                    .font(DesignToken.Font.caption())
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(isSelected
-                        ? DesignToken.Colors.textPrimary
-                        : (isHovered ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 80)
-            .padding(.vertical, DesignToken.Spacing.sm)
-            .padding(.horizontal, DesignToken.Spacing.xs)
-            .background(
-                isSelected
-                    ? DesignToken.Colors.accent.opacity(0.12)
-                    : (isHovered ? DesignToken.Colors.hoverFill : Color.clear)
-            )
-            .cornerRadius(DesignToken.Layout.cardCornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
-                    .stroke(
-                        isSelected
-                            ? DesignToken.Colors.accent
-                            : (isHovered ? DesignToken.Colors.textTertiary : Color.clear),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
-                isHovered = hovering
-            }
-        }
-    }
 }
 
 // MARK: - Preview
