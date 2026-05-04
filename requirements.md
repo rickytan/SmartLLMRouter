@@ -177,8 +177,12 @@
 *   **Tools**: Copy Diagnostics, Privacy Policy.
 
 ### 3.6 模块六：首次启动与引导 (Onboarding Flow)
-*   **Flow**: Start -> Auto-popup Settings -> Select Template/Config Key -> Shell Auto-Config -> Done.
-*   **Skip**: "Set up Later" option.
+*   **Flow**: Start -> Auto-popup Settings -> **批量添加 Channel (至少 1 个测试通过)** -> Shell Auto-Config -> Done.
+*   **Skip**: 每页提供 "Skip" 选项，允许用户跳过当前步骤。
+*   **第 2 页 (Add Channel) 详细规范**: 见 **模块 3.9 (需求定义)** 和 **模块 3.19 (Claude Code 实现指南)**。
+    - 支持一次性添加多个厂商/多个 Key
+    - 至少 1 个测试通过的 Channel 才能点击 "Next"（除非点击 "Skip"）
+    - 内嵌表单展开/收起，不跳转新页面
 
 ### 3.7 模块七：内置供应商元数据 (Provider Metadata)
 *   **File**: `Resources/providers.json`.
@@ -229,7 +233,72 @@
 
 ---
 
-### 3.9 模块九：Add Channel / Onboarding UI 交互需求 **[关键遗漏]**
+### 3.9 模块九：Onboarding 第 2 页 - 批量添加多厂商/多 Key **[关键需求]**
+
+#### 核心问题
+原始设计只允许用户添加**一个** Channel 就进入下一步。实际场景中用户通常有：
+- 多个厂商的 API Key（DeepSeek + DashScope + OpenAI）
+- 同一厂商多个 Key（用于负载均衡/故障转移）
+- 希望首次设置就把所有 Key 配好，而不是后期再进 Settings 逐个添加
+
+#### 需求定义
+
+##### 交互流程
+```
+第 2 页：批量添加 Channel
+┌─────────────────────────────────────────────┐
+│  Added Channels (2)                    [+ Add] │
+│  ┌──────────────────────────────────────┐   │
+│  │ ✅ DeepSeek (OpenAI)    Connected     │   │
+│  │ ✅ DashScope (Anthropic) Connected    │   │
+│  │ ❌ OpenAI               Invalid Key   │   │
+│  └──────────────────────────────────────┘   │
+│                                             │
+│  [← Back]     [Skip]     [Next → (disabled)]│
+└─────────────────────────────────────────────┘
+```
+
+##### 行为规范
+1.  **初始状态**: 页面打开时显示空列表 + "Add Channel" 按钮
+2.  **添加 Channel**:
+    - 点击 "Add Channel" 弹出**内嵌表单**（不是跳转新页面）
+    - 表单使用**左右分栏布局**（同 3.9 节描述的 Split-pane 设计）
+    - 填写完成后点击 "Test & Add"：
+      - 先执行连接测试
+      - **测试通过**: 自动添加到上方列表，表单清空，可以继续添加下一个
+      - **测试失败**: 显示错误信息，不添加到列表，用户可修改后重试
+3.  **已添加列表**:
+    - 显示每个 Channel 的：厂商图标 + 名称 + 协议 + 测试状态
+    - ✅ 绿色 = 测试通过
+    - ❌ 红色 = 测试失败（点击可删除）
+    - 支持删除已添加的 Channel
+4.  **"Next" 按钮状态**:
+    - **默认禁用**: 列表中没有任何测试通过的 Channel
+    - **启用条件**: 至少有 1 个 Channel 测试状态为 ✅ Connected
+    - 显示已添加数量：`Next → (3 channels)`
+5.  **"Skip" 按钮**:
+    - 始终可用，不受列表状态影响
+    - 点击后跳过 Channel 配置，直接进入 Shell Config 步骤
+    - 用户可后期在 Settings → Channels 中配置
+6.  **数据持久化**:
+    - 点击 "Next" 时，将列表中所有测试通过的 Channel 批量写入 `ChannelStore`
+    - API Key 存入 Keychain
+    - 测试失败的 Channel 不写入（用户需重新测试）
+
+##### 状态机
+```
+[空列表] → 点击 Add → [表单展开]
+                        → Test & Add 成功 → [列表新增 ✅ 项] → 可继续 Add
+                        → Test & Add 失败 → [表单保留 + 显示错误] → 可修改重试
+                        → 点击 Cancel → [表单收起]
+
+[列表有 1+ 个 ✅] → Next 按钮启用 → 点击 → 批量保存 → 进入下一步
+[任意状态] → Skip → 不保存 → 进入下一步
+```
+
+---
+
+### 3.10 模块十：Add Channel (Settings) UI 交互需求 **[关键遗漏]**
 
 #### 历史问题
 之前的设计将厂商选择网格 + 表单字段垂直堆叠，导致：
@@ -279,7 +348,7 @@
 
 ---
 
-### 3.10 模块十：自定义厂商支持 **[关键遗漏]**
+### 3.11 模块十一：自定义厂商支持 **[关键遗漏]**
 
 #### 背景
 用户需要连接**本地运行的模型服务**（如 Ollama、LMStudio、LocalAI、vLLM），这些不在内置厂商列表中。
@@ -300,7 +369,7 @@
 
 ---
 
-### 3.11 模块十一：协议选择器交互需求
+### 3.12 模块十二：协议选择器交互需求
 
 #### 需求定义
 1.  **UI 形式**: 芯片按钮 (Chip) 或 Segmented Control
@@ -316,7 +385,7 @@
 
 ---
 
-### 3.12 模块十二：窗口尺寸需求 **[关键遗漏]**
+### 3.13 模块十三：窗口尺寸需求 **[关键遗漏]**
 
 #### 问题
 窗口太小导致内容需要滚动，用户体验差。
@@ -336,7 +405,7 @@
 
 ---
 
-### 3.13 模块十三：macOS 13 兼容性需求 **[关键遗漏]**
+### 3.14 模块十四：macOS 13 兼容性需求 **[关键遗漏]**
 
 #### 已知陷阱
 1.  **MenuBarExtra.onAppear 在 macOS 13 不触发**:
@@ -363,7 +432,7 @@
 
 ---
 
-### 3.14 模块十四：Shell 环境配置需求 **[关键遗漏]**
+### 3.15 模块十五：Shell 环境配置需求 **[关键遗漏]**
 
 #### 问题
 `.zshrc` 仅在**交互式 Shell** 中加载，Claude Code、脚本、CI 等**非交互式进程**无法读取。
@@ -381,7 +450,7 @@
 
 ---
 
-### 3.15 模块十五：工程配置与构建规范 **[关键遗漏]**
+### 3.16 模块十六：工程配置与构建规范 **[关键遗漏]**
 
 #### SwiftGen 配置
 1.  **strings + xcassets 共存**: `SwiftGen.yml` 必须同时配置两个输入源
@@ -407,7 +476,7 @@
 
 ---
 
-### 3.16 模块十六：代码级陷阱与命名规范 **[关键遗漏]**
+### 3.17 模块十七：代码级陷阱与命名规范 **[关键遗漏]**
 
 #### Swift 关键字冲突
 - `protocol` 是 Swift 保留字，**不能作为参数名**
@@ -440,12 +509,136 @@
 
 ---
 
-### 3.17 模块十七：凭证安全需求
+### 3.18 模块十八：凭证安全需求
 
 1.  **API Key 存储**: 必须使用 Keychain，禁止明文存储在 UserDefaults 或文件中
 2.  **日志脱敏**: 所有日志中的 API Key/Token 必须显示为 `[REDACTED]`
 3.  **测试环境**: UI Test 中需要 Mock Keychain 交互，避免真实 Key 泄露
 4.  **导出功能**: 导出配置时自动隐藏 Key（显示为 `sk-...` 或 `[HIDDEN]`）
+
+---
+
+### 3.19 模块十九：Onboarding 第 2 页实现规范 — 给 Claude Code 的执行指南
+
+> 以下是对 Claude Code 的详细实现指令，描述了 Onboarding 第 2 页（Add Channel 步骤）需要如何改造。
+
+#### 改动范围
+**文件**: `Sources/Views/Onboarding/OnboardingView.swift`
+
+#### 需要修改的内容
+
+**1. 新增数据结构：临时 Channel 列表**
+```swift
+// 用于存储待添加的 Channel（尚未持久化）
+struct PendingChannel {
+    let channel: Channel          // Channel 数据
+    let apiKey: String            // API Key（待存入 Keychain）
+    let testStatus: TestStatus    // 测试状态
+    
+    enum TestStatus {
+        case testing
+        case success
+        case failure(String)      // 错误信息
+    }
+}
+
+@State private var pendingChannels: [PendingChannel] = []
+@State private var isAddingChannel: Bool = false  // 控制表单展开/收起
+```
+
+**2. 改造 `addChannelStep` 视图结构**
+
+将当前的单 Channel 表单改为：
+```
+┌──────────────────────────────────────────────────┐
+│  Added Channels (2)                        [+ Add]│  ← 点击展开表单
+│  ┌────────────────────────────────────────────┐ │
+│  │ 🅰️ DeepSeek (OpenAI)       ✅ Connected    │ │  ← 可点击删除
+│  │ 🟢 DashScope (Anthropic)   ✅ Connected    │ │
+│  │ 🔵 OpenAI                  ❌ Invalid Key   │ │
+│  └────────────────────────────────────────────┘ │
+│                                                  │
+│  [← 表单展开区域 — 复用左右分栏布局]              │
+│                                                  │
+│  [← Back]     [Skip]     [Next → (2 channels)]  │
+└──────────────────────────────────────────────────┘
+```
+
+**关键交互逻辑**：
+
+a) **表单展开/收起**：
+   - 初始状态：不显示表单，只显示 "Added Channels" 标题 + "[+ Add]" 按钮
+   - 点击 "[+ Add]"：在列表下方展开表单（使用 `isAddingChannel` 控制）
+   - 表单底部按钮改为 "Test & Add" 和 "Cancel"
+   - "Cancel" 收起表单
+
+b) **"Test & Add" 按钮行为**：
+   - 点击后执行连接测试
+   - **测试通过**: 
+     - 将 Channel + API Key 添加到 `pendingChannels` 列表
+     - 状态标记为 `.success`
+     - 表单清空（重置为初始状态），但**不收起**（方便继续添加下一个）
+   - **测试失败**:
+     - 不添加到列表
+     - 表单保留填写内容
+     - 显示错误信息
+     - 用户可修改后重试
+
+c) **已添加列表项**：
+   - 每行显示：厂商图标 + 名称 + 协议标签 + 测试状态
+   - ✅ 成功：绿色 checkmark
+   - ❌ 失败：红色 xmark + hover 显示删除按钮
+   - 点击 ❌ 项可删除
+
+d) **"Next" 按钮**：
+   - `disabled` 条件：`pendingChannels.filter { $0.testStatus == .success }.isEmpty`
+   - 显示文字：`"Next → (\(successCount) channels)"`
+   - 点击时：将所有 `.success` 状态的 Channel 写入 `ChannelStore`，API Key 存入 `KeychainManager`
+
+e) **"Skip" 按钮**：
+   - 位置：在 "Back" 和 "Next" 之间
+   - 始终可用，不受 `pendingChannels` 影响
+   - 点击：不保存任何 pending Channel，直接进入 `.shellConfig` 步骤
+
+**3. 改造 `canProceed` 逻辑**
+```swift
+private var canProceed: Bool {
+    switch currentStep {
+    case .welcome:
+        true
+    case .addChannel:
+        // 至少有 1 个测试通过的 Channel
+        pendingChannels.contains { $0.testStatus == .success }
+    case .shellConfig:
+        true
+    case .done:
+        true
+    }
+}
+```
+
+**4. 改造 `goToNextStep` 中的 addChannel → shellConfig 逻辑**
+```swift
+case .addChannel:
+    // 只保存测试成功的 Channel
+    for pending in pendingChannels where pending.testStatus == .success {
+        try? KeychainManager.shared.setAPIKey(pending.apiKey, for: pending.channel.id)
+        ChannelStore.shared.addChannel(pending.channel)
+    }
+    currentStep = .shellConfig
+```
+
+**5. 表单组件复用**
+- 将现有的左右分栏表单提取为独立组件 `ChannelFormView`
+- 接受回调：`onTestAndAdd: (Channel, String) async -> Void`
+- 接受回调：`onCancel: () -> Void`
+- OnboardingView 和 AddChannelView (Settings) 都复用此组件
+
+#### 必须遵守的约束
+1. **不能跳转新页面**: 表单必须在当前页面内展开/收起（使用 `if isAddingChannel` 或 `.sheet` 但不要用 NavigationLink 跳转）
+2. **窗口尺寸**: 确保 `DesignToken.Layout.onboardingHeight` >= 500px
+3. **L10n 同步**: 新增文案必须手动添加到 `Sources/Generated/L10n.swift`
+4. **编译通过**: 提交前必须 `xcodebuild` 编译通过
 
 ---
 
@@ -524,6 +717,8 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 错误提示是否具体（不能只显示"失败"）
 - [ ] 多协议场景下的协议选择交互设计
 - [ ] 加载/测试状态的用户反馈
+- [ ] Onboarding 是否支持批量添加多个 Channel（不能只添加一个就跳转）
+- [ ] Onboarding "Next" 按钮是否有合理的启用条件（至少 1 个测试通过，或提供 Skip 选项）
 
 ### 7.3 平台兼容性
 - [ ] 最低支持版本的生命周期陷阱（如 macOS 13 的 MenuBarExtra.onAppear 不触发）
