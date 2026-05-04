@@ -366,6 +366,42 @@ internal enum L10n {
     internal static var featurePrivacy: String {
       NSLocalizedString("onboarding.feature_privacy", comment: "")
     }
+    internal static var addChannelTitle: String {
+      NSLocalizedString("onboarding.addChannel.title", comment: "")
+    }
+    internal static var addChannelSubtitle: String {
+      NSLocalizedString("onboarding.addChannel.subtitle", comment: "")
+    }
+    internal static var addChannelAdd: String {
+      NSLocalizedString("onboarding.addChannel.add", comment: "")
+    }
+    internal static var testAndAdd: String {
+      NSLocalizedString("onboarding.testAndAdd", comment: "")
+    }
+    internal static var cancel: String {
+      NSLocalizedString("onboarding.cancel", comment: "")
+    }
+    internal static func addedChannelsCount(_ p1: Int) -> String {
+      String(format: NSLocalizedString("onboarding.addedChannels.count", comment: ""), p1)
+    }
+    internal static func nextWithCount(_ p1: Int) -> String {
+      String(format: NSLocalizedString("onboarding.next.withCount", comment: ""), p1)
+    }
+    internal static var connected: String {
+      NSLocalizedString("onboarding.connected", comment: "")
+    }
+    internal static var connectionFailed: String {
+      NSLocalizedString("onboarding.connectionFailed", comment: "")
+    }
+    internal static var providerName: String {
+      NSLocalizedString("onboarding.providerName", comment: "")
+    }
+    internal static var apiProtocol: String {
+      NSLocalizedString("onboarding.apiProtocol", comment: "")
+    }
+    internal static var baseUrl: String {
+      NSLocalizedString("onboarding.baseUrl", comment: "")
+    }
   }
 
   internal enum Status {

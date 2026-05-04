@@ -1,11 +1,33 @@
 import SwiftUI
 
+// MARK: - PendingChannel
+
+/// Temporary channel held during onboarding before batch-persisting
+struct PendingChannel: Identifiable {
+    let id = UUID()
+    let channel: Channel
+    let apiKey: String
+    let testStatus: TestStatus
+
+    enum TestStatus: Equatable {
+        case success
+        case failure(String)
+    }
+}
+
 // MARK: - OnboardingView
 
 struct OnboardingView: View {
     let onComplete: () -> Void
 
     @State private var currentStep: OnboardingStep = .welcome
+    @State private var shellConfigResult: ShellConfigResult?
+
+    // Batch channel-add state
+    @State private var pendingChannels: [PendingChannel] = []
+    @State private var isAddingChannel: Bool = false
+
+    // Form-level state (reset after each Test & Add)
     @State private var selectedProviderId: String?
     @State private var isCustomProvider: Bool = false
     @State private var selectedProtocol: APIProtocol = .openai
@@ -14,7 +36,6 @@ struct OnboardingView: View {
     @State private var customProviderName: String = ""
     @State private var isTestingConnection: Bool = false
     @State private var connectionTestResult: ConnectionTestResult?
-    @State private var shellConfigResult: ShellConfigResult?
     @State private var searchQuery: String = ""
 
     @ObservedObject private var appState = AppState.shared
@@ -149,138 +170,329 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Add Channel Step (Redesigned)
+    // MARK: - Add Channel Step (Batch Mode)
 
     private var addChannelStep: some View {
-        HStack(spacing: 0) {
-            // Left pane: Provider list
-            VStack(spacing: 0) {
-                // Search bar
-                HStack(spacing: DesignToken.Spacing.xs) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(DesignToken.Colors.textTertiary)
-                        .font(.system(size: 12))
-                    TextField("Search...", text: $searchQuery)
-                        .textFieldStyle(.plain)
-                        .font(DesignToken.Font.caption())
-                    if !searchQuery.isEmpty {
-                        Button {
-                            searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(DesignToken.Colors.textTertiary)
-                                .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, DesignToken.Spacing.sm)
-                .padding(.vertical, DesignToken.Spacing.xs)
-                .background(DesignToken.Colors.bgSecondary)
+        VStack(spacing: DesignToken.Spacing.md) {
+            // Header row: title + Add button
+            HStack {
+                Text(L10n.Onboarding.addedChannelsCount(pendingChannels.count))
+                    .font(DesignToken.Font.h3())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
 
-                Divider()
+                Spacer()
 
-                // Provider list
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        // Custom provider
-                        providerListItem(
-                            id: "custom",
-                            name: "Custom / Local",
-                            icon: "globe",
-                            isSelected: isCustomProvider
-                        ) {
-                            isCustomProvider = true
-                            selectedProviderId = nil
-                            selectedProtocol = .openai
-                            baseURL = "http://localhost:11434/v1"
-                            connectionTestResult = nil
-                        }
-
-                        Divider().padding(.horizontal, DesignToken.Spacing.sm)
-
-                        // Built-in providers
-                        ForEach(filteredProviders) { template in
-                            providerListItem(
-                                id: template.id,
-                                name: template.nameEn,
-                                icon: ProviderIconMapper.symbol(for: template.id),
-                                isSelected: selectedProviderId == template.id && !isCustomProvider
-                            ) {
-                                isCustomProvider = false
-                                selectProviderTemplate(template)
-                            }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isAddingChannel.toggle()
+                        if isAddingChannel {
+                            resetForm()
                         }
                     }
-                    .padding(.vertical, DesignToken.Spacing.xs)
+                } label: {
+                    HStack(spacing: DesignToken.Spacing.xxs) {
+                        Image(systemName: isAddingChannel ? "minus" : "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(isAddingChannel ? L10n.AddChannel.cancel : L10n.Onboarding.addChannelAdd)
+                            .font(DesignToken.Font.caption())
+                    }
+                    .padding(.horizontal, DesignToken.Spacing.sm)
+                    .padding(.vertical, DesignToken.Spacing.xxs)
+                    .background(DesignToken.Colors.accent.opacity(isAddingChannel ? 0.12 : 0.15))
+                    .foregroundColor(DesignToken.Colors.accent)
+                    .cornerRadius(DesignToken.Layout.badgeCornerRadius)
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("onboarding.addchannel.toggle")
             }
-            .frame(width: 200)
-            .overlay(
-                RoundedRectangle(cornerRadius: 0)
-                    .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
-            )
+            .padding(.horizontal, DesignToken.Spacing.lg)
+            .padding(.top, DesignToken.Spacing.xs)
 
             Divider()
+                .padding(.horizontal, DesignToken.Spacing.lg)
 
-            // Right pane: Config form
+            // Scrollable content area
             ScrollView {
-                VStack(spacing: DesignToken.Spacing.lg) {
-                    // Provider header
-                    if isCustomProvider {
-                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                            Text("Provider Name")
+                VStack(spacing: DesignToken.Spacing.md) {
+                    // Pending channel list
+                    if !pendingChannels.isEmpty {
+                        pendingChannelList
+                    } else if !isAddingChannel {
+                        // Empty state
+                        VStack(spacing: DesignToken.Spacing.sm) {
+                            Image(systemName: "arrow.down.app")
+                                .font(.system(size: DesignToken.Layout.largeIconSize))
+                                .foregroundColor(DesignToken.Colors.textTertiary)
+                            Text(L10n.Onboarding.addChannelSubtitle)
                                 .font(DesignToken.Font.caption())
-                                .foregroundColor(DesignToken.Colors.textSecondary)
-                            TextField("e.g. Local Ollama", text: $customProviderName)
-                                .textFieldStyle(.roundedBorder)
+                                .foregroundColor(DesignToken.Colors.textTertiary)
+                                .multilineTextAlignment(.center)
                         }
-                    } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                        HStack {
-                            Image(systemName: ProviderIconMapper.symbol(for: template.id))
-                                .foregroundColor(DesignToken.Colors.accent)
-                            Text(template.nameEn)
-                                .font(DesignToken.Font.h3())
-                        }
+                        .padding(.vertical, DesignToken.Spacing.lg)
                     }
 
-                    // Protocol selector
-                    protocolSelector
-
-                    Divider()
-
-                    // Base URL
-                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                        Text("Base URL")
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                        TextField("https://api.example.com/v1", text: $baseURL)
-                            .textFieldStyle(.roundedBorder)
-                            .font(DesignToken.Font.mono())
-                    }
-
-                    // API Key
-                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                        Text(L10n.Settings.channelsApiKey)
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                        SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(DesignToken.Font.mono())
-                    }
-
-                    // Test connection
-                    testConnectionButton
-
-                    // Result
-                    if let result = connectionTestResult {
-                        connectionTestStatus(result: result)
+                    // Expandable form
+                    if isAddingChannel {
+                        channelForm
                     }
                 }
-                .padding(DesignToken.Spacing.lg)
+                .padding(.horizontal, DesignToken.Spacing.lg)
             }
         }
     }
+
+    // MARK: - Pending Channel List
+
+    private var pendingChannelList: some View {
+        VStack(spacing: DesignToken.Spacing.xs) {
+            ForEach(Array(pendingChannels.enumerated()), id: \.element.id) { index, pending in
+                pendingChannelRow(pending: pending, index: index)
+            }
+        }
+        .padding(DesignToken.Spacing.sm)
+        .background(DesignToken.Colors.bgSecondary)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
+        )
+    }
+
+    private func pendingChannelRow(pending: PendingChannel, index: Int) -> some View {
+        HStack(spacing: DesignToken.Spacing.sm) {
+            // Icon
+            if let providerId = pending.channel.providerId, providerId != "custom" {
+                Image(systemName: ProviderIconMapper.symbol(for: providerId))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.accent)
+                    .frame(width: 20)
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .frame(width: 20)
+            }
+
+            // Name + protocol
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pending.channel.name)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                    .lineLimit(1)
+                Text(pending.channel.protocol.rawValue)
+                    .font(DesignToken.Font.system(size: 10))
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+            }
+
+            Spacer()
+
+            // Status
+            switch pending.testStatus {
+            case .success:
+                HStack(spacing: DesignToken.Spacing.xxs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(DesignToken.Colors.statusOnline)
+                    Text(L10n.Onboarding.connected)
+                        .font(DesignToken.Font.system(size: 11))
+                        .foregroundColor(DesignToken.Colors.statusOnline)
+                }
+            case .failure(let message):
+                HStack(spacing: DesignToken.Spacing.xxs) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(DesignToken.Colors.statusOffline)
+                    Text(L10n.Onboarding.connectionFailed)
+                        .font(DesignToken.Font.system(size: 11))
+                        .foregroundColor(DesignToken.Colors.statusOffline)
+                    if !message.isEmpty {
+                        Text(message)
+                            .font(DesignToken.Font.system(size: 10))
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+            }
+
+            // Delete button
+            Button {
+                pendingChannels.remove(at: index)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.addchannel.delete.\(index)")
+        }
+        .padding(.horizontal, DesignToken.Spacing.xs)
+        .padding(.vertical, DesignToken.Spacing.xs)
+    }
+
+    // MARK: - Channel Form (Expandable)
+
+    private var channelForm: some View {
+        VStack(spacing: DesignToken.Spacing.md) {
+            // Inner split-pane form
+            HStack(spacing: 0) {
+                // Left pane: Provider list
+                VStack(spacing: 0) {
+                    // Search bar
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+                            .font(.system(size: 12))
+                        TextField("Search...", text: $searchQuery)
+                            .textFieldStyle(.plain)
+                            .font(DesignToken.Font.caption())
+                        if !searchQuery.isEmpty {
+                            Button {
+                                searchQuery = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(DesignToken.Colors.textTertiary)
+                                    .font(.system(size: 12))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, DesignToken.Spacing.sm)
+                    .padding(.vertical, DesignToken.Spacing.xs)
+                    .background(DesignToken.Colors.bgSecondary)
+
+                    Divider()
+
+                    // Provider list
+                    ScrollView {
+                        LazyVStack(spacing: 2) {
+                            // Custom provider
+                            providerListItem(
+                                id: "custom",
+                                name: "Custom / Local",
+                                icon: "globe",
+                                isSelected: isCustomProvider
+                            ) {
+                                isCustomProvider = true
+                                selectedProviderId = nil
+                                selectedProtocol = .openai
+                                baseURL = "http://localhost:11434/v1"
+                                connectionTestResult = nil
+                            }
+
+                            Divider().padding(.horizontal, DesignToken.Spacing.sm)
+
+                            // Built-in providers
+                            ForEach(filteredProviders) { template in
+                                providerListItem(
+                                    id: template.id,
+                                    name: template.nameEn,
+                                    icon: ProviderIconMapper.symbol(for: template.id),
+                                    isSelected: selectedProviderId == template.id && !isCustomProvider
+                                ) {
+                                    isCustomProvider = false
+                                    selectProviderTemplate(template)
+                                }
+                            }
+                        }
+                        .padding(.vertical, DesignToken.Spacing.xs)
+                    }
+                }
+                .frame(width: 200)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
+                )
+
+                Divider()
+
+                // Right pane: Config form
+                ScrollView {
+                    VStack(spacing: DesignToken.Spacing.lg) {
+                        // Provider header
+                        if isCustomProvider {
+                            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                                Text(L10n.Onboarding.providerName)
+                                    .font(DesignToken.Font.caption())
+                                    .foregroundColor(DesignToken.Colors.textSecondary)
+                                TextField("e.g. Local Ollama", text: $customProviderName)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                            HStack {
+                                Image(systemName: ProviderIconMapper.symbol(for: template.id))
+                                    .foregroundColor(DesignToken.Colors.accent)
+                                Text(template.nameEn)
+                                    .font(DesignToken.Font.h3())
+                            }
+                        }
+
+                        // Protocol selector
+                        protocolSelector
+
+                        Divider()
+
+                        // Base URL
+                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                            Text(L10n.Onboarding.baseUrl)
+                                .font(DesignToken.Font.caption())
+                                .foregroundColor(DesignToken.Colors.textSecondary)
+                            TextField("https://api.example.com/v1", text: $baseURL)
+                                .textFieldStyle(.roundedBorder)
+                                .font(DesignToken.Font.mono())
+                        }
+
+                        // API Key
+                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                            Text(L10n.Settings.channelsApiKey)
+                                .font(DesignToken.Font.caption())
+                                .foregroundColor(DesignToken.Colors.textSecondary)
+                            SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
+                                .textFieldStyle(.roundedBorder)
+                                .font(DesignToken.Font.mono())
+                        }
+
+                        // Test & Add button row
+                        HStack(spacing: DesignToken.Spacing.sm) {
+                            HoverButton(
+                                title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testAndAdd,
+                                icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
+                            ) {
+                                Task { await testAndAdd() }
+                            }
+                            .disabled(!isFormValid || isTestingConnection)
+                            .accessibilityIdentifier("onboarding.addchannel.testAndAdd")
+
+                            Button(L10n.Onboarding.cancel) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isAddingChannel = false
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+                            .font(DesignToken.Font.caption())
+                        }
+
+                        // Test result
+                        if let result = connectionTestResult {
+                            connectionTestStatus(result: result)
+                        }
+                    }
+                    .padding(DesignToken.Spacing.lg)
+                }
+            }
+            .frame(height: 380)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(DesignToken.Colors.accent.opacity(0.3), lineWidth: 1)
+            )
+            .cornerRadius(8)
+        }
+    }
+
+    private var isFormValid: Bool {
+        !apiKey.isEmpty && !baseURL.isEmpty
+    }
+
+    // MARK: - Form helpers
 
     private var filteredProviders: [ProviderTemplate] {
         if searchQuery.isEmpty {
@@ -335,7 +547,7 @@ struct OnboardingView: View {
 
     private var protocolSelector: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text("API Protocol")
+            Text(L10n.Onboarding.apiProtocol)
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
@@ -376,50 +588,6 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
     }
 
-    private var testConnectionButton: some View {
-        HoverButton(
-            title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testConnection,
-            icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
-        ) {
-            Task { await testConnection() }
-        }
-        .disabled(apiKey.isEmpty || baseURL.isEmpty || isTestingConnection)
-        .accessibilityIdentifier("onboarding.addchannel.testConnection")
-    }
-
-    private func testConnection() async {
-        isTestingConnection = true
-        connectionTestResult = nil
-
-        let resolvedProtocol = selectedProtocol
-
-        let tempChannel = Channel(
-            id: UUID().uuidString,
-            name: isCustomProvider ? (customProviderName.isEmpty ? "Custom" : customProviderName) : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Test"),
-            providerId: isCustomProvider ? "custom" : selectedProviderId,
-            baseURL: baseURL,
-            protocol: resolvedProtocol,
-            models: []
-        )
-
-        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
-        defer {
-            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
-        }
-
-        let result = await channelManager.testConnection(channel: tempChannel)
-
-        if result.success {
-            connectionTestResult = .success
-        } else {
-            connectionTestResult = .failure
-            errorMessage = result.errorMessage ?? "Connection failed"
-        }
-        isTestingConnection = false
-    }
-
-    @State private var errorMessage: String?
-
     private func connectionTestStatus(result: ConnectionTestResult) -> some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
             HStack(spacing: DesignToken.Spacing.xxs) {
@@ -442,6 +610,65 @@ struct OnboardingView: View {
             }
         }
         .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
+    }
+
+    @State private var errorMessage: String?
+
+    // MARK: - Test & Add
+
+    private func testAndAdd() async {
+        isTestingConnection = true
+        connectionTestResult = nil
+        errorMessage = nil
+
+        let resolvedProtocol = selectedProtocol
+
+        let tempChannel = Channel(
+            id: UUID().uuidString,
+            name: isCustomProvider ? (customProviderName.isEmpty ? "Custom" : customProviderName) : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Test"),
+            providerId: isCustomProvider ? "custom" : selectedProviderId,
+            baseURL: baseURL,
+            protocol: resolvedProtocol,
+            models: []
+        )
+
+        // Temporarily store key for test
+        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        defer {
+            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+        }
+
+        let result = await channelManager.testConnection(channel: tempChannel)
+
+        if result.success {
+            connectionTestResult = .success
+            // Add to pending list
+            let pending = PendingChannel(
+                channel: tempChannel,
+                apiKey: apiKey,
+                testStatus: .success
+            )
+            pendingChannels.append(pending)
+            // Reset form but keep it open for adding more
+            resetForm()
+        } else {
+            connectionTestResult = .failure
+            errorMessage = result.errorMessage ?? "Connection failed"
+            // Keep form filled so user can retry
+        }
+        isTestingConnection = false
+    }
+
+    private func resetForm() {
+        selectedProviderId = nil
+        isCustomProvider = false
+        selectedProtocol = .openai
+        apiKey = ""
+        baseURL = ""
+        customProviderName = ""
+        connectionTestResult = nil
+        errorMessage = nil
+        searchQuery = ""
     }
 
     // MARK: - Shell Config Step
@@ -583,6 +810,21 @@ struct OnboardingView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("onboarding.skip")
+            } else if currentStep == .addChannel {
+                // Skip is always available on addChannel step
+                Button(L10n.Onboarding.skip) {
+                    skipToShellConfig()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .accessibilityIdentifier("onboarding.skip")
+
+                Button(L10n.Onboarding.back) {
+                    goBack()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .accessibilityIdentifier("onboarding.back")
             } else if currentStep != .done {
                 Button(L10n.Onboarding.back) {
                     goBack()
@@ -605,7 +847,7 @@ struct OnboardingView: View {
                 .accessibilityIdentifier("onboarding.launch")
             } else {
                 HoverButton(
-                    title: currentStep == .shellConfig ? L10n.Onboarding.finish : L10n.Onboarding.next,
+                    title: nextButtonTitle,
                     icon: "arrow.right"
                 ) {
                     goToNextStep()
@@ -616,12 +858,31 @@ struct OnboardingView: View {
         }
     }
 
+    private var successCount: Int {
+        pendingChannels.filter { $0.testStatus == .success }.count
+    }
+
+    private var nextButtonTitle: String {
+        switch currentStep {
+        case .addChannel:
+            if successCount > 0 {
+                return L10n.Onboarding.nextWithCount(successCount)
+            }
+            return L10n.Onboarding.next
+        case .shellConfig:
+            return L10n.Onboarding.finish
+        default:
+            return L10n.Onboarding.next
+        }
+    }
+
     private var canProceed: Bool {
         switch currentStep {
         case .welcome:
             true
         case .addChannel:
-            !baseURL.isEmpty && !apiKey.isEmpty
+            // At least 1 successfully tested channel
+            successCount > 0
         case .shellConfig:
             true
         case .done:
@@ -634,31 +895,22 @@ struct OnboardingView: View {
         case .welcome:
             currentStep = .addChannel
         case .addChannel:
-            // Save the channel
-            let providerId = isCustomProvider ? "custom" : selectedProviderId
-            let channelName = isCustomProvider
-                ? (customProviderName.isEmpty ? "Custom" : customProviderName)
-                : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Channel")
-
-            let newChannel = Channel(
-                id: UUID().uuidString,
-                name: channelName,
-                providerId: providerId,
-                baseURL: baseURL,
-                protocol: selectedProtocol,
-                models: []
-            )
-
-            // Store API key
-            try? KeychainManager.shared.setAPIKey(apiKey, for: newChannel.id)
-            ChannelStore.shared.addChannel(newChannel)
-
+            // Batch-save all success channels
+            for pending in pendingChannels where pending.testStatus == .success {
+                try? KeychainManager.shared.setAPIKey(pending.apiKey, for: pending.channel.id)
+                ChannelStore.shared.addChannel(pending.channel)
+            }
             currentStep = .shellConfig
         case .shellConfig:
             currentStep = .done
         case .done:
             break
         }
+    }
+
+    private func skipToShellConfig() {
+        // Skip without saving any pending channels
+        currentStep = .shellConfig
     }
 
     private func goBack() {
