@@ -140,6 +140,20 @@
 "onboarding.feature_multikey" = "Multi-provider key management";
 "onboarding.feature_privacy" = "100% local — your keys never leave your Mac";
 
+// Onboarding - Batch Channel Add (v2)
+"onboarding.addChannel.title" = "Add Channels";
+"onboarding.addChannel.subtitle" = "Add at least one channel to continue";
+"onboarding.addChannel.add" = "Add Channel";
+"onboarding.testAndAdd" = "Test & Add";
+"onboarding.cancel" = "Cancel";
+"onboarding.addedChannels.count" = "Added Channels (%d)";
+"onboarding.next.withCount" = "Next → (%d channels)";
+"onboarding.connected" = "Connected";
+"onboarding.connectionFailed" = "Connection failed";
+"onboarding.providerName" = "Provider Name";
+"onboarding.apiProtocol" = "API Protocol";
+"onboarding.baseUrl" = "Base URL";
+
 // Status Messages
 "status.copied" = "Copied to clipboard";
 "status.testing" = "Testing connection...";

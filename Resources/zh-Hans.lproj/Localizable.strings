@@ -138,6 +138,20 @@
 "onboarding.feature_multikey" = "多提供商密钥管理";
 "onboarding.feature_privacy" = "100% 本地 — 您的密钥永远不会离开您的 Mac";
 
+// 引导页 - 批量添加通道 (v2)
+"onboarding.addChannel.title" = "添加通道";
+"onboarding.addChannel.subtitle" = "至少添加一个通道以继续";
+"onboarding.addChannel.add" = "添加通道";
+"onboarding.testAndAdd" = "测试并添加";
+"onboarding.cancel" = "取消";
+"onboarding.addedChannels.count" = "已添加通道 (%d)";
+"onboarding.next.withCount" = "下一步 → (%d 个通道)";
+"onboarding.connected" = "已连接";
+"onboarding.connectionFailed" = "连接失败";
+"onboarding.providerName" = "厂商名称";
+"onboarding.apiProtocol" = "API 协议";
+"onboarding.baseUrl" = "Base URL";
+
 // Status Messages
 "status.copied" = "已复制到剪贴板";
 "status.testing" = "正在测试连接...";
