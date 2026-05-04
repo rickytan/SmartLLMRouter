@@ -84,37 +84,88 @@ enum ProtocolConverter {
                         "content": contentStr,
                     ])
                 } else if let contentArray = msg["content"] as? [[String: Any]] {
-                    // Multimodal content → text concatenation for simplicity
-                    let textParts = contentArray.compactMap { block -> String? in
-                        switch block["type"] as? String {
-                        case "text":
-                            return block["text"] as? String
-                        case "image":
-                            return "[Image]"
-                        case "tool_use":
-                            return nil // Handled separately
-                        case "tool_result":
-                            if let content = block["content"] as? String {
-                                return content
+                    // Check if this is an assistant message with tool_use blocks
+                    if openaiRole == "assistant" {
+                        var textContent = ""
+                        var toolCalls: [[String: Any]] = []
+
+                        for block in contentArray {
+                            switch block["type"] as? String {
+                            case "text":
+                                if let text = block["text"] as? String {
+                                    textContent += text
+                                }
+                            case "tool_use":
+                                if let id = block["id"] as? String,
+                                   let name = block["name"] as? String,
+                                   let input = block["input"]
+                                {
+                                    let inputStr: String
+                                    if let dict = input as? [String: Any] {
+                                        let jsonData = try? JSONSerialization.data(withJSONObject: dict)
+                                        inputStr = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+                                    } else if let str = input as? String {
+                                        inputStr = str
+                                    } else {
+                                        inputStr = "{}"
+                                    }
+                                    toolCalls.append([
+                                        "id": id,
+                                        "type": "function",
+                                        "function": ["name": name, "arguments": inputStr],
+                                    ])
+                                }
+                            default:
+                                break
                             }
-                            return nil
-                        default:
-                            return nil
-                        }
-                    }.joined(separator: "\n")
-
-                    if !textParts.isEmpty {
-                        var openaiMsg: [String: Any] = [
-                            "role": openaiRole,
-                            "content": textParts,
-                        ]
-
-                        // Tool call results
-                        if openaiRole == "tool", let toolCallId = msg["tool_use_id"] as? String {
-                            openaiMsg["tool_call_id"] = toolCallId
                         }
 
+                        var openaiMsg: [String: Any] = ["role": "assistant"]
+                        openaiMsg["content"] = textContent.isEmpty ? NSNull() : textContent
+                        if !toolCalls.isEmpty {
+                            openaiMsg["tool_calls"] = toolCalls
+                        }
                         messages.append(openaiMsg)
+                    } else if openaiRole == "user" {
+                        // Check for tool_result blocks - they become separate tool messages
+                        var textParts: [String] = []
+                        var toolResults: [(id: String, content: String)] = []
+
+                        for block in contentArray {
+                            switch block["type"] as? String {
+                            case "text":
+                                if let text = block["text"] as? String {
+                                    textParts.append(text)
+                                }
+                            case "image":
+                                textParts.append("[Image]")
+                            case "tool_result":
+                                if let toolUseId = block["tool_use_id"] as? String,
+                                   let content = block["content"] as? String
+                                {
+                                    toolResults.append((id: toolUseId, content: content))
+                                }
+                            default:
+                                break
+                            }
+                        }
+
+                        // Add user message with text content if present
+                        if !textParts.isEmpty {
+                            messages.append([
+                                "role": "user",
+                                "content": textParts.joined(separator: "\n"),
+                            ])
+                        }
+
+                        // Add separate tool messages for each tool_result
+                        for result in toolResults {
+                            messages.append([
+                                "role": "tool",
+                                "content": result.content,
+                                "tool_call_id": result.id,
+                            ])
+                        }
                     }
                 }
             }
@@ -138,14 +189,17 @@ enum ProtocolConverter {
             openaiRequest["tools"] = openaiTools
         }
 
-        // Tool choice
-        if let toolChoice = body["tool_choice"] as? String {
-            if toolChoice == "auto" || toolChoice == "any" {
-                openaiRequest["tool_choice"] = toolChoice
-            } else if let dict = body["tool_choice"] as? [String: Any],
-                      let name = dict["name"] as? String
-            {
+        // Tool choice - can be dict or string
+        if let toolChoiceDict = body["tool_choice"] as? [String: Any] {
+            let type = toolChoiceDict["type"] as? String
+            if type == "auto" || type == "any" {
+                openaiRequest["tool_choice"] = type
+            } else if type == "tool", let name = toolChoiceDict["name"] as? String {
                 openaiRequest["tool_choice"] = ["type": "function", "function": ["name": name]]
+            }
+        } else if let toolChoiceStr = body["tool_choice"] as? String {
+            if toolChoiceStr == "auto" || toolChoiceStr == "any" {
+                openaiRequest["tool_choice"] = toolChoiceStr
             }
         }
 
@@ -293,16 +347,16 @@ enum ProtocolConverter {
             }
         }
 
-        // Tool choice
-        if let toolChoice = body["tool_choice"] as? [String: Any] {
-            if let type = toolChoice["type"] as? String {
+        // Tool choice - can be dict or string
+        if let toolChoiceDict = body["tool_choice"] as? [String: Any] {
+            if let type = toolChoiceDict["type"] as? String {
                 switch type {
                 case "auto":
                     anthropicRequest["tool_choice"] = ["type": "auto"]
                 case "required":
                     anthropicRequest["tool_choice"] = ["type": "any"]
                 case "function":
-                    if let function = toolChoice["function"] as? [String: Any],
+                    if let function = toolChoiceDict["function"] as? [String: Any],
                        let name = function["name"] as? String
                     {
                         anthropicRequest["tool_choice"] = ["type": "tool", "name": name]
@@ -310,6 +364,18 @@ enum ProtocolConverter {
                 default:
                     break
                 }
+            }
+        } else if let toolChoiceStr = body["tool_choice"] as? String {
+            switch toolChoiceStr {
+            case "auto":
+                anthropicRequest["tool_choice"] = ["type": "auto"]
+            case "required":
+                anthropicRequest["tool_choice"] = ["type": "any"]
+            case "none":
+                // "none" is not supported in Anthropic - skip
+                break
+            default:
+                break
             }
         }
 

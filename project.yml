@@ -73,6 +73,8 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         PRODUCT_NAME: SmartLLMRouterTests
         ENABLE_TESTABILITY: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SmartLLMRouter.app/Contents/MacOS/SmartLLMRouter"
+        BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
       - target: SmartLLMRouter
 

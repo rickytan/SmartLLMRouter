@@ -13,12 +13,17 @@ target 'SmartLLMRouter' do
   pod 'KeychainAccess', '~> 4.2.2'
   # 应用更新检查
   pod 'Sparkle', '~> 2.6'
-  
+
   # SwiftLint — Build phase linting
   pod 'SwiftLint'
-  
+
   # 高性能异步日志系统
   pod 'CocoaLumberjack/Swift', '~> 3.8.5'
+
+  # Unit tests inherit pods
+  target 'SmartLLMRouterTests' do
+    inherit! :search_paths
+  end
 end
 
 post_install do |installer|
