@@ -88,18 +88,26 @@ final class UsageTracker: ObservableObject {
     // MARK: - Private
 
     private func loadRecords() {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let decoded = try? JSONDecoder().decode([UsageRecord].self, from: data)
-        else {
+        do {
+            guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
+                records = []
+                return
+            }
+            records = try JSONDecoder().decode([UsageRecord].self, from: data)
+            Log.debug("Loaded \(records.count) usage records")
+        } catch {
+            Log.error("Failed to load usage records: \(error.localizedDescription)")
             records = []
-            return
         }
-        records = decoded
     }
 
     private func saveRecords() {
-        guard let encoded = try? JSONEncoder().encode(records) else { return }
-        UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        do {
+            let encoded = try JSONEncoder().encode(records)
+            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        } catch {
+            Log.error("Failed to save usage records: \(error.localizedDescription)")
+        }
     }
 
     private func computeStats() {

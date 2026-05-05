@@ -222,24 +222,30 @@ final class ChannelManager: ObservableObject {
 
     /// Parse OpenAI-style models response
     private func parseModelsResponse(data: Data, channel _: Channel) -> [ModelEntry] {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let modelList = json["data"] as? [[String: Any]]
-        else {
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let modelList = json["data"] as? [[String: Any]]
+            else {
+                Log.warn("Invalid models response format from channel")
+                return []
+            }
+
+            return modelList.compactMap { modelDict -> ModelEntry? in
+                guard let modelId = modelDict["id"] as? String else { return nil }
+
+                return ModelEntry(
+                    id: UUID().uuidString,
+                    identifier: modelId,
+                    displayName: modelId,
+                    contextLength: nil,
+                    inputPricePer1M: nil,
+                    outputPricePer1M: nil,
+                    isEnabled: true
+                )
+            }
+        } catch {
+            Log.error("Failed to parse models response: \(error.localizedDescription)")
             return []
-        }
-
-        return modelList.compactMap { modelDict -> ModelEntry? in
-            guard let modelId = modelDict["id"] as? String else { return nil }
-
-            return ModelEntry(
-                id: UUID().uuidString,
-                identifier: modelId,
-                displayName: modelId,
-                contextLength: nil,
-                inputPricePer1M: nil,
-                outputPricePer1M: nil,
-                isEnabled: true
-            )
         }
     }
 
@@ -310,6 +316,9 @@ final class ChannelManager: ObservableObject {
         }
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
+        if request.httpBody == nil {
+            Log.error("Failed to serialize test request body for channel \(channel.name)")
+        }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -357,23 +366,28 @@ final class ChannelManager: ObservableObject {
 
     /// Extract error message from API response JSON
     private func extractErrorMessage(_ data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
-                return String(text.prefix(100))
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                    return String(text.prefix(100))
+                }
+                return nil
             }
+
+            // Common error field patterns
+            if let error = json["error"] as? [String: Any] {
+                if let message = error["message"] as? String { return message }
+                if let type = error["type"] as? String { return type }
+            }
+            if let message = json["message"] as? String { return message }
+            if let error = json["error"] as? String { return error }
+            if let msg = json["msg"] as? String { return msg }
+
+            return nil
+        } catch {
+            Log.error("Failed to extract error message from response: \(error.localizedDescription)")
             return nil
         }
-
-        // Common error field patterns
-        if let error = json["error"] as? [String: Any] {
-            if let message = error["message"] as? String { return message }
-            if let type = error["type"] as? String { return type }
-        }
-        if let message = json["message"] as? String { return message }
-        if let error = json["error"] as? String { return error }
-        if let msg = json["msg"] as? String { return msg }
-
-        return nil
     }
 
     // MARK: - Speed Test
@@ -435,6 +449,9 @@ final class ChannelManager: ObservableObject {
         }
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
+        if request.httpBody == nil {
+            Log.error("Failed to serialize test request body for channel \(channel.name)")
+        }
 
         do {
             let (data, _) = try await URLSession.shared.data(for: request)

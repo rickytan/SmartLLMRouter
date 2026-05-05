@@ -22,7 +22,12 @@ final class KeychainManager {
 
     /// Retrieve an API key for a channel
     func getAPIKey(for channelID: String) -> String? {
-        try? keychain.getString(servicePrefix + channelID)
+        do {
+            return try keychain.getString(servicePrefix + channelID)
+        } catch {
+            Log.error("Failed to get API key for channel \(channelID): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// Remove an API key for a channel

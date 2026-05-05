@@ -752,6 +752,107 @@ Settings 中的添加 Channel 页面已有 "Fetch Models" 按钮。需要增强�
 
 ---
 
+### 3.21 模块二十一：连接测试改用 GET /v1/models **[关键优化]**
+
+#### 背景问题
+当前 `ChannelManager.testConnection(channel:)` 的实现使用 **POST 聊天请求**测试连接：
+```swift
+let testBody: [String: Any] = [
+    "model": "gpt-4o-mini",  // 硬编码 model，很多厂商没有这个模型
+    "messages": [["role": "user", "content": "Hi"]],
+    "max_tokens": 1,
+]
+```
+
+**问题**：
+1. **浪费 Token**：即使 `max_tokens: 1` 仍消耗输入 + 输出 token
+2. **硬编码 model 名称**：用 `gpt-4o-mini` 兜底，但 DeepSeek/DashScope 等厂商没有这个模型，可能返回 404 误判为 URL 错误
+3. **慢**：需要等模型推理生成响应
+4. **Anthropic 端点要求严格**：`max_tokens` 是必填项，某些厂商校验更严
+
+#### 解决方案
+**改用 `GET /v1/models` 测试连接**：
+- 只需验证 API Key 是否有效
+- 不消耗任何 Token
+- 不依赖 model 名称
+- 响应快（纯元数据查询）
+
+#### 各厂商 `/v1/models` 支持情况
+
+| 厂商/端点 | 支持 `/v1/models` | 验证结果 |
+|-----------|-------------------|----------|
+| OpenAI (`api.openai.com`) | ✅ | 标准端点 |
+| Anthropic (`api.anthropic.com`) | ✅ | 返回 authentication_error（非 404），端点存在 |
+| DeepSeek OpenAI (`api.deepseek.com`) | ✅ | 标准兼容 |
+| DeepSeek Anthropic (`api.deepseek.com/anthropic`) | ✅ | 返回 authentication_error，端点存在 |
+| DashScope OpenAI | ✅ | 标准兼容 |
+| DashScope Anthropic | ⚠️ 需验证 | 空响应，可能不支持，需 fallback 到 POST |
+| 其他 OpenAI 兼容厂商 | ✅ | 大部分支持 |
+
+#### 实现方案
+```swift
+func testConnection(channel: Channel) async -> ConnectionTestResult {
+    // 1. 尝试 GET /v1/models（适用于 OpenAI 和 Anthropic 协议）
+    let modelsURL = baseURL + "/v1/models"
+    var request = URLRequest(url: modelsURL)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 15  // models 端点响应快，超时更短
+    
+    // 设置认证头
+    if channel.protocol == .anthropic {
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+    } else {
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    }
+    
+    do {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        
+        if statusCode == 200 {
+            // 解析模型数量（为后续自动填充做准备）
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let models = json["data"] as? [[String: Any]] {
+                Log.info("Connection test success, found \(models.count) models")
+            }
+            return .success()
+        } else if statusCode == 401 {
+            let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
+            return .failure("❌ Invalid API Key: \(errorMsg)")
+        } else if statusCode == 403 {
+            // 某些厂商的 /v1/models 端点可能 403 但聊天端点可用
+            // Fallback 到 POST 测试
+            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+        }
+        // ... 其他错误处理
+    } catch {
+        // Fallback 到 POST 测试
+        return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+    }
+}
+```
+
+#### Fallback 策略
+```
+GET /v1/models
+    ↓ 200 → ✅ 成功（同时获取模型列表）
+    ↓ 401 → ❌ API Key 无效
+    ↓ 403/超时/异常 → Fallback → POST /v1/chat/completions（原有逻辑）
+```
+
+#### 对自动 Fetch Models 的影响
+- 连接测试成功时已经拿到 `/v1/models` 的响应数据
+- 可直接复用该响应，**不需要额外请求**来获取模型列表
+- 进一步减少 API 调用次数
+
+#### 必须遵守的约束
+1. **不破坏现有行为**: Fallback 确保不支持 `/v1/models` 的厂商仍可正常测试
+2. **超时更短**: GET 请求设 15 秒超时（POST 为 30 秒）
+3. **日志**: 记录测试方式（GET vs POST fallback）
+
+---
+
 ## 4. 数据模型定义
 
 ### 4.1 Channel 结构体
@@ -830,6 +931,7 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] Onboarding 是否支持批量添加多个 Channel（不能只添加一个就跳转）
 - [ ] Onboarding "Next" 按钮是否有合理的启用条件（至少 1 个测试通过，或提供 Skip 选项）
 - [ ] 添加 Channel 后是否自动 fetch models 并填充元信息
+- [ ] 连接测试是否使用 GET /v1/models（而非 POST 聊天请求，避免浪费 token 和硬编码 model）
 
 ### 7.3 平台兼容性
 - [ ] 最低支持版本的生命周期陷阱（如 macOS 13 的 MenuBarExtra.onAppear 不触发）

@@ -145,8 +145,12 @@ final class CooldownEngine: ObservableObject {
     private func saveCooldowns() {
         // Only save active cooldowns
         let active = cooldowns.filter(\.isActive)
-        guard let encoded = try? JSONEncoder().encode(active) else { return }
-        UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        do {
+            let encoded = try JSONEncoder().encode(active)
+            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        } catch {
+            Log.error("Failed to save cooldowns: \(error.localizedDescription)")
+        }
     }
 
     private func startCleanupTimer() {

@@ -596,21 +596,28 @@ final class ChannelStore: ObservableObject {
     }
 
     func saveChannels() {
-        if let data = try? JSONEncoder().encode(channels) {
+        do {
+            let data = try JSONEncoder().encode(channels)
             UserDefaults.standard.set(data, forKey: "smartllm_channels")
             UserDefaults.standard.set(activeChannelID, forKey: "smartllm_active_channel")
+        } catch {
+            Log.error("Failed to save channels: \(error.localizedDescription)")
         }
     }
 
     func loadChannels() {
-        guard let data = UserDefaults.standard.data(forKey: "smartllm_channels"),
-              let decoded = try? JSONDecoder().decode([Channel].self, from: data)
-        else {
+        do {
+            guard let data = UserDefaults.standard.data(forKey: "smartllm_channels") else {
+                channels = []
+                return
+            }
+            channels = try JSONDecoder().decode([Channel].self, from: data)
+            activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
+            Log.debug("Loaded \(channels.count) channels")
+        } catch {
+            Log.error("Failed to load channels: \(error.localizedDescription)")
             channels = []
-            return
         }
-        channels = decoded
-        activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
     }
 
     func addChannel(_ channel: Channel) {
