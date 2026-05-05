@@ -257,17 +257,19 @@ final class ChannelManager: ObservableObject {
     struct ConnectionTestResult: Equatable {
         let success: Bool
         let errorMessage: String?
+        let models: [ModelEntry]
 
-        static func success() -> ConnectionTestResult {
-            ConnectionTestResult(success: true, errorMessage: nil)
+        static func success(models: [ModelEntry] = []) -> ConnectionTestResult {
+            ConnectionTestResult(success: true, errorMessage: nil, models: models)
         }
 
         static func failure(_ message: String) -> ConnectionTestResult {
-            ConnectionTestResult(success: false, errorMessage: message)
+            ConnectionTestResult(success: false, errorMessage: message, models: [])
         }
     }
 
-    /// Test connection to a channel by sending a minimal request
+    /// Test connection to a channel. Primary method: GET /v1/models.
+    /// Falls back to POST if GET returns 403, timeout, or other errors.
     func testConnection(channel: Channel) async -> ConnectionTestResult {
         guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
               !apiKey.isEmpty
@@ -275,6 +277,62 @@ final class ChannelManager: ObservableObject {
             return .failure("API Key is empty")
         }
 
+        // Build the /v1/models URL
+        let baseURL = channel.baseURL
+        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
+        } else {
+            URL(string: baseURL + "/v1/models")
+        }
+
+        guard let url = modelsURL else {
+            return .failure("Invalid URL: \(baseURL)")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+
+        switch channel.protocol {
+        case .anthropic:
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openai, .auto:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            if statusCode == 200 {
+                let models = parseModelsResponse(data: data, channel: channel)
+                Log.info("Connection test for \(channel.name): success (GET /v1/models), \(models.count) models found")
+                return .success(models: models)
+            } else if statusCode == 401 {
+                let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
+                return .failure("❌ Invalid API Key: \(errorMsg)")
+            } else {
+                // 403 or other error: fallback to POST
+                Log.info("GET /v1/models returned \(statusCode) for \(channel.name), falling back to POST")
+                return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+            }
+        } catch let urlError as URLError {
+            if urlError.code == .timedOut {
+                Log.info("GET /v1/models timed out for \(channel.name), falling back to POST")
+            } else {
+                Log.info("GET /v1/models failed (\(urlError.code.rawValue)) for \(channel.name), falling back to POST")
+            }
+            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+        } catch {
+            Log.info("GET /v1/models failed for \(channel.name), falling back to POST")
+            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+        }
+    }
+
+    /// Fallback connection test using POST /v1/chat/completions or /v1/messages
+    private func testConnectionByPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
         let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
 
         var testURL: URL?
@@ -334,10 +392,9 @@ final class ChannelManager: ObservableObject {
             }
 
             if statusCode == 200 {
-                Log.info("Connection test for \(channel.name): success")
+                Log.info("Connection test for \(channel.name): success (POST fallback)")
                 return .success()
             } else if statusCode == 401 {
-                // Try to extract error message from response
                 let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
                 return .failure("❌ Invalid API Key: \(errorMsg)")
             } else if statusCode == 403 {
@@ -522,6 +579,27 @@ final class ChannelManager: ObservableObject {
             "500-1000ms"
         } else {
             "> 1000ms"
+        }
+    }
+
+    // MARK: - Model Metadata Merge
+
+    /// Merge fetched models with template metadata (context length, pricing)
+    func mergeModelsWithTemplateMetadata(fetchedModels: [ModelEntry], template: ProviderTemplate?) -> [ModelEntry] {
+        guard let template else { return fetchedModels }
+
+        let protocolKey = template.supportsProtocols.first ?? "openai"
+        let templateModels = template.defaultModels.filter { $0.protocol == protocolKey.lowercased() }
+
+        return fetchedModels.map { fetched in
+            if let match = templateModels.first(where: { $0.model == fetched.identifier }) {
+                var enriched = fetched
+                enriched.contextLength = match.contextLength
+                enriched.inputPricePer1M = match.inputPrice
+                enriched.outputPricePer1M = match.outputPrice
+                return enriched
+            }
+            return fetched
         }
     }
 }

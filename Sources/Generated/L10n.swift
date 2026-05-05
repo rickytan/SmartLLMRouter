@@ -402,6 +402,15 @@ internal enum L10n {
     internal static var baseUrl: String {
       NSLocalizedString("onboarding.baseUrl", comment: "")
     }
+    internal static var modelsFetching: String {
+      NSLocalizedString("onboarding.models.fetching", comment: "")
+    }
+    internal static func modelsFetched(_ p1: Int) -> String {
+      String(format: NSLocalizedString("onboarding.models.fetched", comment: ""), p1)
+    }
+    internal static var modelsFetchFailed: String {
+      NSLocalizedString("onboarding.models.fetchFailed", comment: "")
+    }
   }
 
   internal enum Status {

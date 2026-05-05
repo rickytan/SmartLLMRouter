@@ -154,6 +154,11 @@
 "onboarding.apiProtocol" = "API Protocol";
 "onboarding.baseUrl" = "Base URL";
 
+// Onboarding - Model Fetch
+"onboarding.models.fetching" = "Fetching models...";
+"onboarding.models.fetched" = "Found %d models";
+"onboarding.models.fetchFailed" = "Models fetch failed, you can fetch later in Settings";
+
 // Status Messages
 "status.copied" = "Copied to clipboard";
 "status.testing" = "Testing connection...";

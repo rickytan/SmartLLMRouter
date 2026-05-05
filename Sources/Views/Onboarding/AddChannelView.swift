@@ -31,12 +31,7 @@ struct AddChannelView: View {
     @State private var errorMessage: String?
     @State private var isSaving: Bool = false
     @State private var isTesting: Bool = false
-    @State private var testResult: ConnectionTestResult?
-
-    enum ConnectionTestResult {
-        case success
-        case failure(String)
-    }
+    @State private var testResult: ChannelManager.ConnectionTestResult?
 
     // Search
     @State private var searchQuery: String = ""
@@ -372,7 +367,7 @@ struct AddChannelView: View {
         VStack(spacing: DesignToken.Spacing.sm) {
             HStack {
                 HoverButton(
-                    title: isTesting ? "Testing..." : "Test Connection",
+                    title: isTesting ? L10n.Status.testing : L10n.Settings.channelsTestConnection,
                     icon: isTesting ? "ellipsis.circle.fill" : "checkmark.circle"
                 ) {
                     Task { await testConnection() }
@@ -382,13 +377,12 @@ struct AddChannelView: View {
                 Spacer()
 
                 if let result = testResult {
-                    switch result {
-                    case .success:
-                        Label("Connected", systemImage: "checkmark.circle.fill")
+                    if result.success {
+                        Label(L10n.Status.connected, systemImage: "checkmark.circle.fill")
                             .font(DesignToken.Font.caption())
                             .foregroundColor(DesignToken.Colors.statusOnline)
-                    case .failure(let msg):
-                        Label(msg, systemImage: "xmark.circle.fill")
+                    } else {
+                        Label(result.errorMessage ?? "Unknown error", systemImage: "xmark.circle.fill")
                             .font(DesignToken.Font.caption())
                             .foregroundColor(DesignToken.Colors.statusOffline)
                     }
@@ -426,9 +420,16 @@ struct AddChannelView: View {
         let result = await channelManager.testConnection(channel: tempChannel)
 
         if result.success {
-            testResult = .success
+            testResult = result
+            // Auto-fetch and enrich models (don't block save — if fetch fails, keep empty models)
+            let template = selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0) }
+            let enrichedModels = channelManager.mergeModelsWithTemplateMetadata(
+                fetchedModels: result.models,
+                template: template
+            )
+            models = enrichedModels
         } else {
-            testResult = .failure(result.errorMessage ?? "Unknown error")
+            testResult = result
         }
         isTesting = false
     }

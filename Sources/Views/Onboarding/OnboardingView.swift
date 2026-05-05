@@ -35,7 +35,7 @@ struct OnboardingView: View {
     @State private var baseURL: String = ""
     @State private var customProviderName: String = ""
     @State private var isTestingConnection: Bool = false
-    @State private var connectionTestResult: ConnectionTestResult?
+    @State private var connectionTestResult: ChannelManager.ConnectionTestResult?
     @State private var searchQuery: String = ""
 
     @ObservedObject private var appState = AppState.shared
@@ -47,11 +47,6 @@ struct OnboardingView: View {
         case addChannel
         case shellConfig
         case done
-    }
-
-    enum ConnectionTestResult {
-        case success
-        case failure
     }
 
     enum ShellConfigResult {
@@ -588,25 +583,31 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
     }
 
-    private func connectionTestStatus(result: ConnectionTestResult) -> some View {
+    private func connectionTestStatus(result: ChannelManager.ConnectionTestResult) -> some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
             HStack(spacing: DesignToken.Spacing.xxs) {
-                Image(systemName: result == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(result == .success
+                Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(result.success
                         ? DesignToken.Colors.statusOnline
                         : DesignToken.Colors.statusOffline)
 
-                Text(result == .success ? L10n.Status.connected : L10n.Status.disconnected)
+                Text(result.success ? L10n.Status.connected : L10n.Status.disconnected)
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            if result == .failure, let msg = errorMessage {
+            if !result.success, let msg = errorMessage {
                 Text(msg)
                     .font(DesignToken.Font.system(size: 11))
                     .foregroundColor(DesignToken.Colors.statusOffline)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if result.success && !result.models.isEmpty {
+                Text(L10n.Onboarding.modelsFetched(result.models.count))
+                    .font(DesignToken.Font.system(size: 11))
+                    .foregroundColor(DesignToken.Colors.statusOnline)
             }
         }
         .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
@@ -649,10 +650,27 @@ struct OnboardingView: View {
         let result = await channelManager.testConnection(channel: tempChannel)
 
         if result.success {
-            connectionTestResult = .success
+            connectionTestResult = result
+            // Enrich models with template metadata
+            let template = selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0) }
+            let enrichedModels = channelManager.mergeModelsWithTemplateMetadata(
+                fetchedModels: result.models,
+                template: template
+            )
+
+            // Create channel with enriched models
+            let enrichedChannel = Channel(
+                id: tempChannel.id,
+                name: tempChannel.name,
+                providerId: tempChannel.providerId,
+                baseURL: tempChannel.baseURL,
+                protocol: tempChannel.protocol,
+                models: enrichedModels
+            )
+
             // Add to pending list
             let pending = PendingChannel(
-                channel: tempChannel,
+                channel: enrichedChannel,
                 apiKey: apiKey,
                 testStatus: .success
             )
@@ -660,7 +678,7 @@ struct OnboardingView: View {
             // Reset form but keep it open for adding more
             resetForm()
         } else {
-            connectionTestResult = .failure
+            connectionTestResult = result
             errorMessage = result.errorMessage ?? "Connection failed"
             // Keep form filled so user can retry
         }
