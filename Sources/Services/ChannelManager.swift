@@ -209,7 +209,9 @@ final class ChannelManager: ObservableObject {
                 Log.info("Fetched \(models.count) models for channel \(channel.name)")
                 return models
             } else {
-                Log.error("Failed to fetch models: status \(statusCode)")
+                // Log non-2xx response with body
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("Failed to fetch models from \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
                 isLoadingModels = false
                 return []
             }
@@ -324,6 +326,12 @@ final class ChannelManager: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
+
+            // Log non-2xx status codes
+            if statusCode < 200 || statusCode >= 300 {
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("Connection test for \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
+            }
 
             if statusCode == 200 {
                 Log.info("Connection test for \(channel.name): success")
@@ -454,7 +462,17 @@ final class ChannelManager: ObservableObject {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            // Log non-2xx status codes
+            if statusCode < 200 || statusCode >= 300 {
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("Speed test for \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
+                isSpeedTesting = false
+                return nil
+            }
 
             let ttft = Date().timeIntervalSince(startTime) * 1000
 

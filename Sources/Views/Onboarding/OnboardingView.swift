@@ -633,9 +633,17 @@ struct OnboardingView: View {
         )
 
         // Temporarily store key for test
-        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        do {
+            try KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        } catch {
+            Log.error("Failed to set temporary API key for test: \(error.localizedDescription)")
+        }
         defer {
-            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+            do {
+                try KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+            } catch {
+                Log.error("Failed to remove temporary API key: \(error.localizedDescription)")
+            }
         }
 
         let result = await channelManager.testConnection(channel: tempChannel)
@@ -897,7 +905,11 @@ struct OnboardingView: View {
         case .addChannel:
             // Batch-save all success channels
             for pending in pendingChannels where pending.testStatus == .success {
-                try? KeychainManager.shared.setAPIKey(pending.apiKey, for: pending.channel.id)
+                do {
+                    try KeychainManager.shared.setAPIKey(pending.apiKey, for: pending.channel.id)
+                } catch {
+                    Log.error("Failed to save API key for channel \(pending.channel.name): \(error.localizedDescription)")
+                }
                 ChannelStore.shared.addChannel(pending.channel)
             }
             currentStep = .shellConfig

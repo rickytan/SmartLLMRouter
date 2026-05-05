@@ -33,16 +33,20 @@ enum LoggerManager {
     static func redact(_ message: String) -> String {
         // Pattern: >20 character alphanumeric strings (potential API keys)
         let pattern = "[a-zA-Z0-9]{20,}"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(message.startIndex..., in: message)
+            return regex.stringByReplacingMatches(
+                in: message,
+                options: [],
+                range: range,
+                withTemplate: "[REDACTED]"
+            )
+        } catch {
+            // Cannot use Log.error here since redact is called within Log methods
+            // Just return original message if regex fails
             return message
         }
-        let range = NSRange(message.startIndex..., in: message)
-        return regex.stringByReplacingMatches(
-            in: message,
-            options: [],
-            range: range,
-            withTemplate: "[REDACTED]"
-        )
     }
 }
 

@@ -175,6 +175,12 @@ final class ProxyServer: ObservableObject {
         case let .success(data, statusCode, responseHeaders):
             let latency = Date().timeIntervalSince(startTime)
 
+            // Log non-2xx status codes
+            if statusCode < 200 || statusCode >= 300 {
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("[#\(reqId)] HTTP \(statusCode) response from \(channel.name): \(responseBodyStr)")
+            }
+
             // Check for error status that should trigger retry
             if statusCode >= 400, statusCode != 400, statusCode != 403 {
                 // Try to retry with another channel
@@ -366,6 +372,12 @@ final class ProxyServer: ObservableObject {
 
         switch result {
         case let .success(data, statusCode, responseHeaders):
+            // Log non-2xx status codes
+            if statusCode < 200 || statusCode >= 300 {
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("[#\(reqId)] HTTP \(statusCode) response from \(channel.name) (retry): \(responseBodyStr)")
+            }
+
             // Check for another retry
             if statusCode >= 400, statusCode != 400, statusCode != 403 {
                 if let nextRetry = SmartRouter.shared.handleError(

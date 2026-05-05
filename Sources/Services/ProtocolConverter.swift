@@ -102,8 +102,13 @@ enum ProtocolConverter {
                                 {
                                     let inputStr: String
                                     if let dict = input as? [String: Any] {
-                                        let jsonData = try? JSONSerialization.data(withJSONObject: dict)
-                                        inputStr = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+                                        do {
+                                            let jsonData = try JSONSerialization.data(withJSONObject: dict)
+                                            inputStr = String(data: jsonData, encoding: .utf8) ?? "{}"
+                                        } catch {
+                                            Log.error("Failed to serialize tool input: \(error.localizedDescription)")
+                                            inputStr = "{}"
+                                        }
                                     } else if let str = input as? String {
                                         inputStr = str
                                     } else {
@@ -492,8 +497,13 @@ enum ProtocolConverter {
                     {
                         let inputStr: String
                         if let dict = input as? [String: Any] {
-                            let jsonData = try? JSONSerialization.data(withJSONObject: dict)
-                            inputStr = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+                            do {
+                                let jsonData = try JSONSerialization.data(withJSONObject: dict)
+                                inputStr = String(data: jsonData, encoding: .utf8) ?? "{}"
+                            } catch {
+                                Log.error("Failed to serialize tool_use input in response: \(error.localizedDescription)")
+                                inputStr = "{}"
+                            }
                         } else if let str = input as? String {
                             inputStr = str
                         } else {

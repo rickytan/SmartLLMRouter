@@ -88,12 +88,16 @@ enum RequestForwarder {
 
     /// Detect if request body indicates streaming mode
     static func isStreamingRequest(_ body: Data?) -> Bool {
-        guard let body,
-              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
-        else {
+        guard let body else { return false }
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+                return false
+            }
+            return json["stream"] as? Bool == true
+        } catch {
+            Log.debug("isStreamingRequest: JSON parse error - \(error.localizedDescription)")
             return false
         }
-        return json["stream"] as? Bool == true
     }
 
     /// Detect protocol from request
@@ -113,9 +117,12 @@ enum RequestForwarder {
         }
 
         // Fallback: inspect body
-        if let body,
-           let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
-        {
+        guard let body else { return .unknown }
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+                Log.debug("detectProtocol: body is not valid JSON")
+                return .unknown
+            }
             if json["system"] != nil || json["messages"] is [[String: Any]] {
                 // Anthropic uses "messages" too, but "system" field is distinctive
                 if json["system"] != nil {
@@ -129,9 +136,11 @@ enum RequestForwarder {
             {
                 return .openai
             }
+            return .unknown
+        } catch {
+            Log.debug("detectProtocol: JSON parse error - \(error.localizedDescription)")
+            return .unknown
         }
-
-        return .unknown
     }
 }
 

@@ -410,9 +410,17 @@ struct AddChannelView: View {
             models: []
         )
 
-        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        do {
+            try KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        } catch {
+            Log.error("Failed to set test API key: \(error.localizedDescription)")
+        }
         defer {
-            try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+            do {
+                try KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+            } catch {
+                Log.error("Failed to remove test API key: \(error.localizedDescription)")
+            }
         }
 
         let result = await channelManager.testConnection(channel: tempChannel)
