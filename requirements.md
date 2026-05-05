@@ -642,6 +642,116 @@ case .addChannel:
 
 ---
 
+### 3.20 模块二十：自动 Fetch Models + 元信息合并 **[新增]**
+
+#### 背景问题
+当前 Onboarding 和 Settings 的添加 Channel 流程中，`Channel.models` 始终为空数组。用户添加 Channel 后需要手动：
+1. 在 Settings 中进入编辑
+2. 点击 "Fetch Models" 获取模型列表
+3. 手动编辑每个模型的元信息（Context Length、Price）
+
+这增加了用户首次配置的负担。
+
+#### 技术可行性
+| 能力 | 可行性 | 说明 |
+|------|--------|------|
+| 自动获取模型列表 | ✅ 可行 | 所有 OpenAI 兼容厂商支持 `/v1/models` 端点 |
+| 自动获取元信息 | ⚠️ 部分可行 | OpenAI `/v1/models` **不返回** context length 和 price；少数厂商（OpenRouter）有非标准扩展字段 |
+| 从 template 匹配填充 | ✅ 可行 | `ProviderTemplate.default_models` 包含已知模型的元信息 |
+
+#### 需求定义
+
+##### 核心流程
+```
+用户点击 "Test & Add"
+        ↓
+1. 连接测试通过 ✅
+        ↓
+2. 自动调用 fetchModels(channel)
+        ↓
+3. 对每个返回的模型:
+   a. 匹配 template.default_models（按 model identifier）
+   b. 匹配成功 → 填充 contextLength、inputPricePer1M、outputPricePer1M
+   c. 无匹配 → 保留空元信息（用户后期可在 Settings 中编辑）
+        ↓
+4. 将填充后的 models 列表写入 Channel
+        ↓
+5. 添加到 pendingChannels 列表
+        ↓
+6. 表单清空，可继续添加下一个
+```
+
+##### 匹配逻辑
+```swift
+func mergeModelsWithTemplateMetadata(
+    fetchedModels: [ModelEntry],
+    template: ProviderTemplate?
+) -> [ModelEntry] {
+    guard let template = template else {
+        return fetchedModels // 自定义厂商，无 template 可匹配
+    }
+    
+    return fetchedModels.map { fetched in
+        // 按 identifier 匹配 template 中的 default_models
+        if let match = template.defaultModels.first(where: { $0.model == fetched.identifier }) {
+            var enriched = fetched
+            enriched.contextLength = match.contextLength
+            enriched.inputPricePer1M = match.inputPrice
+            enriched.outputPricePer1M = match.outputPrice
+            return enriched
+        }
+        // 未匹配的模型保留原样（空元信息）
+        return fetched
+    }
+}
+```
+
+##### 在 OnboardingView 中的集成
+修改 `testAndAdd()` 方法，在连接测试成功后追加：
+```swift
+if result.success {
+    // 连接测试通过后，自动 fetch models
+    let fetchedModels = await channelManager.fetchModels(channel: tempChannel)
+    let enrichedModels = mergeModelsWithTemplateMetadata(
+        fetchedModels: fetchedModels,
+        template: selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0) }
+    )
+    
+    var finalChannel = tempChannel
+    finalChannel.models = enrichedModels
+    
+    let pending = PendingChannel(
+        channel: finalChannel,
+        apiKey: apiKey,
+        testStatus: .success
+    )
+    pendingChannels.append(pending)
+    resetForm()
+}
+```
+
+##### UI 反馈
+- Fetch models 期间不阻塞主流程（后台异步）
+- 如果 fetch 失败：
+  - **不阻止** Channel 添加（models 为空不影响功能）
+  - 日志记录错误
+  - 提示用户："Models fetch failed, you can fetch later in Settings"
+- 已添加列表中可选显示模型数量：`DeepSeek (OpenAI) · 3 models ✅`
+
+##### 在 Settings AddChannelView 中的集成
+Settings 中的添加 Channel 页面已有 "Fetch Models" 按钮。需要增强：
+- 连接测试通过后，**自动触发** fetch models（不需要用户手动点击）
+- 如果用户之前手动 fetch 过，不再重复 fetch
+- 保持手动 "Fetch Models" 按钮（允许用户刷新）
+
+#### 必须遵守的约束
+1. **非阻塞**: fetch models 失败不能阻止 Channel 添加成功
+2. **幂等性**: 如果 models 列表已存在（用户手动编辑过），不自动覆盖
+3. **超时**: fetch models 设置合理超时（如 10 秒），避免无限等待
+4. **日志**: fetch 成功/失败都要记录日志，包含模型数量
+
+---
+
 ## 4. 数据模型定义
 
 ### 4.1 Channel 结构体
@@ -719,6 +829,7 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 加载/测试状态的用户反馈
 - [ ] Onboarding 是否支持批量添加多个 Channel（不能只添加一个就跳转）
 - [ ] Onboarding "Next" 按钮是否有合理的启用条件（至少 1 个测试通过，或提供 Skip 选项）
+- [ ] 添加 Channel 后是否自动 fetch models 并填充元信息
 
 ### 7.3 平台兼容性
 - [ ] 最低支持版本的生命周期陷阱（如 macOS 13 的 MenuBarExtra.onAppear 不触发）
