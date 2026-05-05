@@ -853,6 +853,148 @@ GET /v1/models
 
 ---
 
+### 3.22 模块二十二：基础 UI 组件库 — 先封装组件再构建页面 **[关键架构调整]**
+
+#### 背景问题
+当前项目直接在各页面中写内联视图，没有统一的基础组件层。导致：
+1. **样式不一致**：同一种按钮/输入框在不同页面表现不同
+2. **重复代码**：hover 效果、圆角、配色逻辑到处复制
+3. **维护困难**：改一个全局样式需要改 N 个文件
+4. **DesignToken 未充分利用**：有设计系统但页面没有使用组件封装
+
+#### 核心原则
+> **先按照视觉规范封装基础组件，再用组件构建页面。不要太着急直接写页面。**
+
+#### 需要封装的基础组件清单
+
+##### 1. 按钮系列 (Buttons)
+放在 `Sources/Components/Buttons/` 目录下：
+
+| 组件 | 变体 | 用途 | 样式特征 |
+|------|------|------|----------|
+| **`PrimaryButton`** | default/disabled/loading | 主要操作（保存、下一步、确认） | 蓝色背景 #007AFF，白色文字，圆角 6pt，hover 加深 |
+| **`SecondaryButton`** | default/disabled | 次要操作（取消、返回、稍后设置） | 透明背景，蓝色边框 + 文字，圆角 6pt，hover 浅蓝背景 |
+| **`IconButton`** | default/disabled | 纯图标操作（刷新、设置、删除） | 无边框，图标 + hover 背景，28x28pt |
+| **`HoverButton`** | default/disabled | 已有，保留但规范化 | 标题 + 图标组合按钮，现有样式保留 |
+
+**统一协议**：
+```swift
+struct PrimaryButton: View {
+    let title: String
+    var icon: String? = nil
+    var isLoading: Bool = false
+    var isDisabled: Bool = false
+    let action: () -> Void
+}
+```
+
+##### 2. 表单组件 (Form)
+放在 `Sources/Components/Form/` 目录下：
+
+| 组件 | 用途 | 样式特征 |
+|------|------|----------|
+| **`FormRow`** | label + content 水平排列 | label 右对齐固定宽度 100pt，content 自适应 |
+| **`FormSection`** | 分组标题 + 内容 | 标题 h3 样式，底部细线分隔 |
+| **`LabeledTextField`** | 带 label 的文本输入 | label 在上方，input 下方，圆角边框 |
+| **`LabeledSecureField`** | 带 label 的密码输入 | 同上，SecureField |
+| **`LabeledPicker`** | 带 label 的选择器 | label 在上方，Picker 下方 |
+
+##### 3. 状态组件 (Status)
+放在 `Sources/Components/Status/` 目录下：
+
+| 组件 | 用途 | 样式特征 |
+|------|------|----------|
+| **`StatusIndicatorView`** | 已存在，保留 | 🟢/🔴 圆点 + 脉冲动画 |
+| **`StatusBadge`** | 成功/失败/警告标签 | 圆角 4pt，绿/红/黄背景，白色文字，10pt font |
+| **`LatencyChip`** | 已存在，保留 | 延迟 ms 展示，颜色按阈值变化 |
+| **`EmptyStateView`** | 空数据占位图 | 图标 + 标题 + 描述居中 |
+| **`LoadingView`** | 加载中的进度指示 | ProgressView + 可选文字 |
+
+##### 4. 列表组件 (List)
+放在 `Sources/Components/List/` 目录下：
+
+| 组件 | 用途 | 样式特征 |
+|------|------|----------|
+| **`SearchBar`** | 搜索输入框 | 放大镜图标 + 输入框 + 清除按钮，圆角背景 |
+| **`ListItem`** | 通用列表行 | hover 背景，左右 padding，分隔线 |
+| **`ChannelRowView`** | 已存在，重构到组件目录 | 通道行（图标 + 名称 + 状态 + 延迟） |
+
+##### 5. 卡片组件 (Cards)
+放在 `Sources/Components/Cards/` 目录下：
+
+| 组件 | 用途 | 样式特征 |
+|------|------|----------|
+| **`ProviderCard`** | 厂商选择卡片 | 图标 + 名称，选中高亮，圆角 10pt |
+| **`StatCard`** | 统计卡片 | icon + 大数字 + 标签 |
+| **`InfoCard`** | 信息提示卡片 | 图标 + 文字，可选关闭按钮 |
+
+##### 6. 协议选择器
+放在 `Sources/Components/Protocol/` 目录下：
+
+| 组件 | 用途 | 样式特征 |
+|------|------|----------|
+| **`ProtocolSelector`** | OpenAI/Anthropic 协议切换 | 芯片按钮组，选中高亮，联动 URL 更新 |
+
+#### 目录结构
+```
+Sources/
+├── Components/
+│   ├── Buttons/
+│   │   ├── PrimaryButton.swift
+│   │   ├── SecondaryButton.swift
+│   │   ├── IconButton.swift
+│   │   └── HoverButton.swift (从 MenuView 移动)
+│   ├── Form/
+│   │   ├── FormRow.swift
+│   │   ├── FormSection.swift
+│   │   ├── LabeledTextField.swift
+│   │   ├── LabeledSecureField.swift
+│   │   └── LabeledPicker.swift
+│   ├── Status/
+│   │   ├── StatusIndicatorView.swift (从 MenuView 移动)
+│   │   ├── StatusBadge.swift
+│   │   ├── LatencyChip.swift (从 MenuView 移动)
+│   │   ├── EmptyStateView.swift
+│   │   └── LoadingView.swift
+│   ├── List/
+│   │   ├── SearchBar.swift
+│   │   ├── ListItem.swift
+│   │   └── ChannelRowView.swift (从 SettingsView 移动)
+│   ├── Cards/
+│   │   ├── ProviderCard.swift
+│   │   ├── StatCard.swift (从 SettingsView 移动)
+│   │   └── InfoCard.swift
+│   └── Protocol/
+│       └── ProtocolSelector.swift
+├── Views/          (页面级，使用 Components)
+│   ├── MenuView.swift
+│   ├── SettingsView.swift
+│   └── Onboarding/
+├── Models/
+├── Services/
+└── Utilities/
+```
+
+#### 实施步骤
+1. **创建 `Sources/Components/` 目录**
+2. **逐个组件实现**，每个组件：
+   - 使用 `DesignToken` 定义样式
+   - 支持 dark mode（通过 Asset Catalog）
+   - 支持 hover/press 状态动画
+   - 支持 accessibilityIdentifier
+3. **迁移现有代码**：将 `HoverButton`、`StatusIndicatorView`、`LatencyChip`、`ChannelRowView`、`StatCard` 移动到对应组件目录
+4. **更新所有引用**：页面改为导入组件而非内联实现
+5. **编译验证**：确保所有页面使用新组件后编译通过
+
+#### 必须遵守的约束
+1. **所有组件必须使用 DesignToken**，禁止硬编码颜色/尺寸
+2. **所有交互元素必须有 hover 效果**（0.15s ease-in）
+3. **零硬编码字符串**：所有文案使用 L10n.xxx
+4. **每个组件必须有 `#Preview`**
+5. **组件之间不互相依赖**（除了 DesignToken 和 L10n）
+
+---
+
 ## 4. 数据模型定义
 
 ### 4.1 Channel 结构体
@@ -932,6 +1074,7 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] Onboarding "Next" 按钮是否有合理的启用条件（至少 1 个测试通过，或提供 Skip 选项）
 - [ ] 添加 Channel 后是否自动 fetch models 并填充元信息
 - [ ] 连接测试是否使用 GET /v1/models（而非 POST 聊天请求，避免浪费 token 和硬编码 model）
+- [ ] 是否先封装基础 UI 组件库再构建页面（按钮、表单、状态、列表、卡片、协议选择器）
 
 ### 7.3 平台兼容性
 - [ ] 最低支持版本的生命周期陷阱（如 macOS 13 的 MenuBarExtra.onAppear 不触发）
