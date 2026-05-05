@@ -23,6 +23,7 @@ enum DesignToken {
         static let statusOffline = Asset.statusOffline.swiftUIColor
         static let statusWarning = Asset.statusWarning.swiftUIColor
         static let accent = Asset.accent.swiftUIColor
+        static let accentHover = Asset.accentHover.swiftUIColor
 
         // Reference colors (adapt to Light/Dark automatically)
         static let bgPrimary = Asset.bgPrimary.swiftUIColor
