@@ -35,6 +35,12 @@ enum DesignToken {
         // Hover fill (alpha adapts to appearance)
         static let hoverFill = Asset.hoverFill.swiftUIColor
 
+        // Button label text (white for both light/dark modes)
+        static let buttonLabel = Asset.buttonLabel.swiftUIColor
+
+        // Border color (subtle, adapts to light/dark)
+        static let border = Asset.border.swiftUIColor
+
         // Latency colors (aliases matching status colors)
         static let latencyFast = statusOnline
         static let latencyNormal = statusWarning

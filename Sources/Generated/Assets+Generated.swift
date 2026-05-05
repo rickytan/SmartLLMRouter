@@ -26,6 +26,8 @@ internal enum Asset {
   internal static let accentHover = ColorAsset(name: "AccentHover")
   internal static let bgPrimary = ColorAsset(name: "BgPrimary")
   internal static let bgSecondary = ColorAsset(name: "BgSecondary")
+  internal static let border = ColorAsset(name: "Border")
+  internal static let buttonLabel = ColorAsset(name: "ButtonLabel")
   internal static let hoverFill = ColorAsset(name: "HoverFill")
   internal static let statusOffline = ColorAsset(name: "StatusOffline")
   internal static let statusOnline = ColorAsset(name: "StatusOnline")

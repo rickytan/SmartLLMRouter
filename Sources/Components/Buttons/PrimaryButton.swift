@@ -43,7 +43,7 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
             .background(buttonBackground)
-            .foregroundColor(isDisabled ? .white.opacity(0.5) : .white)
+            .foregroundColor(isDisabled ? DesignToken.Colors.buttonLabel.opacity(0.5) : DesignToken.Colors.buttonLabel)
             .cornerRadius(DesignToken.Layout.buttonCornerRadius)
             .scaleEffect(isPressed ? DesignToken.Animation.pressScale : 1.0)
         }
