@@ -110,137 +110,324 @@ All use `.systemFont` — **never custom fonts**. macOS San Francisco renders pe
 
 ---
 
-## 4. Component Patterns
+## 4. Component Library
 
-### 4.1 Status Indicator
+All components live under `Sources/Components/`. **Every View file must use these components — never inline native `Button()`, `TextField()`, `Toggle()`, etc.** Components encapsulate DesignToken styling, hover animations, dark mode, and accessibility.
 
+### Directory Structure
+```
+Sources/Components/
+├── Buttons/      (5)  PrimaryButton, SecondaryButton, IconButton, HoverButton, BadgeButton
+├── Form/         (7)  LabeledTextField, LabeledSecureField, LabeledNumberField, LabeledPicker, FormRow, FormSection, ToggleRow
+├── Status/       (5)  StatusIndicatorView, StatusBadge, LatencyChip, EmptyStateView, LoadingView
+├── List/         (6)  SearchBar, ListItem, ChannelRowView, EmptyChannelView, ProviderRow, ProviderListItem
+├── Cards/        (3)  ProviderCard, StatCard, InfoCard
+└── Protocol/     (1)  ProtocolSelector
+```
+
+---
+
+### 4.1 Buttons
+
+#### PrimaryButton
 ```swift
-Circle()
-    .fill(statusColor)
-    .frame(width: 8, height: 8)
-    .overlay(
-        Circle()
-            .fill(statusColor.opacity(0.3))
-            .frame(width: 14, height: 14)
-            .opacity(isRunning ? 0.6 : 0)
-            .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isRunning)
-    )
+PrimaryButton("Save", icon: "checkmark", isLoading: false, isDisabled: false) { action }
 ```
+**用途**: 主要操作（保存、确认、下一步）。填充式蓝色按钮，白色文字。
+**样式**:
+- 背景：`accent` → hover 时 `accentHover`
+- 文字：`buttonLabel`（纯白）
+- 圆角：6pt，最小高度 28pt
+- 加载态：显示 `ProgressView` spinner 替代图标
+- 禁用态：`.opacity(0.4)`，无 hover 响应
+- 按下反馈：scale 0.98
 
-- **Running**: Green, pulse animation
-- **Stopped**: Red, no animation
-- **Cooldown**: Amber, slow pulse (2s cycle)
-
-### 4.2 Channel Row
-
-```
-[●] Channel Name          Latency: 142ms  🟢  [⚡] [⚙️] [×]
-     api.openai.com/v1
-     gpt-4o, gpt-4o-mini
-```
-
-- Left-aligned status dot (8pt)
-- Name: H3 semibold, truncated at 120pt
-- Latency: Micro, color-coded
-- Right-aligned actions (hover reveal)
-- URL + models: Caption, secondary, below name
-- **Hover**: `.background(bgTertiary)` with 0.15s ease-in animation
-- **Selected**: `.background(accent.opacity(0.1))` + 1pt accent border leading
-
-### 4.3 Stat Card (Usage tab)
-
-```
-┌─────────────────────┐
-│     12.4K           │  ← Value (24pt bold)
-│   Today's Tokens    │  ← Label (11pt secondary)
-│   ▲ 12% vs avg      │  ← Delta (10pt, green/red)
-└─────────────────────┘
-```
-
-- Card: `bgSecondary`, corner radius 10, no border
-- Padding: 16pt
-- Delta: show only if data available, ▲/▼ with color
-
-### 4.4 Action Button
-
+#### SecondaryButton
 ```swift
-Button { action() } label: {
-    HStack(spacing: 6) {
-        Image(systemName: icon)
-            .font(.system(size: 12, weight: .medium))
-        Text(L10n.xxx)
-            .font(.system(size: 12, weight: .medium))
-    }
-    .frame(maxWidth: .infinity, minHeight: 28)
-    .background(hovered ? accentHover : Color.clear)
-    .foregroundColor(hovered ? .white : accent)
-    .cornerRadius(6)
-    .onHover { hovering in withAnimation(.easeInOut(duration: 0.15)) { hovered = hovering } }
+SecondaryButton("Cancel", icon: "xmark", isDisabled: false) { action }
+```
+**用途**: 次要操作（取消、返回、跳过）。描边按钮，透明背景。
+**样式**:
+- 边框：`accent` 1pt
+- 文字：`accent`
+- hover 时背景变为 `accent.opacity(0.1)`，文字不变色
+- 按下反馈：scale 0.98
+
+#### IconButton
+```swift
+IconButton("trash", tooltip: "Delete") { action }
+```
+**用途**: 纯图标操作（删除、设置、编辑）。28×28pt 方形按钮。
+**样式**:
+- 默认：透明背景，`textSecondary` 图标
+- hover：`hoverFill` 圆角背景，`textPrimary` 图标
+- 禁用态：`textTertiary` 图标，无 hover
+
+#### HoverButton
+```swift
+HoverButton("DeepSeek", subtitle: "api.deepseek.com", icon: "sparkle") { action }
+```
+**用途**: 列表项中的可点击行（模型切换、厂商选择）。标题 + 副标题 + 图标。
+**样式**:
+- 默认：透明背景
+- hover：`hoverFill` 圆角背景
+- 选中态（isSelected）：`accent.opacity(0.1)` + 左侧 `accent` 1pt 边框
+- 标题：`body()` font，`textPrimary`
+- 副标题：`caption()` font，`textSecondary`
+
+#### BadgeButton
+```swift
+BadgeButton("+") { action }
+```
+**用途**: 小型内联操作（添加标签、快速操作）。胶囊形状。
+**样式**:
+- 圆角：14pt（完全圆角胶囊）
+- 背景：`hoverFill` → hover 时 `accent.opacity(0.2)`
+- 文字：`textSecondary` → hover 时 `accent`
+- 尺寸：自适应内容，padding 8pt 水平
+
+---
+
+### 4.2 Form Components
+
+#### LabeledTextField
+```swift
+LabeledTextField("Name", placeholder: "My Channel", text: $name)
+```
+**用途**: 带 label 的文本输入。label 在输入框上方。
+**样式**:
+- Label：`caption()` font，`textSecondary` 颜色
+- 输入框：`.textFieldStyle(.roundedBorder)`，`body()` font
+- 间距：label 与输入框之间 `xs` (4pt)
+
+#### LabeledSecureField
+```swift
+LabeledSecureField("API Key", placeholder: "sk-...", text: $apiKey)
+```
+**用途**: 密码/API Key 输入。与 LabeledTextField 同样式，内部为 `SecureField`。
+
+#### LabeledNumberField
+```swift
+LabeledNumberField("Port", placeholder: "1897", value: $port)
+```
+**用途**: 数字输入。内置 `NumberFormatter`（0–65535 范围）。
+**样式**: 同 LabeledTextField。
+
+#### LabeledPicker
+```swift
+LabeledPicker("Protocol", selection: $protocol) {
+    Text("OpenAI").tag("openai")
+    Text("Anthropic").tag("anthropic")
 }
-.buttonStyle(.plain)
 ```
+**用途**: 带 label 的选择器。label 在上方，Picker 在下方。
+**样式**:
+- Label：`caption()` font，`textSecondary`
+- Picker：`.pickerStyle(.inline)`
 
-- **Default**: Blue text, transparent bg
-- **Hover**: Blue fill, white text
-- **Pressed**: Slight scale down (0.98) + darker blue
-- **Disabled**: `.opacity(0.4)`, no hover response
-
-### 4.5 Badge / Tag
-
+#### ToggleRow
 ```swift
-Text(label)
-    .font(.system(size: 10, weight: .medium))
-    .foregroundColor(.white)
-    .padding(.horizontal, 6)
-    .padding(.vertical, 2)
-    .background(color)
-    .cornerRadius(4)
+ToggleRow("Auto-Failover", subtitle: "Auto-switch on failure", isOn: $failover)
 ```
+**用途**: 水平排列的开关。左侧标题（可选副标题），右侧 Toggle。
+**样式**:
+- 标题：`body()` font，`textPrimary`
+- 副标题：`caption()` font，`textSecondary`
+- hover 时：`hoverFill` 背景，圆角 4pt
+- 间距：md (12pt) 水平，xs (4pt) 垂直
 
-- Examples: `Priority 1`, `Cooling`, `429`, `5xx`
-- Max 2 badges per row
-- Colors map to semantic status colors
-
-### 4.6 Latency Chip
-
+#### FormRow
 ```swift
-HStack(spacing: 4) {
-    Circle().fill(latencyColor).frame(width: 6, height: 6)
-    Text("\(ms, specifier: "%.0f")ms")
-        .font(.system(size: 10, weight: .medium, design: .monospaced))
+FormRow("Port") {
+    TextField("", value: $port, formatter: NumberFormatter())
 }
-.padding(.horizontal, 6)
-.padding(.vertical, 2)
-.background(latencyColor.opacity(0.12))
-.cornerRadius(4)
 ```
+**用途**: 通用 label + content 水平排列容器。label 固定宽度 100pt 右对齐。
+**样式**:
+- Label：`body()` font，右对齐
+- Content：左侧 padding sm (8pt)，自适应宽度
 
-### 4.7 Empty State
+#### FormSection
+```swift
+FormSection("Service") {
+    PrimaryButton("Start", icon: "play.fill") { ... }
+    LabeledNumberField("Port", value: $port)
+}
+```
+**用途**: 分组容器。可选标题，内容区带背景。
+**样式**:
+- 标题：`h3()` font，`textPrimary`，底部 sm (8pt) 间距
+- 内容区：lg (16pt) 内边距，`bgSecondary` 背景，圆角 10pt
 
+---
+
+### 4.3 Status Components
+
+#### StatusIndicatorView
+**用途**: 🟢/🔴 状态圆点 + 脉冲动画。
+**样式**:
+- 圆点：8pt，statusOnline/statusOffline
+- 脉冲：14pt 半透明覆盖，1.5s 循环动画（仅在线状态）
+- 冷却态：慢速脉冲 2s 循环
+
+#### StatusBadge
+```swift
+StatusBadge(status: .success, text: "Connected")
+StatusBadge(status: .failure, text: "Invalid Key")
+StatusBadge(status: .warning, text: "Cooldown")
+```
+**用途**: 连接测试结果标签。圆角胶囊，带图标 + 文字。
+**样式**:
+- 成功：绿色背景 `statusOnline.opacity(0.12)`，`checkmark.circle.fill`
+- 失败：红色背景 `statusOffline.opacity(0.12)`，`xmark.circle.fill`
+- 警告：黄色背景 `statusWarning.opacity(0.12)`，`exclamationmark.triangle.fill`
+- 文字：`micro()` font (10pt medium)
+- 圆角：4pt，padding H:6pt V:2pt
+
+#### LatencyChip
+**用途**: 延迟指标。彩色圆点 + ms 数值，单色背景。
+**样式**:
+- 阈值：<300ms 绿色，300-800ms 黄色，>800ms 红色
+- 圆点：6pt，背景 `latencyColor.opacity(0.12)`
+- 文字：`micro()` font, `.monospaced` design
+- 圆角：4pt
+
+#### EmptyStateView
+**用途**: 空数据占位。居中图标 + 标题 + 描述。
+**布局**:
 ```
 ┌─────────────────────────┐
 │                         │
-│       📡                │  ← SF Symbol, 48pt, secondary
+│         📡              │  SF Symbol, 56pt, textSecondary
 │                         │
-│   No channels configured│  ← Body, primary
-│   Add one to get started│  ← Caption, secondary
-│                         │
-│    [+ Add Channel]      │  ← Primary button, centered
+│   No channels configured│  H2, textPrimary
+│   Add one to start      │  Caption, textSecondary
 │                         │
 └─────────────────────────┘
 ```
 
-### 4.8 Speed Test Progress
+#### LoadingView
+**用途**: 加载进度指示。ProgressView + 可选文字。
+**样式**:
+- 居中排列
+- 文字：`body()` font，`textSecondary`
 
+---
+
+### 4.4 List Components
+
+#### SearchBar
 ```swift
-ProgressView(value: completed, total: total)
-    .progressViewStyle(.linear)
-    .tint(accent)
-    .frame(height: 2)
+SearchBar("Search providers...", text: $query)
 ```
+**用途**: 搜索输入框。左侧放大镜图标，右侧清除按钮。
+**样式**:
+- 背景：`bgSecondary`
+- 图标：`textTertiary`，12pt
+- 输入：`body()` font，无边框样式
+- 圆角：6pt
+- hover 时背景变为 `accent.opacity(0.08)`
+- 清除按钮：仅当有文字时显示
 
-- Inline progress above channel list during bulk test
-- Per-channel: spinner overlay on ⚡ button during test
+#### ListItem
+**用途**: 通用列表行。hover 背景，左右 padding，底部细线分隔。
+**样式**:
+- padding：horizontal sm (8pt), vertical xs (4pt)
+- hover：`hoverFill` 背景
+- 分隔线：`border` 颜色，底部 0.5pt
+
+#### ChannelRowView
+**布局**:
+```
+[●] DeepSeek (OpenAI)           142ms 🟢  [⚡] [⚙️] [×]
+    api.deepseek.com
+    deepseek-chat, deepseek-v3
+```
+**用途**: 通道列表行。状态圆点 + 名称 + 延迟 + 操作按钮。
+**样式**:
+- 名称：`h3()` font，`textPrimary`
+- URL/模型：`caption()` font，`textSecondary`
+- 延迟：`LatencyChip`
+- 操作按钮：hover 时显示（`IconButton`）
+- hover 背景：`hoverFill`
+- 选中态：`accent.opacity(0.1)` + 左侧 `accent` 1pt 边框
+
+#### EmptyChannelView
+**用途**: 通道列表为空时的提示。图标 + 标题 + 操作按钮。
+**布局**: 居中显示，引导用户添加 Channel。
+
+#### ProviderRow
+```swift
+ProviderRow(id: "openai", name: "OpenAI", icon: "sparkle", isSelected: false, isCustom: false) { action }
+```
+**用途**: AddChannel 表单中的厂商选择行。图标 + 名称 + 选中标记。
+**样式**:
+- 图标：16pt，选中时 `accent`，否则 `textSecondary`
+- 名称：`caption()` font，选中时 `textPrimary`，否则 `textSecondary`
+- 选中态：背景 `accent.opacity(0.12)` + 右侧 `checkmark` 标记
+- hover 态：`hoverFill` 背景
+- 圆角：4pt
+
+#### ProviderListItem
+```swift
+ProviderListItem(id: "custom", name: "Custom / Local", icon: "globe", isSelected: true) { action }
+```
+**用途**: Onboarding 引导页中的厂商选择行。与 ProviderRow 视觉一致。
+**样式**: 同 ProviderRow。
+
+---
+
+### 4.5 Card Components
+
+#### ProviderCard
+**用途**: 厂商选择网格中的卡片。图标 + 名称，选中高亮。
+**样式**:
+- 圆角：10pt
+- 选中态：`accent.opacity(0.1)` 背景 + `accent` 边框
+- hover 态：`hoverFill` 背景
+- 图标：16pt SF Symbol
+- 名称：`caption()` font
+
+#### StatCard
+**布局**:
+```
+┌─────────────────────┐
+│     12.4K           │  Value (24pt bold, textPrimary)
+│   Today's Tokens    │  Label (11pt secondary)
+│   ▲ 12% vs avg      │  Delta (10pt, statusOnline)
+└─────────────────────┘
+```
+**用途**: 统计数据卡片。大数字 + 标签 + 变化趋势。
+**样式**:
+- 背景：`bgSecondary`
+- 圆角：10pt，padding 16pt
+- 数值：`value()` font (24pt bold)
+- 标签：`caption()` font，`textSecondary`
+
+#### InfoCard
+**用途**: 信息提示卡片。图标 + 文字，可选关闭按钮。
+**样式**:
+- 背景：`bgSecondary`
+- 圆角：10pt
+- 图标：`featureIconSize` (14pt)
+- 文字：`caption()` font
+
+---
+
+### 4.6 Protocol Components
+
+#### ProtocolSelector
+```swift
+ProtocolSelector(selectedProtocol: $protocol, supportedProtocols: ["openai", "anthropic"]) { newProtocol in
+    // protocol changed
+}
+```
+**用途**: OpenAI / Anthropic 协议切换芯片组。
+**样式**:
+- 芯片按钮：圆角 6pt，选中时 `accent` 填充 + `buttonLabel` 文字
+- 未选中：`hoverFill` 背景，`textSecondary` 文字
+- hover 时文字变为 `accent`
+- 单协议厂商时隐藏选择器
 
 ---
 
@@ -252,16 +439,16 @@ ProgressView(value: completed, total: total)
 
 ```swift
 .onHover { hovering in
-    withAnimation(.easeInOut(duration: 0.15)) {
-        self.hovered = hovering
+    withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
+        self.isHovered = hovering
     }
 }
-.background(hovered ? Color.gray.opacity(0.08) : Color.clear)
+.background(isHovered ? DesignToken.Colors.hoverFill : Color.clear)
 ```
 
 - **Duration**: 0.15s (snappy, not sluggish)
 - **Easing**: `.easeInOut`
-- **Hover fill**: `Color.gray.opacity(0.08)` light / `0.15` dark
+- **Hover fill**: `DesignToken.Colors.hoverFill` — auto-adapts: `rgba(0,0,0,0.06)` light / `rgba(255,255,255,0.08)` dark
 - **Button hover**: Solid accent color fill + white text (full transition)
 
 ### Click Feedback
@@ -348,18 +535,18 @@ ProgressView(value: completed, total: total)
 │                                            │
 │  Service                                   │  H2
 │                                            │
-│  [▶️ Start Service] / [⏹️ Stop Service]    │  Primary button, full-width
+│  [▶️ Start Service] / [⏹️ Stop Service]    │  PrimaryButton, full-width
 │  ● Running on port 1897                    │  Status line below button
 │                                            │
-│  Port          [1897          ]            │  Form row
-│  [ ] Launch at Login                       │  Toggle row
+│  Port          [1897          ]            │  LabeledNumberField
+│  [ ] Launch at Login                       │  ToggleRow
 │                                            │
 │  ────────────────────────────────────────  │
 │                                            │
 │  Shell Environment                         │  H2
 │                                            │
-│  [⚙️ Auto-Configure Shell]                 │  Secondary button
-│  Variables already added to ~/.zshrc  ✓    │  Success state (green)
+│  [⚙️ Auto-Configure Shell]                 │  SecondaryButton
+│  Variables already added to ~/.zshenv  ✓   │  StatusBadge(.success)
 │                                            │
 └────────────────────────────────────────────┘
 ```
@@ -367,15 +554,15 @@ ProgressView(value: completed, total: total)
 #### Channels Tab
 ```
 ┌────────────────────────────────────────────┐
-│  [⚡ Test All]                    [+ Add]  │  Toolbar
+│  [⚡ Test All]                    [+ Add]  │  Toolbar: HoverButton + IconButton
 │                                            │
 │  ┌──────────────────────────────────────┐ │
-│  │● DeepSeek                  142ms 🟢│ │  ← hover bg
+│  │● DeepSeek                  142ms 🟢│ │  ChannelRowView, hover bg
 │  │  api.deepseek.com                    │ │
 │  │  deepseek-chat, deepseek-coder       │ │
 │  └──────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────┐ │
-│  │● OpenAI                    389ms 🟡│ │
+│  │● OpenAI                    389ms 🟡│ │  ChannelRowView
 │  │  api.openai.com/v1                   │ │
 │  │  gpt-4o, gpt-4o-mini                │ │
 │  └──────────────────────────────────────┘ │
@@ -474,27 +661,26 @@ All colors are defined in `Assets.xcassets` with **Any + Dark Appearance** confi
 ### File Structure
 
 ```
-Sources/Views/
-├── MenuView.swift              # Main menu bar content
-├── SettingsView.swift          # TabView container
-├── Tabs/
-│   ├── GeneralSettingsTab.swift
-│   ├── ChannelsTab.swift
-│   ├── AdvancedTab.swift
-│   ├── UsageTab.swift
-│   └── AboutTab.swift
-├── Rows/
-│   ├── ChannelRow.swift
-│   ├── RequestLogRow.swift
-│   └── ModelRow.swift
-├── Components/
-│   ├── StatusIndicator.swift
-│   ├── StatCard.swift
-│   ├── LatencyChip.swift
-│   ├── ActionButton.swift
-│   └── EmptyStateView.swift
-└── Onboarding/
-    └── OnboardingView.swift
+Sources/
+├── Components/                    # 27 reusable design-token components
+│   ├── Buttons/                   (5) PrimaryButton, SecondaryButton, IconButton, HoverButton, BadgeButton
+│   ├── Form/                      (7) LabeledTextField, LabeledSecureField, LabeledNumberField,
+│   │                               LabeledPicker, FormRow, FormSection, ToggleRow
+│   ├── Status/                    (5) StatusIndicatorView, StatusBadge, LatencyChip,
+│   │                               EmptyStateView, LoadingView
+│   ├── List/                      (6) SearchBar, ListItem, ChannelRowView,
+│   │                               EmptyChannelView, ProviderRow, ProviderListItem
+│   ├── Cards/                     (3) ProviderCard, StatCard, InfoCard
+│   └── Protocol/                  (1) ProtocolSelector
+├── Views/                         # Page-level views (use Components only)
+│   ├── MenuView.swift             # Menu bar content (300pt)
+│   ├── SettingsView.swift         # Settings TabView (560×420pt)
+│   └── Onboarding/
+│       ├── OnboardingView.swift   # First-launch wizard (4 steps)
+│       └── AddChannelView.swift   # Channel add/edit (split-pane)
+├── Models/
+├── Services/
+└── Utilities/
 ```
 
 ### View Rules
@@ -512,10 +698,15 @@ Sources/Views/
 
 ```swift
 // ❌ Hardcoded colors
-.foregroundColor(.blue)          // ✅ Use semantic: .accent
+.foregroundColor(.blue)          // ✅ Use semantic: DesignToken.Colors.accent
+
+// ❌ Native controls in Views — use custom components
+Button("Save") { ... }           // ✅ PrimaryButton("Save") { ... }
+TextField("", text: $name)       // ✅ LabeledTextField("Name", text: $name)
+Toggle(isOn: $val) { ... }       // ✅ ToggleRow("Label", isOn: $val)
 
 // ❌ Magic numbers
-.padding(7)                       // ✅ Use spacing tokens: .padding(.md)
+.padding(7)                       // ✅ Use spacing tokens: .padding(.sm)
 .frame(width: 287)               // ✅ Round to system: .frame(width: 280)
 
 // ❌ Empty button handlers
@@ -543,13 +734,14 @@ if x { if y { ... } }           // ✅ Use @ViewBuilder or extract subview
 ## 12. Checklist Before Committing UI Changes
 
 - [ ] All text uses `L10n.xxx` (no hardcoded strings)
-- [ ] All colors are semantic (no hardcoded `.white`/`.black`)
-- [ ] All interactive elements have hover states
-- [ ] All buttons have press feedback (`.scaleEffect`)
-- [ ] Spacing uses 4pt multiples
-- [ ] Dark mode tested (`.preferredColorScheme(.dark)`)
+- [ ] All colors use `DesignToken.Colors.xxx` (no `.white`/`.black`/hex literals)
+- [ ] No native `Button()`, `TextField()`, `SecureField()`, `Toggle()`, `Picker()` in View files — use Components
+- [ ] All interactive elements have hover states (0.15s ease-in)
+- [ ] All buttons have press feedback (`.scaleEffect(0.98)`)
+- [ ] Spacing uses 4pt multiples (`DesignToken.Spacing.xs/sm/md/lg/xl`)
+- [ ] Dark mode renders correctly (check `#Preview("Dark Mode")`)
 - [ ] `#Preview` block exists and renders correctly
 - [ ] No `print()` statements — use `Log.xxx`
 - [ ] No empty `// TODO` button handlers
 - [ ] No `.constant(true)` bindings
-- [ ] View file < 250 lines (extract if longer)
+- [ ] View file < 250 lines (extract subviews if longer)
