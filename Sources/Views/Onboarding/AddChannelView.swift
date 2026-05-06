@@ -107,14 +107,9 @@ struct AddChannelView: View {
 
             Spacer()
 
-            Button {
+            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
                 dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: DesignToken.Layout.closeIconSize))
-                    .foregroundColor(DesignToken.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -123,27 +118,10 @@ struct AddChannelView: View {
     private var providerListPane: some View {
         VStack(spacing: 0) {
             // Search bar
-            HStack(spacing: DesignToken.Spacing.xs) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(DesignToken.Colors.textTertiary)
-                    .font(.system(size: 12))
-                TextField("Search providers...", text: $searchQuery)
-                    .textFieldStyle(.plain)
-                    .font(DesignToken.Font.caption())
-                if !searchQuery.isEmpty {
-                    Button {
-                        searchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(DesignToken.Colors.textTertiary)
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, DesignToken.Spacing.sm)
-            .padding(.vertical, DesignToken.Spacing.xs)
-            .background(DesignToken.Colors.bgSecondary)
+            SearchBar(
+                text: $searchQuery,
+                placeholder: L10n.AddChannel.searchPlaceholder
+            )
 
             Divider()
 
@@ -151,26 +129,30 @@ struct AddChannelView: View {
             ScrollView {
                 LazyVStack(spacing: 2) {
                     // Custom provider option (always first)
-                    providerListItem(
+                    ProviderRow(
                         id: "custom",
-                        name: "Custom / Local",
+                        name: L10n.AddChannel.customProvider,
                         icon: "globe",
                         isSelected: isCustomProvider,
                         isCustom: true
-                    )
+                    ) {
+                        selectProvider(id: "custom", isCustom: true)
+                    }
 
                     Divider()
                         .padding(.horizontal, DesignToken.Spacing.sm)
 
                     // Built-in providers
                     ForEach(filteredProviders) { template in
-                        providerListItem(
+                        ProviderRow(
                             id: template.id,
                             name: template.nameEn,
                             icon: ProviderIconMapper.symbol(for: template.id),
                             isSelected: selectedProviderId == template.id && !isCustomProvider,
                             isCustom: false
-                        )
+                        ) {
+                            selectProvider(id: template.id, isCustom: false)
+                        }
                     }
                 }
                 .padding(.vertical, DesignToken.Spacing.xs)
@@ -187,39 +169,6 @@ struct AddChannelView: View {
             $0.nameEn.lowercased().contains(q) ||
             $0.id.lowercased().contains(q)
         }
-    }
-
-    private func providerListItem(id: String, name: String, icon: String, isSelected: Bool, isCustom: Bool) -> some View {
-        Button {
-            selectProvider(id: id, isCustom: isCustom)
-        } label: {
-            HStack(spacing: DesignToken.Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textSecondary)
-                    .frame(width: 24)
-
-                Text(name)
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(isSelected ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(DesignToken.Colors.accent)
-                }
-            }
-            .padding(.horizontal, DesignToken.Spacing.sm)
-            .padding(.vertical, DesignToken.Spacing.xs)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                isSelected ? DesignToken.Colors.accent.opacity(0.12) : Color.clear
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     private func selectProvider(id: String, isCustom: Bool) {
@@ -263,14 +212,14 @@ struct AddChannelView: View {
                 // Provider name / Custom name
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
                     if isCustomProvider {
-                        Text("Provider Name")
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                        TextField("e.g. Local Ollama", text: $customProviderName)
-                            .textFieldStyle(.roundedBorder)
-                            .onChange(of: customProviderName) { newName in
-                                name = newName
-                            }
+                        LabeledTextField(
+                            label: L10n.AddChannel.providerName,
+                            text: $customProviderName,
+                            placeholder: L10n.AddChannel.providerNamePlaceholder
+                        )
+                        .onChange(of: customProviderName) { newName in
+                            name = newName
+                        }
                     } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
                         HStack {
                             Image(systemName: ProviderIconMapper.symbol(for: template.id))
@@ -288,24 +237,24 @@ struct AddChannelView: View {
 
                 // Connection details
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                    formRow(label: "Base URL") {
-                        TextField("https://api.example.com/v1", text: $baseURL)
-                            .textFieldStyle(.roundedBorder)
-                            .font(DesignToken.Font.mono())
-                    }
+                    LabeledTextField(
+                        label: L10n.Settings.channelsBaseUrl,
+                        text: $baseURL,
+                        placeholder: L10n.AddChannel.baseUrlPlaceholder
+                    )
 
-                    formRow(label: "API Key") {
-                        SecureField("sk-...", text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(DesignToken.Font.mono())
-                    }
+                    LabeledSecureField(
+                        label: L10n.Settings.channelsApiKey,
+                        text: $apiKey,
+                        placeholder: L10n.AddChannel.apiKeyPlaceholder
+                    )
 
-                    formRow(label: "Priority") {
-                        TextField("", value: $priority, formatter: NumberFormatter())
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 60)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    LabeledNumberField(
+                        L10n.Settings.channelsPriority,
+                        placeholder: "1",
+                        value: $priority,
+                        accessibilityID: "addchannel.priority"
+                    )
                 }
 
                 // Test connection
@@ -322,45 +271,19 @@ struct AddChannelView: View {
 
     private var protocolSelectorView: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text("Protocol")
+            Text(L10n.AddChannel.protocol)
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
-            HStack(spacing: DesignToken.Spacing.sm) {
-                protocolChip(.openai, label: "OpenAI")
-                protocolChip(.anthropic, label: "Anthropic")
-            }
-        }
-    }
-
-    private func protocolChip(_ proto: APIProtocol, label: String) -> some View {
-        Button {
-            selectedProtocol = proto
-            // Update base URL if using a template
-            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                if let url = template.baseURL(for: proto.rawValue.lowercased()) {
-                    baseURL = url
+            ProtocolSelector(selection: $selectedProtocol) { _ in
+                if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                    if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
+                        baseURL = url
+                    }
                 }
+                testResult = nil
             }
-            testResult = nil
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: selectedProtocol == proto ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 10))
-                Text(label)
-                    .font(DesignToken.Font.system(size: 11, weight: selectedProtocol == proto ? .semibold : .regular))
-            }
-            .padding(.horizontal, DesignToken.Spacing.sm)
-            .padding(.vertical, DesignToken.Spacing.xxs)
-            .background(
-                selectedProtocol == proto
-                    ? DesignToken.Colors.accent.opacity(0.15)
-                    : DesignToken.Colors.bgSecondary
-            )
-            .foregroundColor(selectedProtocol == proto ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
-            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
         }
-        .buttonStyle(.plain)
     }
 
     private var testConnectionSection: some View {
@@ -439,13 +362,13 @@ struct AddChannelView: View {
     private var modelsSection: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
             HStack {
-                Text("Models")
+                Text(L10n.AddChannel.models)
                     .font(DesignToken.Font.h3())
 
                 Spacer()
 
                 HoverButton(
-                    title: isFetchingModels ? "Fetching..." : "Fetch Models",
+                    title: isFetchingModels ? L10n.Status.fetchingModels : L10n.AddChannel.fetchModels,
                     icon: isFetchingModels ? "ellipsis.circle.fill" : "arrow.clockwise"
                 ) {
                     Task { await fetchModels() }
@@ -454,7 +377,7 @@ struct AddChannelView: View {
             }
 
             if models.isEmpty {
-                Text("No models added")
+                Text(L10n.AddChannel.noModels)
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -470,9 +393,11 @@ struct AddChannelView: View {
 
             // Add model manually
             HStack(spacing: DesignToken.Spacing.sm) {
-                TextField("e.g. gpt-4, llama3", text: $newModelName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(DesignToken.Font.monoCaption())
+                LabeledTextField(
+                    label: L10n.AddChannel.models,
+                    text: $newModelName,
+                    placeholder: L10n.AddChannel.modelNamePlaceholder
+                )
 
                 HoverButton(title: "+", icon: "plus") {
                     addManualModel()
@@ -497,23 +422,15 @@ struct AddChannelView: View {
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            Button {
+            IconButton(icon: "gearshape", tooltip: L10n.ModelEditor.edit) {
                 editingModelIndex = index
                 showingModelEditor = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: DesignToken.Layout.smallIconSize))
             }
-            .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
 
-            Button {
+            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
                 models.remove(at: index)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: DesignToken.Layout.smallIconSize))
             }
-            .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
         }
         .padding(.horizontal, DesignToken.Spacing.sm)
@@ -572,36 +489,26 @@ struct AddChannelView: View {
         newModelName = ""
     }
 
-    // MARK: - Helpers
-
-    private func formRow(label: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text(label)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-            content()
-        }
-    }
-
     // MARK: - Footer
 
     private var footerButtons: some View {
         HStack {
-            Button(L10n.Onboarding.back) {
+            SecondaryButton(L10n.Onboarding.back) {
                 dismiss()
             }
-            .buttonStyle(.plain)
-            .foregroundColor(DesignToken.Colors.textSecondary)
+            .frame(width: 100)
 
             Spacer()
 
-            HoverButton(
-                title: isSaving ? "Saving..." : (editingChannel != nil ? "Update" : "Add Channel"),
-                icon: isSaving ? "ellipsis.circle.fill" : "checkmark.circle.fill"
+            PrimaryButton(
+                isSaving ? L10n.Status.saving : (editingChannel != nil ? L10n.AddChannel.update : L10n.AddChannel.addChannel),
+                icon: isSaving ? "ellipsis.circle.fill" : "checkmark.circle.fill",
+                isLoading: isSaving,
+                isDisabled: !isValid
             ) {
                 Task { await saveChannel() }
             }
-            .disabled(!isValid)
+            .frame(maxWidth: 200)
         }
     }
 
@@ -698,52 +605,49 @@ struct ModelMetadataEditorView: View {
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
             HStack {
-                Text("Edit Model: \(model.identifier)")
+                Text(L10n.ModelEditor.editModel(model.identifier))
                     .font(DesignToken.Font.h3())
                 Spacer()
-                Button {
+                IconButton(icon: "xmark.circle.fill", tooltip: L10n.ModelEditor.close) {
                     dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(DesignToken.Colors.textSecondary)
                 }
-                .buttonStyle(.plain)
             }
 
             Divider()
 
-            formField(label: "Context Length (tokens)", text: $contextLength, placeholder: "128000")
-            formField(label: "Input Price ($/1M tokens)", text: $inputPrice, placeholder: "5.00")
-            formField(label: "Output Price ($/1M tokens)", text: $outputPrice, placeholder: "15.00")
+            LabeledTextField(
+                label: L10n.ModelEditor.contextLengthLabel,
+                text: $contextLength,
+                placeholder: L10n.ModelEditor.contextLengthPlaceholder
+            )
+            LabeledTextField(
+                label: L10n.ModelEditor.inputPriceLabel,
+                text: $inputPrice,
+                placeholder: L10n.ModelEditor.inputPricePlaceholder
+            )
+            LabeledTextField(
+                label: L10n.ModelEditor.outputPriceLabel,
+                text: $outputPrice,
+                placeholder: L10n.ModelEditor.outputPricePlaceholder
+            )
 
             Divider()
 
             HStack {
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(.plain)
+                SecondaryButton(L10n.ModelEditor.cancel) {
+                    dismiss()
+                }
                 Spacer()
-                Button("Save") {
+                PrimaryButton(L10n.ModelEditor.save) {
                     var updated = model
                     updated.contextLength = Int(contextLength)
                     updated.inputPricePer1M = Double(inputPrice)
                     updated.outputPricePer1M = Double(outputPrice)
                     onSave(updated)
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
         .padding(DesignToken.Spacing.lg)
         .frame(width: 360, height: 320)
-    }
-
-    private func formField(label: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text(label)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .font(DesignToken.Font.mono())
-        }
     }
 }

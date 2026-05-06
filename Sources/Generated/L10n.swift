@@ -135,6 +135,12 @@ internal enum L10n {
     internal static var generalNotConfigured: String {
       NSLocalizedString("settings.general.notConfigured", comment: "")
     }
+    internal static var generalProtocolOpenai: String {
+      NSLocalizedString("settings.general.protocol.openai", comment: "")
+    }
+    internal static var generalProtocolAnthropic: String {
+      NSLocalizedString("settings.general.protocol.anthropic", comment: "")
+    }
     internal static var channelsAdd: String {
       NSLocalizedString("settings.channels.add", comment: "")
     }
@@ -447,11 +453,65 @@ internal enum L10n {
     internal static var cancel: String {
       NSLocalizedString("addchannel.cancel", comment: "")
     }
+    internal static var searchPlaceholder: String {
+      NSLocalizedString("addchannel.searchPlaceholder", comment: "")
+    }
+    internal static var customProvider: String {
+      NSLocalizedString("addchannel.customProvider", comment: "")
+    }
+    internal static var models: String {
+      NSLocalizedString("addchannel.models", comment: "")
+    }
+    internal static var noModels: String {
+      NSLocalizedString("addchannel.noModels", comment: "")
+    }
+    internal static var fetchModels: String {
+      NSLocalizedString("addchannel.fetchModels", comment: "")
+    }
+    internal static var update: String {
+      NSLocalizedString("addchannel.update", comment: "")
+    }
+    internal static var addChannel: String {
+      NSLocalizedString("addchannel.addChannel", comment: "")
+    }
+    internal static var modelNamePlaceholder: String {
+      NSLocalizedString("addchannel.modelNamePlaceholder", comment: "")
+    }
+    internal static var search: String {
+      NSLocalizedString("addchannel.search", comment: "")
+    }
+    internal static var providerName: String {
+      NSLocalizedString("addchannel.providerName", comment: "")
+    }
+    internal static var providerNamePlaceholder: String {
+      NSLocalizedString("addchannel.providerNamePlaceholder", comment: "")
+    }
+    internal static var baseUrlPlaceholder: String {
+      NSLocalizedString("addchannel.baseUrlPlaceholder", comment: "")
+    }
+    internal static var apiKeyPlaceholder: String {
+      NSLocalizedString("addchannel.apiKeyPlaceholder", comment: "")
+    }
+    internal static var priority: String {
+      NSLocalizedString("addchannel.priority", comment: "")
+    }
+    internal static var `protocol`: String {
+      NSLocalizedString("addchannel.protocol", comment: "")
+    }
+    internal static var delete: String {
+      NSLocalizedString("addchannel.delete", comment: "")
+    }
   }
 
   internal enum ModelEditor {
+    internal static func editModel(_ p1: String) -> String {
+      String(format: NSLocalizedString("modelEditor.editModel", comment: ""), p1)
+    }
     internal static var contextLength: String {
       NSLocalizedString("modelEditor.contextLength", comment: "")
+    }
+    internal static var contextLengthLabel: String {
+      NSLocalizedString("modelEditor.contextLengthLabel", comment: "")
     }
     internal static var contextLengthPlaceholder: String {
       NSLocalizedString("modelEditor.contextLengthPlaceholder", comment: "")
@@ -459,17 +519,32 @@ internal enum L10n {
     internal static var inputPrice: String {
       NSLocalizedString("modelEditor.inputPrice", comment: "")
     }
+    internal static var inputPriceLabel: String {
+      NSLocalizedString("modelEditor.inputPriceLabel", comment: "")
+    }
     internal static var inputPricePlaceholder: String {
       NSLocalizedString("modelEditor.inputPricePlaceholder", comment: "")
     }
     internal static var outputPrice: String {
       NSLocalizedString("modelEditor.outputPrice", comment: "")
     }
+    internal static var outputPriceLabel: String {
+      NSLocalizedString("modelEditor.outputPriceLabel", comment: "")
+    }
     internal static var outputPricePlaceholder: String {
       NSLocalizedString("modelEditor.outputPricePlaceholder", comment: "")
     }
     internal static var cancel: String {
       NSLocalizedString("modelEditor.cancel", comment: "")
+    }
+    internal static var save: String {
+      NSLocalizedString("modelEditor.save", comment: "")
+    }
+    internal static var edit: String {
+      NSLocalizedString("modelEditor.edit", comment: "")
+    }
+    internal static var close: String {
+      NSLocalizedString("modelEditor.close", comment: "")
     }
   }
 

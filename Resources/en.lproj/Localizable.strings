@@ -188,3 +188,33 @@
 
 // About
 "about.appName" = "SmartLLM Router";
+
+// Add Channel - Additional strings
+"addchannel.searchPlaceholder" = "Search providers...";
+"addchannel.customProvider" = "Custom / Local";
+"addchannel.models" = "Models";
+"addchannel.noModels" = "No models added";
+"addchannel.fetchModels" = "Fetch Models";
+"addchannel.update" = "Update";
+"addchannel.addChannel" = "Add Channel";
+"addchannel.modelNamePlaceholder" = "e.g. gpt-4, llama3";
+"addchannel.search" = "Search...";
+"addchannel.providerName" = "Provider Name";
+"addchannel.providerNamePlaceholder" = "e.g. Local Ollama";
+"addchannel.baseUrlPlaceholder" = "https://api.example.com/v1";
+"addchannel.apiKeyPlaceholder" = "sk-...";
+"addchannel.priority" = "Priority";
+"addchannel.protocol" = "Protocol";
+"addchannel.delete" = "Delete";
+
+// Model Editor
+"modelEditor.editModel" = "Edit Model: %@";
+"modelEditor.contextLengthLabel" = "Context Length (tokens)";
+"modelEditor.inputPriceLabel" = "Input Price ($/1M tokens)";
+"modelEditor.outputPriceLabel" = "Output Price ($/1M tokens)";
+"modelEditor.contextLengthPlaceholder" = "128000";
+"modelEditor.inputPricePlaceholder" = "5.00";
+"modelEditor.outputPricePlaceholder" = "15.00";
+"modelEditor.save" = "Save";
+"modelEditor.edit" = "Edit";
+"modelEditor.close" = "Close";

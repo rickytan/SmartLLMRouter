@@ -14,8 +14,8 @@ struct ProtocolSelector: View {
 
     var body: some View {
         HStack(spacing: DesignToken.Spacing.sm) {
-            protocolChip(.openai, label: "OpenAI")
-            protocolChip(.anthropic, label: "Anthropic")
+            protocolChip(.openai, label: L10n.Settings.generalProtocolOpenai)
+            protocolChip(.anthropic, label: L10n.Settings.generalProtocolAnthropic)
         }
     }
 

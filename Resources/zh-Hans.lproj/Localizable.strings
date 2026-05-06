@@ -186,3 +186,33 @@
 
 // About
 "about.appName" = "SmartLLM Router";
+
+// Add Channel - Additional strings
+"addchannel.searchPlaceholder" = "搜索提供商...";
+"addchannel.customProvider" = "自定义 / 本地";
+"addchannel.models" = "模型";
+"addchannel.noModels" = "未添加模型";
+"addchannel.fetchModels" = "获取模型";
+"addchannel.update" = "更新";
+"addchannel.addChannel" = "添加通道";
+"addchannel.modelNamePlaceholder" = "例如 gpt-4, llama3";
+"addchannel.search" = "搜索...";
+"addchannel.providerName" = "厂商名称";
+"addchannel.providerNamePlaceholder" = "例如 Local Ollama";
+"addchannel.baseUrlPlaceholder" = "https://api.example.com/v1";
+"addchannel.apiKeyPlaceholder" = "sk-...";
+"addchannel.priority" = "优先级";
+"addchannel.protocol" = "协议";
+"addchannel.delete" = "删除";
+
+// Model Editor
+"modelEditor.editModel" = "编辑模型: %@";
+"modelEditor.contextLengthLabel" = "上下文长度 (tokens)";
+"modelEditor.inputPriceLabel" = "输入价格 ($/1M tokens)";
+"modelEditor.outputPriceLabel" = "输出价格 ($/1M tokens)";
+"modelEditor.contextLengthPlaceholder" = "128000";
+"modelEditor.inputPricePlaceholder" = "5.00";
+"modelEditor.outputPricePlaceholder" = "15.00";
+"modelEditor.save" = "保存";
+"modelEditor.edit" = "编辑";
+"modelEditor.close" = "关闭";

@@ -995,6 +995,107 @@ Sources/
 
 ---
 
+### 3.23 模块二十三：UI 组件全面替换审计与执行 **[当前优先级]**
+
+#### 背景
+模块 3.22 已创建 21 个基础组件（Buttons 4, Form 5, Status 6, List 3, Cards 3, Protocol 1），但 **4 个 View 文件仍未替换为自定义组件**，存在大量原生 `Button()`、`TextField()`、`SecureField()`、`.buttonStyle(.plain)` 调用。
+
+#### 审计结果
+
+**4 个文件共 50+ 处原生控件待替换**
+
+##### 1. `AddChannelView.swift` — 10+ 处待替换
+| 行号 | 原生控件 | 应替换为 | 说明 |
+|------|---------|---------|------|
+| L130 | `TextField("Search providers...", text: $searchQuery)` | `SearchBar` | 搜索栏 |
+| L269 | `TextField("e.g. Local Ollama", text: $customProviderName)` | `LabeledTextField` | 自定义厂商名称 |
+| L292 | `TextField("https://api.example.com/v1", text: $baseURL)` | `LabeledTextField` | Base URL |
+| L298 | `SecureField("sk-...", text: $apiKey)` | `LabeledSecureField` | API Key |
+| L304 | `TextField("", value: $priority, formatter: NumberFormatter())` | `LabeledNumberField` 🆕 | 优先级（需 NumberFormatter 支持） |
+| L473 | `TextField("e.g. gpt-4, llama3", text: $newModelName)` | `LabeledTextField` | 模型名 |
+| L590 | `Button(L10n.Onboarding.back) { ... }` | `SecondaryButton` | 返回按钮 |
+| L722 | `Button("Cancel") { dismiss() }` | `SecondaryButton` | 取消 |
+| L725 | `Button("Save") { ... }` | `PrimaryButton` | 保存 |
+| L744 | 自定义 TextField 包装函数 | 删除，用 `LabeledTextField` | 冗余包装 |
+
+##### 2. `OnboardingView.swift` — 9+ 处待替换
+| 行号 | 原生控件 | 应替换为 | 说明 |
+|------|---------|---------|------|
+| L339 | `TextField("Search...", text: $searchQuery)` | `SearchBar` | 搜索栏 |
+| L411 | `TextField("e.g. Local Ollama", text: $customProviderName)` | `LabeledTextField` | 自定义厂商名称 |
+| L433 | `TextField("https://api.example.com/v1", text: $baseURL)` | `LabeledTextField` | Base URL |
+| L443 | `SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)` | `LabeledSecureField` | API Key |
+| L459 | `Button(L10n.Onboarding.cancel) { ... }` | `SecondaryButton` | 取消 |
+| L503 | `Button(action: action) { ... }` (内部函数) | `PrimaryButton`/`HoverButton` | ProviderCard 内部按钮 |
+| L833/841 | `Button(L10n.Onboarding.skip)` ×2 | `SecondaryButton` | Skip 按钮 |
+| L848/855 | `Button(L10n.Onboarding.back)` ×2 | `SecondaryButton` | Back 按钮 |
+
+##### 3. `MenuView.swift` — 3 处待替换
+| 行号 | 原生控件 | 应替换为 | 说明 |
+|------|---------|---------|------|
+| L114 | `Toggle(...)` (代理开关) | `ToggleRow` 🆕 | 菜单内开关 |
+| L181 | `Button(action: { ... })` (modelOptionButton) | `HoverButton` | 模型选项按钮 |
+
+##### 4. `SettingsView.swift` — 3 处待替换
+| 行号 | 原生控件 | 应替换为 | 说明 |
+|------|---------|---------|------|
+| L123 | `TextField("", value: $appState.port, formatter: NumberFormatter())` | `LabeledNumberField` 🆕 | 端口号（NumberFormatter） |
+| L131 | `Toggle(isOn: $appState.launchAtLogin) { ... }` | `ToggleRow` 🆕 | 开机自启 |
+| L256 | `Toggle(L10n.Settings.advancedFailover, isOn: $appState.autoFailover)` | `ToggleRow` 🆕 | 自动故障转移 |
+
+#### 需要新增的组件
+
+##### `ToggleRow` — `Sources/Components/Form/ToggleRow.swift`
+```swift
+struct ToggleRow: View {
+    let title: String
+    let subtitle: String?
+    @Binding var isOn: Bool
+    
+    init(_ title: String, subtitle: String? = nil, isOn: Binding<Bool>) {
+        self.title = title
+        self.subtitle = subtitle
+        self._isOn = isOn
+    }
+}
+```
+**样式**: 水平排列，左侧标题(可选副标题)，右侧 Toggle 开关。Hover 时背景变色。使用 DesignToken 颜色/间距。
+
+##### `LabeledNumberField` — `Sources/Components/Form/LabeledNumberField.swift`
+```swift
+struct LabeledNumberField: View {
+    let label: String
+    let placeholder: String
+    @Binding var value: Int
+    
+    init(_ label: String, placeholder: String = "", value: Binding<Int>) {
+        self.label = label
+        self.placeholder = placeholder
+        self._value = value
+    }
+}
+```
+**样式**: 同 `LabeledTextField`，但内部使用 `TextField` + `NumberFormatter`。支持 `Int` 类型绑定。
+
+#### 实施步骤
+1. **先创建 2 个新组件**: `ToggleRow`, `LabeledNumberField`
+2. **逐个 View 文件替换**，每个文件完成后编译验证
+3. **删除冗余代码**: 如 AddChannelView 中的自定义 TextField 包装函数 (L744)
+4. **统一 .buttonStyle(.plain)**: 确保所有自定义按钮内部使用 `.buttonStyle(.plain)`，外部不再需要
+5. **全量编译验证**: `xcodegen generate` → `bundle exec pod install` → `xcodebuild` (0 errors)
+6. **运行测试**: 确保 45 个单元测试全部通过
+
+#### 必须遵守的约束
+1. **零原生控件泄漏**: 替换完成后，4 个 View 文件中不得出现 `Button(`、`TextField(`、`SecureField(`、`Toggle(`、`Picker(`（组件内部实现除外）
+2. **所有组件必须使用 DesignToken**: 禁止硬编码颜色/尺寸/间距
+3. **零硬编码字符串**: 所有文案使用 `L10n.xxx`
+4. **每个新组件必须有 `#Preview`**
+5. **编译通过才能提交**: 每次替换后必须编译验证
+6. **L10n 同步**: 新增文案必须同步到 `en.lproj/zh-Hans.lproj/Localizable.strings` 和 `Sources/Generated/L10n.swift`
+7. **暗黑模式兼容**: 所有新组件通过 Asset Catalog 自动适配 Light/Dark
+
+---
+
 ## 4. 数据模型定义
 
 ### 4.1 Channel 结构体
@@ -1075,6 +1176,7 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 添加 Channel 后是否自动 fetch models 并填充元信息
 - [ ] 连接测试是否使用 GET /v1/models（而非 POST 聊天请求，避免浪费 token 和硬编码 model）
 - [ ] 是否先封装基础 UI 组件库再构建页面（按钮、表单、状态、列表、卡片、协议选择器）
+- [ ] 所有 View 页面是否已完全使用自定义组件替换原生控件（零 Button/TextField/SecureField/Toggle/Picker 泄漏）
 
 ### 7.3 平台兼容性
 - [ ] 最低支持版本的生命周期陷阱（如 macOS 13 的 MenuBarExtra.onAppear 不触发）

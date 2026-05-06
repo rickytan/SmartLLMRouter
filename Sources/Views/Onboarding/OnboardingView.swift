@@ -177,27 +177,17 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                Button {
+                BadgeButton(
+                    title: isAddingChannel ? L10n.AddChannel.cancel : L10n.Onboarding.addChannelAdd,
+                    icon: isAddingChannel ? "minus" : "plus"
+                ) {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isAddingChannel.toggle()
                         if isAddingChannel {
                             resetForm()
                         }
                     }
-                } label: {
-                    HStack(spacing: DesignToken.Spacing.xxs) {
-                        Image(systemName: isAddingChannel ? "minus" : "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(isAddingChannel ? L10n.AddChannel.cancel : L10n.Onboarding.addChannelAdd)
-                            .font(DesignToken.Font.caption())
-                    }
-                    .padding(.horizontal, DesignToken.Spacing.sm)
-                    .padding(.vertical, DesignToken.Spacing.xxs)
-                    .background(DesignToken.Colors.accent.opacity(isAddingChannel ? 0.12 : 0.15))
-                    .foregroundColor(DesignToken.Colors.accent)
-                    .cornerRadius(DesignToken.Layout.badgeCornerRadius)
                 }
-                .buttonStyle(.plain)
                 .accessibilityIdentifier("onboarding.addchannel.toggle")
             }
             .padding(.horizontal, DesignToken.Spacing.lg)
@@ -309,14 +299,9 @@ struct OnboardingView: View {
             }
 
             // Delete button
-            Button {
+            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
                 pendingChannels.remove(at: index)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(DesignToken.Colors.textTertiary)
             }
-            .buttonStyle(.plain)
             .accessibilityIdentifier("onboarding.addchannel.delete.\(index)")
         }
         .padding(.horizontal, DesignToken.Spacing.xs)
@@ -332,27 +317,10 @@ struct OnboardingView: View {
                 // Left pane: Provider list
                 VStack(spacing: 0) {
                     // Search bar
-                    HStack(spacing: DesignToken.Spacing.xs) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(DesignToken.Colors.textTertiary)
-                            .font(.system(size: 12))
-                        TextField("Search...", text: $searchQuery)
-                            .textFieldStyle(.plain)
-                            .font(DesignToken.Font.caption())
-                        if !searchQuery.isEmpty {
-                            Button {
-                                searchQuery = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(DesignToken.Colors.textTertiary)
-                                    .font(.system(size: 12))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, DesignToken.Spacing.sm)
-                    .padding(.vertical, DesignToken.Spacing.xs)
-                    .background(DesignToken.Colors.bgSecondary)
+                    SearchBar(
+                        text: $searchQuery,
+                        placeholder: L10n.AddChannel.search
+                    )
 
                     Divider()
 
@@ -362,7 +330,7 @@ struct OnboardingView: View {
                             // Custom provider
                             providerListItem(
                                 id: "custom",
-                                name: "Custom / Local",
+                                name: L10n.AddChannel.customProvider,
                                 icon: "globe",
                                 isSelected: isCustomProvider
                             ) {
@@ -404,13 +372,11 @@ struct OnboardingView: View {
                     VStack(spacing: DesignToken.Spacing.lg) {
                         // Provider header
                         if isCustomProvider {
-                            VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                                Text(L10n.Onboarding.providerName)
-                                    .font(DesignToken.Font.caption())
-                                    .foregroundColor(DesignToken.Colors.textSecondary)
-                                TextField("e.g. Local Ollama", text: $customProviderName)
-                                    .textFieldStyle(.roundedBorder)
-                            }
+                            LabeledTextField(
+                                label: L10n.Onboarding.providerName,
+                                text: $customProviderName,
+                                placeholder: L10n.AddChannel.providerNamePlaceholder
+                            )
                         } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
                             HStack {
                                 Image(systemName: ProviderIconMapper.symbol(for: template.id))
@@ -426,24 +392,18 @@ struct OnboardingView: View {
                         Divider()
 
                         // Base URL
-                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                            Text(L10n.Onboarding.baseUrl)
-                                .font(DesignToken.Font.caption())
-                                .foregroundColor(DesignToken.Colors.textSecondary)
-                            TextField("https://api.example.com/v1", text: $baseURL)
-                                .textFieldStyle(.roundedBorder)
-                                .font(DesignToken.Font.mono())
-                        }
+                        LabeledTextField(
+                            label: L10n.Onboarding.baseUrl,
+                            text: $baseURL,
+                            placeholder: L10n.AddChannel.baseUrlPlaceholder
+                        )
 
                         // API Key
-                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                            Text(L10n.Settings.channelsApiKey)
-                                .font(DesignToken.Font.caption())
-                                .foregroundColor(DesignToken.Colors.textSecondary)
-                            SecureField(L10n.Onboarding.apiKeyPlaceholder, text: $apiKey)
-                                .textFieldStyle(.roundedBorder)
-                                .font(DesignToken.Font.mono())
-                        }
+                        LabeledSecureField(
+                            label: L10n.Settings.channelsApiKey,
+                            text: $apiKey,
+                            placeholder: L10n.AddChannel.apiKeyPlaceholder
+                        )
 
                         // Test & Add button row
                         HStack(spacing: DesignToken.Spacing.sm) {
@@ -456,14 +416,11 @@ struct OnboardingView: View {
                             .disabled(!isFormValid || isTestingConnection)
                             .accessibilityIdentifier("onboarding.addchannel.testAndAdd")
 
-                            Button(L10n.Onboarding.cancel) {
+                            SecondaryButton(L10n.Onboarding.cancel) {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     isAddingChannel = false
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-                            .font(DesignToken.Font.caption())
                         }
 
                         // Test result
@@ -830,33 +787,29 @@ struct OnboardingView: View {
         HStack {
             // Skip / Back button
             if currentStep == .welcome {
-                Button(L10n.Onboarding.skip) {
+                SecondaryButton(L10n.Onboarding.skip) {
                     completeOnboarding()
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(DesignToken.Colors.textSecondary)
+                .frame(width: 100)
                 .accessibilityIdentifier("onboarding.skip")
             } else if currentStep == .addChannel {
                 // Skip is always available on addChannel step
-                Button(L10n.Onboarding.skip) {
+                SecondaryButton(L10n.Onboarding.skip) {
                     skipToShellConfig()
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(DesignToken.Colors.textSecondary)
+                .frame(width: 100)
                 .accessibilityIdentifier("onboarding.skip")
 
-                Button(L10n.Onboarding.back) {
+                SecondaryButton(L10n.Onboarding.back) {
                     goBack()
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(DesignToken.Colors.textSecondary)
+                .frame(width: 100)
                 .accessibilityIdentifier("onboarding.back")
             } else if currentStep != .done {
-                Button(L10n.Onboarding.back) {
+                SecondaryButton(L10n.Onboarding.back) {
                     goBack()
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(DesignToken.Colors.textSecondary)
+                .frame(width: 100)
                 .accessibilityIdentifier("onboarding.back")
             }
 

@@ -111,15 +111,13 @@ struct MenuView: View {
     // MARK: - Failover Toggle
 
     private var failoverToggle: some View {
-        Toggle(
+        ToggleRow(
             appState.autoFailover ? L10n.Menu.failoverAuto : L10n.Menu.failoverManual,
             isOn: Binding(
                 get: { appState.autoFailover },
                 set: { _ in appState.toggleAutoFailover() }
             )
         )
-        .font(DesignToken.Font.system(size: 12))
-        .toggleStyle(.switch)
         .accessibilityIdentifier("menu.failover.toggle")
     }
 
@@ -178,30 +176,13 @@ struct MenuView: View {
 
     /// Individual model selection button
     private func modelOptionButton(modelID: String?, displayName: String, isSelected: Bool) -> some View {
-        Button(action: {
+        HoverButton(
+            title: displayName,
+            icon: isSelected ? "checkmark" : "circle"
+        ) {
             modelSwitcher.selectModel(modelID)
-        }) {
-            HStack(spacing: DesignToken.Spacing.xxs) {
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(DesignToken.Font.system(size: 8, weight: .bold))
-                }
-                Text(displayName)
-                    .font(DesignToken.Font.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .padding(.horizontal, DesignToken.Spacing.xs)
-            .padding(.vertical, DesignToken.Spacing.xxs)
-            .background(
-                isSelected
-                    ? DesignToken.Colors.accent.opacity(0.15)
-                    : DesignToken.Colors.hoverFill
-            )
-            .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
-            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
         }
-        .buttonStyle(.plain)
+        .accessibilityIdentifier("menu.model.\(modelID ?? "default")")
     }
 
     // MARK: - Active Channel Info

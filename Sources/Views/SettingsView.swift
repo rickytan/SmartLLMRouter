@@ -114,25 +114,18 @@ struct GeneralSettingsTab: View {
             }
 
             // Port Input
-            HStack {
-                Text(L10n.Settings.generalPort)
-                    .font(DesignToken.Font.body())
-
-                Spacer()
-
-                TextField("", value: $appState.port, formatter: NumberFormatter())
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: DesignToken.Layout.formLabelWidth)
-                    .multilineTextAlignment(.trailing)
-                    .accessibilityIdentifier("settings.general.port")
-            }
+            LabeledNumberField(
+                L10n.Settings.generalPort,
+                placeholder: L10n.Settings.generalPortPlaceholder,
+                value: $appState.port,
+                accessibilityID: "settings.general.port"
+            )
 
             // Launch at Login Toggle
-            Toggle(isOn: $appState.launchAtLogin) {
-                Text(L10n.Settings.generalAutoStart)
-                    .font(DesignToken.Font.body())
-            }
-            .toggleStyle(.switch)
+            ToggleRow(
+                L10n.Settings.generalAutoStart,
+                isOn: $appState.launchAtLogin
+            )
             .accessibilityIdentifier("settings.general.launchAtLogin")
         }
     }
@@ -253,9 +246,11 @@ struct AdvancedTab: View {
                     Text(L10n.Settings.advancedFailover)
                         .font(DesignToken.Font.h2())
 
-                    Toggle(L10n.Settings.advancedFailover, isOn: $appState.autoFailover)
-                        .toggleStyle(.switch)
-                        .accessibilityIdentifier("settings.advanced.failover")
+                    ToggleRow(
+                        L10n.Settings.advancedFailover,
+                        isOn: $appState.autoFailover
+                    )
+                    .accessibilityIdentifier("settings.advanced.failover")
                 }
 
                 Divider()
