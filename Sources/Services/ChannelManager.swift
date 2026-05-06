@@ -314,31 +314,106 @@ final class ChannelManager: ObservableObject {
                 let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
                 return .failure("❌ Invalid API Key: \(errorMsg)")
             } else {
-                // 403 or other error: fallback to streaming auth check
-                Log.info("GET /v1/models returned \(statusCode) for \(channel.name), falling back to streaming check")
-                return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+                // 403 or other error: fallback to empty POST auth check (no model needed)
+                Log.info("GET /v1/models returned \(statusCode) for \(channel.name), falling back to empty POST check")
+                return await testConnectionByEmptyPOST(channel: channel, apiKey: apiKey)
             }
         } catch let urlError as URLError {
             if urlError.code == .timedOut {
-                Log.info("GET /v1/models timed out for \(channel.name), falling back to streaming check")
+                Log.info("GET /v1/models timed out for \(channel.name), falling back to empty POST check")
             } else {
-                Log.info("GET /v1/models failed (\(urlError.code.rawValue)) for \(channel.name), falling back to streaming check")
+                Log.info("GET /v1/models failed (\(urlError.code.rawValue)) for \(channel.name), falling back to empty POST check")
             }
-            return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+            return await testConnectionByEmptyPOST(channel: channel, apiKey: apiKey)
         } catch {
-            Log.info("GET /v1/models failed for \(channel.name), falling back to streaming check")
-            return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+            Log.info("GET /v1/models failed for \(channel.name), falling back to empty POST check")
+            return await testConnectionByEmptyPOST(channel: channel, apiKey: apiKey)
         }
     }
 
     // MARK: - Connection Test Fallbacks
 
-    /// Fallback #1: Streaming POST with early cancellation.
+    /// Fallback #1: POST empty body — validates auth without needing a model name.
+    ///
+    /// Sends `{}` to `/v1/chat/completions`. The server processes auth first,
+    /// then validates params:
+    /// - **401** → ❌ Key invalid (rejected at auth layer)
+    /// - **400 + "model" in error** → ✅ Key valid! (auth passed, rejected at param validation)
+    /// - **400 without "model"** → ⚠️ Ambiguous, fall through to streaming
+    ///
+    /// This is the only auth check that works with zero model knowledge.
+    private func testConnectionByEmptyPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
+        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
+
+        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+            return .failure("Invalid URL: \(channel.baseURL)")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if isAnthropic {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [:] as [String: Any])
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            if statusCode == 400 {
+                let errorStr = extractErrorMessage(data) ?? ""
+                let bodyStr = String(data: data, encoding: .utf8)?.lowercased() ?? ""
+
+                // "model is required" / "missing model" / similar → auth passed!
+                if bodyStr.contains("model") || errorStr.lowercased().contains("model") {
+                    Log.info("Connection test for \(channel.name): success (empty POST → 400 model required, key valid)")
+                    return .success()
+                }
+
+                // Other 400 → ambiguous, try streaming
+                Log.info("Empty POST for \(channel.name): 400 but not model-related, falling back to streaming")
+                return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+            } else if statusCode == 401 {
+                let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
+                return .failure("❌ Invalid API Key: \(errorMsg)")
+            } else if statusCode == 200 {
+                // Unexpected but OK — some lenient servers accept empty body
+                Log.info("Connection test for \(channel.name): success (empty POST → 200)")
+                return .success()
+            } else if statusCode == 403 {
+                return .failure("❌ Access Denied: API Key lacks permission")
+            } else {
+                Log.info("Empty POST for \(channel.name): HTTP \(statusCode), falling back to streaming")
+                return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+            }
+        } catch let urlError as URLError {
+            return urlErrorResult(urlError)
+        } catch {
+            Log.info("Empty POST failed for \(channel.name), trying streaming")
+            return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+        }
+    }
+
+    /// Fallback #2: Streaming POST with early cancellation.
     /// Sends a streaming request, reads the HTTP status, then immediately
     /// discards the stream — confirming the API key is valid with zero
     /// token consumption and minimal latency.
+    /// Requires a model name (uses channel.models.first).
     private func testConnectionByStreaming(channel: Channel, apiKey: String) async -> ConnectionTestResult {
-        let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
+        // Only attempt streaming if we have a real model name
+        guard let testModel = channel.models.first?.identifier else {
+            Log.info("No model known for \(channel.name), skipping streaming, falling back to full POST")
+            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+        }
+
         let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
 
         guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
@@ -395,7 +470,7 @@ final class ChannelManager: ObservableObject {
         }
     }
 
-    /// Fallback #2: Full POST request (consumes 1 token). Used when streaming
+    /// Fallback #3: Full POST request (consumes 1 token). Used when streaming
     /// returns an error status and we need the response body for diagnostics.
     private func testConnectionByPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
         let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
