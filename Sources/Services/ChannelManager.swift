@@ -314,47 +314,95 @@ final class ChannelManager: ObservableObject {
                 let errorMsg = extractErrorMessage(data) ?? "Invalid API Key"
                 return .failure("❌ Invalid API Key: \(errorMsg)")
             } else {
-                // 403 or other error: fallback to POST
-                Log.info("GET /v1/models returned \(statusCode) for \(channel.name), falling back to POST")
-                return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+                // 403 or other error: fallback to streaming auth check
+                Log.info("GET /v1/models returned \(statusCode) for \(channel.name), falling back to streaming check")
+                return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
             }
         } catch let urlError as URLError {
             if urlError.code == .timedOut {
-                Log.info("GET /v1/models timed out for \(channel.name), falling back to POST")
+                Log.info("GET /v1/models timed out for \(channel.name), falling back to streaming check")
             } else {
-                Log.info("GET /v1/models failed (\(urlError.code.rawValue)) for \(channel.name), falling back to POST")
+                Log.info("GET /v1/models failed (\(urlError.code.rawValue)) for \(channel.name), falling back to streaming check")
             }
-            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+            return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
         } catch {
-            Log.info("GET /v1/models failed for \(channel.name), falling back to POST")
+            Log.info("GET /v1/models failed for \(channel.name), falling back to streaming check")
+            return await testConnectionByStreaming(channel: channel, apiKey: apiKey)
+        }
+    }
+
+    // MARK: - Connection Test Fallbacks
+
+    /// Fallback #1: Streaming POST with early cancellation.
+    /// Sends a streaming request, reads the HTTP status, then immediately
+    /// discards the stream — confirming the API key is valid with zero
+    /// token consumption and minimal latency.
+    private func testConnectionByStreaming(channel: Channel, apiKey: String) async -> ConnectionTestResult {
+        let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
+        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
+
+        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+            return .failure("Invalid URL: \(channel.baseURL)")
+        }
+
+        // Both protocols use the same body format for streaming auth check
+        let testBody: [String: Any] = [
+            "model": testModel,
+            "messages": [["role": "user", "content": "Hi"]],
+            "max_tokens": 1,
+            "stream": true,
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if isAnthropic {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
+        guard request.httpBody != nil else {
+            return .failure("Failed to serialize request body")
+        }
+
+        do {
+            let (_, response) = try await URLSession.shared.bytes(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+
+            if statusCode == 200 {
+                // Auth validated. Discard the stream immediately — zero tokens consumed.
+                Log.info("Connection test for \(channel.name): success (streaming auth check)")
+                return .success()
+            }
+
+            // For error status codes, we need the response body for error details.
+            // bytes() doesn't give us the body on 4xx, so fall through to POST fallback.
+            Log.info("Streaming test for \(channel.name): HTTP \(statusCode), falling back to full POST")
+            return await testConnectionByPOST(channel: channel, apiKey: apiKey)
+        } catch let urlError as URLError {
+            // Network-level errors don't need a POST fallback
+            return urlErrorResult(urlError)
+        } catch {
+            // Other errors (e.g. cancelled) — try full POST as last resort
+            Log.info("Streaming test failed for \(channel.name), trying full POST")
             return await testConnectionByPOST(channel: channel, apiKey: apiKey)
         }
     }
 
-    /// Fallback connection test using POST /v1/chat/completions or /v1/messages
+    /// Fallback #2: Full POST request (consumes 1 token). Used when streaming
+    /// returns an error status and we need the response body for diagnostics.
     private func testConnectionByPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
         let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
+        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
 
-        var testURL: URL?
-        let baseURL = channel.baseURL
-
-        if channel.protocol == .anthropic || baseURL.contains("anthropic") {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/messages")
-            } else {
-                testURL = URL(string: baseURL + "/v1/messages")
-            }
-        } else {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions")
-            } else {
-                testURL = URL(string: baseURL + "/v1/chat/completions")
-            }
-        }
-
-        guard let url = testURL else {
-            return .failure("Invalid URL: \(baseURL)")
+        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+            return .failure("Invalid URL: \(channel.baseURL)")
         }
 
         let testBody: [String: Any] = [
@@ -368,7 +416,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if channel.protocol == .anthropic {
+        if isAnthropic {
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         } else {
@@ -385,7 +433,6 @@ final class ChannelManager: ObservableObject {
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
-            // Log non-2xx status codes
             if statusCode < 200 || statusCode >= 300 {
                 let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
                 Log.error("Connection test for \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
@@ -410,22 +457,38 @@ final class ChannelManager: ObservableObject {
                 return .failure("❌ No response from server")
             }
         } catch let urlError as URLError {
-            switch urlError.code {
-            case .notConnectedToInternet:
-                return .failure("❌ No internet connection")
-            case .cannotFindHost:
-                return .failure("❌ Cannot resolve host: check Base URL")
-            case .cannotConnectToHost:
-                return .failure("❌ Cannot connect to host: check Base URL and port")
-            case .timedOut:
-                return .failure("❌ Connection timed out: server may be slow or unreachable")
-            case .secureConnectionFailed:
-                return .failure("❌ SSL/TLS error: check HTTPS configuration")
-            default:
-                return .failure("❌ Network error: \(urlError.localizedDescription)")
-            }
+            return urlErrorResult(urlError)
         } catch {
             return .failure("❌ \(error.localizedDescription)")
+        }
+    }
+
+    /// Build the chat completions URL for either OpenAI or Anthropic protocol
+    private func buildChatCompletionsURL(baseURL: String, isAnthropic: Bool) -> URL? {
+        let suffix = isAnthropic ? "/messages" : "/chat/completions"
+
+        if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
+            return URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + suffix)
+        } else {
+            return URL(string: baseURL + "/v1" + suffix)
+        }
+    }
+
+    /// Convert URLError to a user-friendly ConnectionTestResult
+    private func urlErrorResult(_ error: URLError) -> ConnectionTestResult {
+        switch error.code {
+        case .notConnectedToInternet:
+            return .failure("❌ No internet connection")
+        case .cannotFindHost:
+            return .failure("❌ Cannot resolve host: check Base URL")
+        case .cannotConnectToHost:
+            return .failure("❌ Cannot connect to host: check Base URL and port")
+        case .timedOut:
+            return .failure("❌ Connection timed out: server may be slow or unreachable")
+        case .secureConnectionFailed:
+            return .failure("❌ SSL/TLS error: check HTTPS configuration")
+        default:
+            return .failure("❌ Network error: \(error.localizedDescription)")
         }
     }
 
