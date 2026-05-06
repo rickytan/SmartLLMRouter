@@ -218,3 +218,10 @@
 "modelEditor.save" = "Save";
 "modelEditor.edit" = "Edit";
 "modelEditor.close" = "Close";
+
+// Protocol names (used in ProtocolSelector)
+"settings.general.protocol.openai" = "OpenAI";
+"settings.general.protocol.anthropic" = "Anthropic";
+
+// Add Channel
+"addchannel.delete" = "Delete";

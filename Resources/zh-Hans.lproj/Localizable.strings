@@ -216,3 +216,7 @@
 "modelEditor.save" = "保存";
 "modelEditor.edit" = "编辑";
 "modelEditor.close" = "关闭";
+
+// Protocol names (used in ProtocolSelector)
+"settings.general.protocol.openai" = "OpenAI";
+"settings.general.protocol.anthropic" = "Anthropic";

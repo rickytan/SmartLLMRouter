@@ -328,7 +328,7 @@ struct OnboardingView: View {
                     ScrollView {
                         LazyVStack(spacing: 2) {
                             // Custom provider
-                            providerListItem(
+                            ProviderListItem(
                                 id: "custom",
                                 name: L10n.AddChannel.customProvider,
                                 icon: "globe",
@@ -345,7 +345,7 @@ struct OnboardingView: View {
 
                             // Built-in providers
                             ForEach(filteredProviders) { template in
-                                providerListItem(
+                                ProviderListItem(
                                     id: template.id,
                                     name: template.nameEn,
                                     icon: ProviderIconMapper.symbol(for: template.id),
@@ -456,35 +456,6 @@ struct OnboardingView: View {
         }
     }
 
-    private func providerListItem(id: String, name: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: DesignToken.Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isSelected ? DesignToken.Colors.accent : DesignToken.Colors.textSecondary)
-                    .frame(width: 24)
-
-                Text(name)
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(isSelected ? DesignToken.Colors.textPrimary : DesignToken.Colors.textSecondary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(DesignToken.Colors.accent)
-                }
-            }
-            .padding(.horizontal, DesignToken.Spacing.sm)
-            .padding(.vertical, DesignToken.Spacing.xs)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? DesignToken.Colors.accent.opacity(0.12) : Color.clear)
-        }
-        .buttonStyle(.plain)
-    }
-
     private func selectProviderTemplate(_ template: ProviderTemplate) {
         selectedProviderId = template.id
         if let firstProtocol = template.supportsProtocols.first {
@@ -503,41 +474,19 @@ struct OnboardingView: View {
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
-            HStack(spacing: DesignToken.Spacing.sm) {
-                protocolChip(.openai, label: "OpenAI")
-                protocolChip(.anthropic, label: "Anthropic")
-            }
-        }
-    }
-
-    private func protocolChip(_ proto: APIProtocol, label: String) -> some View {
-        Button {
-            selectedProtocol = proto
-            // Update base URL if using a template
-            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                if let url = template.baseURL(for: proto.rawValue.lowercased()) {
-                    baseURL = url
+            ProtocolSelector(
+                selection: $selectedProtocol,
+                onProtocolChange: { proto in
+                    // Update base URL if using a template
+                    if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                        if let url = template.baseURL(for: proto.rawValue.lowercased()) {
+                            baseURL = url
+                        }
+                    }
+                    connectionTestResult = nil
                 }
-            }
-            connectionTestResult = nil
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: selectedProtocol == proto ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 10))
-                Text(label)
-                    .font(DesignToken.Font.system(size: 11, weight: selectedProtocol == proto ? .semibold : .regular))
-            }
-            .padding(.horizontal, DesignToken.Spacing.sm)
-            .padding(.vertical, DesignToken.Spacing.xxs)
-            .background(
-                selectedProtocol == proto
-                    ? DesignToken.Colors.accent.opacity(0.15)
-                    : DesignToken.Colors.bgSecondary
             )
-            .foregroundColor(selectedProtocol == proto ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
-            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
         }
-        .buttonStyle(.plain)
     }
 
     private func connectionTestStatus(result: ChannelManager.ConnectionTestResult) -> some View {
