@@ -6,26 +6,43 @@
 
 ## 1. Color System
 
-### Semantic Colors
+### Background Colors
 
 | Token | Light Mode | Dark Mode | Usage |
 |-------|-----------|-----------|-------|
-| `bgPrimary` | `Color(NSColor.windowBackgroundColor)` | same | Window/menu backgrounds |
-| `bgSecondary` | `Color(NSColor.controlBackgroundColor)` | same | Cards, grouped rows |
-| `bgTertiary` | `Color.gray.opacity(0.08)` | `Color.gray.opacity(0.15)` | Hover states, subtle dividers |
-| `textPrimary` | `Color.primary` | same | Headings, labels, values |
-| `textSecondary` | `Color.secondary` | same | Subtitles, URLs, metadata |
-| `textTertiary` | `Color(NSColor.labelColor).opacity(0.5)` | same | Placeholders, empty state |
-| `border` | `Color(NSColor.separatorColor)` | same | Dividers, card borders |
+| `bgPrimary` | `#FFFFFF` | `#1C1C1E` | Window/menu backgrounds |
+| `bgSecondary` | `#F2F2F7` | `#2C2C2E` | Cards, grouped rows |
+| `bgTertiary` | `rgba(0,0,0,0.06)` | `rgba(255,255,255,0.08)` | Hover fill, subtle overlays |
+
+### Text Colors
+
+| Token | Light Mode | Dark Mode | Usage |
+|-------|-----------|-----------|-------|
+| `textPrimary` | `#000000` | `#FFFFFF` | Headings, labels, values |
+| `textSecondary` | `#6E6E73` | `#8E8E93` | Subtitles, URLs, metadata |
+| `textTertiary` | `#AEAEB2` | `#636366` | Placeholders, empty state |
+| `buttonLabel` | `#FFFFFF` | `#FFFFFF` | Primary button text |
+
+### Accent Colors
+
+| Token | Light Mode | Dark Mode | Usage |
+|-------|-----------|-----------|-------|
+| `accent` | `#007AFF` | `#2684FF` | Primary actions, links, active states |
+| `accentHover` | `#0062CC` | `#2684FF` | Button hover background |
 
 ### Status Colors (never change with theme)
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `statusOnline` | `Color(#00C853)` | Proxy running, channel active |
-| `statusOffline` | `Color(#FF5252)` | Proxy stopped, channel down |
-| `statusWarning` | `Color(#FFB300)` | Cooling down, rate limited |
-| `statusIdle` | `Color(#9E9E9E)` | No active channel, idle state |
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `statusOnline` | `#00C853` / Dark: `#00E676` | Proxy running, channel active |
+| `statusOffline` | `#FF5252` / Dark: `#FF6E6E` | Proxy stopped, channel down |
+| `statusWarning` | `#FFB300` / Dark: `#FFC107` | Cooling down, rate limited |
+
+### Borders & Dividers
+
+| Token | Light Mode | Dark Mode | Usage |
+|-------|-----------|-----------|-------|
+| `border` | `rgba(0,0,0,0.20)` | `rgba(255,255,255,0.30)` | Dividers, card borders |
 
 ### Latency Indicators
 
@@ -34,14 +51,6 @@
 | < 300ms | `#00C853` | 🟢 | Fast |
 | 300–800ms | `#FFB300` | 🟡 | Normal |
 | > 800ms | `#FF5252` | 🔴 | Slow |
-| Timeout/Fail | `#9E9E9E` | ⚫ | Unreachable |
-
-### Accent
-
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| `accent` | `Color(#007AFF)` | same | Primary actions, links, active states |
-| `accentHover` | `Color(#0062CC)` | `Color(#2684FF)` | Button hover background |
 
 ---
 
@@ -411,21 +420,38 @@ All icons via **SF Symbols**. Version 4.5+ required (macOS 13 ships with it).
 
 ## 8. Dark Mode
 
-All colors use semantic tokens — **never hardcode `.white` or `.black`**.
+All colors are defined in `Assets.xcassets` with **Any + Dark Appearance** configurations. Access via `Asset.xxx.swiftUIColor` or `DesignToken.Colors.xxx` — **never hardcode hex values in code**.
+
+### Color Mapping
+
+| Light Mode | Dark Mode | How It Works |
+|------------|-----------|-------------|
+| `#FFFFFF` → `#1C1C1E` | Backgrounds invert | `bgPrimary` / `bgSecondary` |
+| `#000000` → `#FFFFFF` | Text inverts | `textPrimary` |
+| `#6E6E73` → `#8E8E93` | Subtle text lightens | `textSecondary` |
+| `#007AFF` → `#2684FF` | Accent brightens slightly | `accent` |
+| `#00C853` → `#00E676` | Status colors brighten for visibility | `statusOnline` |
+
+### Rules
 
 | Rule | Do | Don't |
 |------|---|-------|
-| Text | `Color.primary` / `.secondary` | `.black` / `.gray` |
-| Background | `Color(NSColor.windowBackgroundColor)` | `.white` |
-| Card bg | `Color(NSColor.controlBackgroundColor)` | `Color(.white)` |
-| Borders | `Color(NSColor.separatorColor)` | `Color.gray` |
-| Status colors | Keep original hex | Adjust for theme |
-| Accent | Keep `#007AFF` | Use different blue |
+| All colors | Use `DesignToken.Colors.xxx` or `Asset.xxx.swiftUIColor` | Hardcode `#FFFFFF` or `Color.white` |
+| Hover fill | `DesignToken.Colors.hoverFill` (auto alpha adapts) | `Color.gray.opacity(0.08)` |
+| Status colors | Use token (auto dark variant) | Adjust hex manually for theme |
+| Borders | `DesignToken.Colors.border` (auto alpha adapts) | `Color(NSColor.separatorColor)` |
 
 ### Testing Dark Mode
 
 ```swift
-.preferredColorScheme(.dark)  // Add to #Preview for testing
+// In #Preview:
+#Preview("Dark Mode") {
+    SomeView()
+        .preferredColorScheme(.dark)
+}
+
+// Or toggle in Simulator/running app:
+// System Settings → Appearance → Dark
 ```
 
 ---

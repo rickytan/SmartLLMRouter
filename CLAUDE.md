@@ -67,7 +67,14 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ## Design System (DESIGN.md)
 - Menu: 300pt wide, 12pt padding
 - Settings: 560×420pt window
-- Colors: `#00C853` (online), `#FF5252` (offline), `#FFB300` (warning), `#007AFF` (accent)
+- **Colors (Light/Dark)**:
+  - Backgrounds: `#FFFFFF` / `#1C1C1E` (bgPrimary), `#F2F2F7` / `#2C2C2E` (bgSecondary)
+  - Text: `#000000` / `#FFFFFF` (primary), `#6E6E73` / `#8E8E93` (secondary)
+  - Accent: `#007AFF` / `#2684FF` (accent), `#0062CC` / `#2684FF` (hover)
+  - Status: `#00C853`/`#00E676` (online), `#FF5252`/`#FF6E6E` (offline), `#FFB300`/`#FFC107` (warning)
+  - HoverFill: `rgba(0,0,0,6%)` / `rgba(255,255,255,8%)`
+  - Border: `rgba(0,0,0,20%)` / `rgba(255,255,255,30%)`
+- All colors via `DesignToken.Colors.xxx` — NEVER hardcode hex in Swift code
 - Spacing: 4pt base unit (xs=4, sm=8, md=12, lg=16, xl=24)
 - All interactive elements need hover states (0.15s ease-in)
 - Status indicators with pulse animation
