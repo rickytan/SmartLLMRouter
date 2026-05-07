@@ -1096,7 +1096,120 @@ struct LabeledNumberField: View {
 
 ---
 
-## 4. 数据模型定义
+### 3.24 模块二十四：Smart Model Fallback — 透明模型映射兜底 **[新增]**
+
+#### 背景问题
+当前的 failover 机制只允许**同模型跨 Channel 重试**（如 `gpt-4o` 在 Channel A 失败后，找 Channel B 的 `gpt-4o`）。但如果所有 Channel 都没有这个模型，或者问题是 `context_length_exceeded` 导致的，现有的 failover 无法解决。
+
+#### 核心能力
+当请求失败时，代理可以**自动将模型替换为另一个 context 更大的模型**，对客户端透明（客户端仍然看到原 model 名）。
+
+#### 触发条件
+
+| 错误类型 | 兜底行为 |
+|---------|---------|
+| `context_length_exceeded` | **直接触发** — 找 context 更大的同协议模型 |
+| `429 Rate Limit` | 先找同模型的可用 Channel → 找不到再触发 |
+| `5xx Server Error` | 先找同模型的可用 Channel → 找不到再触发 |
+| `401 / 403` | **不兜底** — 凭证问题，换模型也没用 |
+
+#### 兜底约束（必须全部满足）
+
+1. **同协议**：OpenAI 请求只能兜底到 OpenAI 协议的模型，Anthropic 同理
+2. **更大 context**：兜底模型的 `contextLength` 必须大于当前请求实际使用的 token 数
+3. **费用控制**：预估总费用（`(input_tokens + 预估output) × price / 1M`）不超过用户设置的上限
+4. **不在冷却期**：目标 Channel 不能处于冷却状态
+5. **非当前 Channel**：不能兜底到已经失败的 Channel
+
+#### 兜底决策流程
+
+```
+请求: {"model": "gpt-4o", ...}
+Channel A (DashScope) → 400 context_length_exceeded (实际用了 95K tokens)
+
+↓ 智能兜底扫描:
+
+候选模型筛选:
+  ✅ DeepSeek V4-Flash    (1M context, $0.14/1M)   同协议(OpenAI) ✓, context > 95K ✓
+  ✅ Qwen-Max             (32K context, $5.60/1M)  ❌ context 不足
+  ✅ Claude Sonnet 4      (200K context, $3.00/1M)  ❌ 不同协议
+  ✅ OpenAI o1            (200K context, $15.00/1M)  同协议 ✓, context > 95K ✓
+
+按 context 降序排序 → DeepSeek V4-Flash (1M > o1 的 200K)
+检查预估费用: (95K + 预估5K) × $0.14/1M = $0.014 ≤ 用户设置的 $2.00 ✓
+
+决策: → DeepSeek V4-Flash
+客户端看到: {"model": "gpt-4o", ...}  不变
+代理发出:   {"model": "deepseek-v4-flash", ...}  自动替换
+```
+
+#### 用户设置（Advanced Tab 新增 Section）
+
+```
+┌────────────────────────────────────────────┐
+│  ⚠️ Smart Model Fallback                   │
+│                                            │
+│  [ ] Enable Smart Model Fallback           │  ToggleRow
+│                                            │
+│  ⚠️ 开启后，当请求失败或上下文超出时，       │
+│  代理会自动将请求转发到其他厂商的更大       │
+│  上下文模型（如 gpt-4o → deepseek-v4-flash）。│
+│  客户端感知的模型名不变，但实际生成模型     │
+│  可能改变。工具调用和结构化输出行为         │
+│  在不同模型间可能不一致。                    │
+│                                            │
+│  Max Fallback Cost   [ $2.00 per request ] │  LabeledNumberField
+│      跳过预估费用超过此值的兜底模型         │
+│                                            │
+└────────────────────────────────────────────┘
+```
+
+#### 日志记录
+
+每次兜底必须记录以下信息：
+
+```
+[INFO] SmartRouter: Fallback triggered for request req-xxx
+  Original model: gpt-4o (Channel: DashScope, Error: context_length_exceeded)
+  Fallback model: deepseek-v4-flash (Channel: DeepSeek, Context: 1M tokens)
+  Protocol: OpenAI (same protocol)
+  Estimated cost: $0.014 (limit: $2.00)
+  Retry attempt: 1/3
+```
+
+#### 费用计算
+
+```swift
+func estimatedFallbackCost(inputTokens: Int, outputTokensEstimate: Int, pricePer1M: Double) -> Double {
+    return Double(inputTokens + outputTokensEstimate) * pricePer1M / 1_000_000.0
+}
+```
+
+- `inputTokens`: 从上游错误响应中获取实际使用量（如 Anthropic 的 `usage.input_tokens`）
+- `outputTokensEstimate`: 默认预估 5000 tokens（可配置）
+- `pricePer1M`: 使用 `ModelEntry.outputPricePer1M`（如果不可用则用 `inputPricePer1M` 作为 fallback）
+
+#### 实现范围
+
+| 文件 | 改动内容 |
+|------|---------|
+| `SmartRouter.swift` | 新增 `smartFallbackEnabled` / `maxFallbackCost` 设置，新增 `selectFallbackModel()` 方法 |
+| `RequestForwarder.swift` | 模型名重写：在转发前替换 body 中的 `model` 字段 |
+| `SettingsView.swift` | Advanced Tab 新增 Smart Model Fallback section |
+| `L10n.swift` + strings | 新增兜底相关文案 |
+| `UserDefaults` | 新增 `smartllm_smart_fallback_enabled` / `smartllm_max_fallback_cost` 键 |
+
+#### 必须遵守的约束
+
+1. **协议一致性**：兜底模型必须与原始请求的协议兼容（OpenAI ↔ OpenAI，Anthropic ↔ Anthropic）
+2. **透明性**：客户端看到的 model 名永远不变，只有代理层和日志记录替换
+3. **费用保护**：预估费用超过用户设置上限的模型**绝不**作为兜底目标
+4. **日志必记**：每次兜底必须记录完整的原始模型 → 兜底模型 → 费用 → Channel 信息
+5. **用户明确知情**：设置项必须有明确的警告文案，告知用户兜底可能影响工具调用兼容性
+
+---
+
+### 4. 数据模型定义
 
 ### 4.1 Channel 结构体
 ```swift

@@ -114,6 +114,16 @@ final class ProxyServer: ObservableObject {
         // Apply model override from ModelSwitcher before forwarding
         let effectiveBody = applyModelOverride(body: bodyData)
 
+        // Apply smart fallback model swap if routing decision has a different effective model
+        var swappedBody = effectiveBody
+        if let orig = routingDecision.originalModel,
+           let eff = routingDecision.effectiveModel,
+           orig != eff,
+           let swapped = RequestForwarder.swapModel(in: effectiveBody, newModel: eff) {
+            Log.info("Smart fallback: model swapped from \(orig) to \(eff) for channel \(channel.name)")
+            swappedBody = swapped
+        }
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
         components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
@@ -127,7 +137,7 @@ final class ProxyServer: ObservableObject {
 
         if incomingProtocol != targetProtocol {
             do {
-                guard let json = try JSONSerialization.jsonObject(with: effectiveBody) as? [String: Any] else {
+                guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                     return errorResponse(400, "Invalid JSON body")
                 }
 
@@ -147,7 +157,7 @@ final class ProxyServer: ObservableObject {
                 return errorResponse(400, "Protocol conversion failed")
             }
         } else {
-            forwardedBody = effectiveBody
+            forwardedBody = swappedBody
         }
 
         // Add auth headers
@@ -182,12 +192,18 @@ final class ProxyServer: ObservableObject {
             }
 
             // Check for error status that should trigger retry
-            if statusCode >= 400, statusCode != 400, statusCode != 403 {
+            // For 429/5xx: standard retry
+            // For 400: check for context_length_exceeded in error body
+            let isContextExceeded = statusCode == 400 && isContextLengthExceeded(data)
+
+            if (statusCode >= 400 && statusCode != 400 && statusCode != 403) || isContextExceeded {
                 // Try to retry with another channel
                 if let retryDecision = SmartRouter.shared.handleError(
                     requestID: reqIdString,
                     statusCode: statusCode,
-                    modelName: modelName
+                    modelName: modelName,
+                    errorBody: isContextExceeded ? data : nil,
+                    requestProtocol: targetProtocol
                 ) {
                     Log.info(
                         "[#\(reqId)] Retrying with channel \(retryDecision.channel.name)"
@@ -311,6 +327,16 @@ final class ProxyServer: ObservableObject {
         // Apply model override from ModelSwitcher before forwarding
         let effectiveBody = applyModelOverride(body: bodyData)
 
+        // Apply smart fallback model swap if routing decision has a different effective model
+        var swappedBody = effectiveBody
+        if let orig = routingDecision.originalModel,
+           let eff = routingDecision.effectiveModel,
+           orig != eff,
+           let swapped = RequestForwarder.swapModel(in: effectiveBody, newModel: eff) {
+            Log.info("Smart fallback: model swapped from \(orig) to \(eff) for retry on channel \(channel.name)")
+            swappedBody = swapped
+        }
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
         components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
@@ -325,7 +351,7 @@ final class ProxyServer: ObservableObject {
 
         if incomingProtocol != targetProtocol {
             do {
-                guard let json = try JSONSerialization.jsonObject(with: effectiveBody) as? [String: Any] else {
+                guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                     SmartRouter.shared.completeRequest(requestID: reqIdString)
                     return errorResponse(400, "Invalid JSON body")
                 }
@@ -347,7 +373,7 @@ final class ProxyServer: ObservableObject {
                 return errorResponse(400, "Protocol conversion failed")
             }
         } else {
-            forwardedBody = effectiveBody
+            forwardedBody = swappedBody
         }
 
         // Add auth headers
@@ -510,6 +536,41 @@ final class ProxyServer: ObservableObject {
             return nil
         }
         return json["model"] as? String
+    }
+
+    /// Check if response body indicates a context_length_exceeded error
+    private func isContextLengthExceeded(_ body: Data) -> Bool {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return false
+        }
+
+        // OpenAI-style: error.code == "context_length_exceeded"
+        if let error = json["error"] as? [String: Any] {
+            if let code = error["code"] as? String, code == "context_length_exceeded" {
+                return true
+            }
+            if let message = error["message"] as? String,
+               message.localizedCaseInsensitiveContains("context") && message.localizedCaseInsensitiveContains("exceed") {
+                return true
+            }
+            if let type = error["type"] as? String, type == "context_length_exceeded" {
+                return true
+            }
+        }
+
+        // Anthropic-style: error.type == "context_length_exceeded"
+        if let error = json["error"] as? [String: Any],
+           let type = error["type"] as? String,
+           type == "context_length_exceeded" {
+            return true
+        }
+
+        // Direct check
+        if let type = json["type"] as? String, type == "context_length_exceeded" {
+            return true
+        }
+
+        return false
     }
 
     /// Apply model override from ModelSwitcher to request body

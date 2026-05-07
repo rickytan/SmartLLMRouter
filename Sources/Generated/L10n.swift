@@ -210,6 +210,18 @@ internal enum L10n {
     internal static var advancedTimeout: String {
       NSLocalizedString("settings.advanced.timeout", comment: "")
     }
+    internal static var advancedSmartFallback: String {
+      NSLocalizedString("settings.advanced.smartFallback", comment: "")
+    }
+    internal static var advancedSmartFallbackWarning: String {
+      NSLocalizedString("settings.advanced.smartFallbackWarning", comment: "")
+    }
+    internal static var advancedMaxFallbackCost: String {
+      NSLocalizedString("settings.advanced.maxFallbackCost", comment: "")
+    }
+    internal static var advancedMaxFallbackCostHint: String {
+      NSLocalizedString("settings.advanced.maxFallbackCostHint", comment: "")
+    }
     internal static var usageToday: String {
       NSLocalizedString("settings.usage.today", comment: "")
     }
@@ -296,6 +308,30 @@ internal enum L10n {
     }
     internal static var invalidPort: String {
       NSLocalizedString("error.invalid_port", comment: "")
+    }
+    internal static var errorContextExceeded: String {
+      NSLocalizedString("error.contextExceeded", comment: "")
+    }
+  }
+
+  internal enum Router {
+    internal static func fallbackTriggered(_ p1: String) -> String {
+      String(format: NSLocalizedString("router.fallbackTriggered", comment: ""), p1)
+    }
+    internal static var fallbackOriginalModel: String {
+      NSLocalizedString("router.fallbackOriginalModel", comment: "")
+    }
+    internal static var fallbackModel: String {
+      NSLocalizedString("router.fallbackModel", comment: "")
+    }
+    internal static var fallbackEstimatedCost: String {
+      NSLocalizedString("router.fallbackEstimatedCost", comment: "")
+    }
+    internal static var fallbackNoCandidate: String {
+      NSLocalizedString("router.fallbackNoCandidate", comment: "")
+    }
+    internal static var fallbackCostExceeded: String {
+      NSLocalizedString("router.fallbackCostExceeded", comment: "")
     }
   }
 

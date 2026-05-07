@@ -256,6 +256,12 @@ struct AdvancedTab: View {
                 Divider()
                     .padding(.horizontal, DesignToken.Layout.cardPadding)
 
+                // Smart Model Fallback Section
+                smartFallbackSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
                 // Cooldown Section
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                     Text(L10n.Settings.advancedCooldown)
@@ -270,6 +276,38 @@ struct AdvancedTab: View {
                 }
             }
             .padding(DesignToken.Layout.cardPadding)
+        }
+    }
+
+    private var smartFallbackSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.Settings.advancedSmartFallback)
+                .font(DesignToken.Font.h2())
+
+            ToggleRow(
+                L10n.Settings.advancedSmartFallback,
+                isOn: Binding(
+                    get: { SmartRouter.shared.smartFallbackEnabled },
+                    set: { SmartRouter.shared.smartFallbackEnabled = $0; SmartRouter.shared.saveSettings() }
+                )
+            )
+            .accessibilityIdentifier("settings.advanced.smartFallback")
+
+            Text(L10n.Settings.advancedSmartFallbackWarning)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            LabeledDoubleField(
+                L10n.Settings.advancedMaxFallbackCost,
+                placeholder: "$2.00",
+                hint: L10n.Settings.advancedMaxFallbackCostHint,
+                value: Binding(
+                    get: { SmartRouter.shared.maxFallbackCost },
+                    set: { SmartRouter.shared.maxFallbackCost = $0; SmartRouter.shared.saveSettings() }
+                ),
+                accessibilityID: "settings.advanced.maxFallbackCost"
+            )
         }
     }
 

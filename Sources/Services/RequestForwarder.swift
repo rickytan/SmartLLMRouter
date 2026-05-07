@@ -100,6 +100,22 @@ enum RequestForwarder {
         }
     }
 
+    /// Replace the model field in JSON body with a new model name.
+    /// Works for both OpenAI and Anthropic protocol bodies (both use "model" key).
+    static func swapModel(in body: Data, newModel: String) -> Data? {
+        do {
+            guard var json = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+                Log.warn("swapModel: body is not valid JSON")
+                return nil
+            }
+            json["model"] = newModel
+            return try JSONSerialization.data(withJSONObject: json)
+        } catch {
+            Log.error("swapModel: failed to modify body - \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Detect protocol from request
     enum RequestProtocol {
         case anthropic

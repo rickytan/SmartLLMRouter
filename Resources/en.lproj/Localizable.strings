@@ -79,6 +79,10 @@
 "settings.advanced.cooldown.401" = "Auth Error (401)";
 "settings.advanced.retry_count" = "Max Retries";
 "settings.advanced.timeout" = "Request Timeout (seconds)";
+"settings.advanced.smartFallback" = "Smart Model Fallback";
+"settings.advanced.smartFallbackWarning" = "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.";
+"settings.advanced.maxFallbackCost" = "Max Fallback Cost";
+"settings.advanced.maxFallbackCostHint" = "per request";
 
 // Usage Settings
 "settings.usage.today" = "Today";
@@ -113,6 +117,15 @@
 "error.invalid_request" = "Invalid Request";
 "error.no_api_key" = "No API key configured";
 "error.invalid_port" = "Invalid port number";
+"error.contextExceeded" = "Context length exceeded";
+
+// Router Fallback
+"router.fallbackTriggered" = "Fallback triggered for request %@";
+"router.fallbackOriginalModel" = "Original model";
+"router.fallbackModel" = "Fallback model";
+"router.fallbackEstimatedCost" = "Estimated cost";
+"router.fallbackNoCandidate" = "No suitable fallback model found";
+"router.fallbackCostExceeded" = "Fallback cost limit exceeded";
 
 // Onboarding
 "onboarding.title" = "Welcome to SmartLLM Router";

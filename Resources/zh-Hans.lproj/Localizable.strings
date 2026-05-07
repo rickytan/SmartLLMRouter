@@ -79,6 +79,10 @@
 "settings.advanced.cooldown.401" = "认证错误 (401)";
 "settings.advanced.retry_count" = "最大重试次数";
 "settings.advanced.timeout" = "请求超时 (秒)";
+"settings.advanced.smartFallback" = "智能模型回退";
+"settings.advanced.smartFallbackWarning" = "启用后，代理将自动使用其他提供商的更大上下文模型重试失败的请求。您的客户端将看到原始模型名称，但实际模型可能不同。不同模型之间的工具调用兼容性无法保证。";
+"settings.advanced.maxFallbackCost" = "最大回退成本";
+"settings.advanced.maxFallbackCostHint" = "每次请求";
 
 // Usage Settings
 "settings.usage.today" = "今天";
@@ -113,6 +117,15 @@
 "error.invalid_request" = "无效请求";
 "error.no_api_key" = "未配置 API 密钥";
 "error.invalid_port" = "无效端口号";
+"error.contextExceeded" = "上下文长度超出限制";
+
+// Router Fallback
+"router.fallbackTriggered" = "请求 %@ 触发回退";
+"router.fallbackOriginalModel" = "原始模型";
+"router.fallbackModel" = "回退模型";
+"router.fallbackEstimatedCost" = "预估费用";
+"router.fallbackNoCandidate" = "未找到合适的回退模型";
+"router.fallbackCostExceeded" = "回退成本超出限制";
 
 // Onboarding
 "onboarding.title" = "欢迎使用 SmartLLM Router";
