@@ -1,6 +1,6 @@
 # 🚅 SmartLLM Router
 
-A privacy-first local API gateway for LLMs, specifically optimized for **Claude Code**.
+A privacy-first local API gateway for LLMs, specifically optimized for **Claude Code** and developer workflows.
 专为 **Claude Code** 设计的隐私优先本地 LLM API 网关。
 
 ---
@@ -64,15 +64,56 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ---
 
+# 🛠️ Development Guide / 开发指南
+
+## Prerequisites
+- macOS 13.0+
+- Xcode 15.0+
+- Homebrew (for Ruby 3.1)
+
+## How to Build
+
+### 1. Environment Setup
+Ensure you have the correct Ruby version for CocoaPods. System Ruby (2.6) is too old.
+```bash
+brew install ruby@3.1
+export PATH="/opt/homebrew/Cellar/ruby@3.1/3.1.7_1/bin:$PATH"
+```
+
+### 2. Build Steps (Strict Order)
+⚠️ **ORDER MATTERS**: `xcodegen` must be run *before* `pod install`.
+
+```bash
+# Step 1: Generate Xcode Project
+xcodegen generate
+
+# Step 2: Install Dependencies
+bundle exec pod install
+
+# Step 3: Generate Localization Code (SwiftGen)
+swiftgen config run
+
+# Step 4: Build the App
+xcodebuild -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destination 'platform=macOS' build
+```
+
+### 3. Running Tests
+```bash
+xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destination 'platform=macOS' -only-testing:SmartLLMRouterTests
+```
+
+---
+
 # 🚀 Usage / 使用指南
 
 ### 1. Quick Start / 快速开始
-1.  **Configure Channel**: Open Settings (⚙️) -> Add your API Key (e.g., DeepSeek or OpenAI).
-2.  **Setup Shell**: Click **"Help me configure"** (⚙️ Setup Shell Environment) in Settings to automatically update your `.zshrc`.
-3.  **Start Coding**: Open your terminal and run Claude Code.
+1.  **Install & Launch**: Run the app. The first launch will open the Onboarding Wizard.
+2.  **Configure Channel**: Follow the wizard to add your API Key (e.g., DeepSeek or OpenAI).
+3.  **Auto-Config Shell**: Click **"Help me configure"** in Settings to automatically update your `.zshenv`.
+4.  **Start Coding**: Open your terminal and run Claude Code.
 
    ```bash
-   # If you used the auto-config, this is already done:
+   # If you used auto-config, this is already set:
    export ANTHROPIC_BASE_URL=http://localhost:1897
    
    claude
@@ -87,25 +128,13 @@ export ANTHROPIC_API_KEY=placeholder # The proxy will handle the real key
 
 ---
 
-# 🛠️ Tech Stack / 技术栈
-
-*   **Language**: Swift 5.9+ & SwiftUI
-*   **Project**: XcodeGen (No `.xcodeproj` in repo)
-*   **Dependency Manager**: CocoaPods
-*   **HTTP Server**: Swifter
-*   **HTTP Client**: Alamofire
-*   **Security**: KeychainAccess
-*   **Updates**: Sparkle
-*   **Localizations**: SwiftGen
-
----
-
 # 🛣️ Roadmap / 开发计划
 
 *   [x] **Phase 1**: Infrastructure, XcodeGen, CocoaPods setup, PRD Finalization.
-*   [ ] **Phase 2**: Core Proxy Server & Protocol Adapter (SSE/JSON Transform).
-*   [ ] **Phase 3**: Routing Engine, Menu Bar UI, Settings UI, `providers.json`.
-*   [ ] **Phase 4**: Auto-Failover Logic, Usage Stats, Auto-Config Shell, Sparkle Integration.
+*   [x] **Phase 2**: Core Proxy Server & Protocol Adapter (SSE/JSON Transform).
+*   [x] **Phase 3**: Routing Engine, Menu Bar UI, Settings UI, `providers.json`.
+*   [x] **Phase 4**: Auto-Failover Logic, Usage Stats, Auto-Config Shell, Sparkle Integration.
+*   [ ] **Phase 5**: Advanced Metrics Dashboard, Zero-Cost Health Checks, Smart Model Fallback.
 
 ---
 

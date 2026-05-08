@@ -745,3 +745,38 @@ if x { if y { ... } }           // ✅ Use @ViewBuilder or extract subview
 - [ ] No empty `// TODO` button handlers
 - [ ] No `.constant(true)` bindings
 - [ ] View file < 250 lines (extract subviews if longer)
+
+---
+
+## 13. Data Metrics & Presentation Strategy
+
+### 13.1 Metric Categories (Privacy-First)
+We only collect local runtime and value metrics. **No user behavior tracking.**
+
+| Layer | Category | Metrics Included |
+|-------|----------|------------------|
+| **Layer 1 (Value)** | Business Value | Routing Hit Rate, Fallback Trigger Rate (by cause), Cost Savings (vs baseline), Latency Optimization (P50/95/99). |
+| **Layer 2 (Health)** | System Health | Channel Availability (1m/5m/24h windows, 4-state machine), Error Patterns (4xx/5xx/Net), Fallback Chain Efficiency (4-step), System Resources, Health Check Cost. |
+
+### 13.2 UI Presentation Hierarchy
+- **MenuView (Glance)**:
+  - Shows conclusion data: Status (🟢/🔴), Current Latency (ms), Today's Cost Savings ($), Active Model.
+  - Channel List: Status indicators (🟢🟡🔴⚫).
+  - Smart Fallback Notification: "⚡ Fallback: Claude-3.5" (non-intrusive).
+- **Settings Window (Deep Dive)**:
+  - **Stats Tab**: Time picker (Today/24h/7d), Core Cards (Total Requests, Avg Latency, Cost vs Savings), Top Models.
+  - **Health Tab**: Channel Detail Table (Sparkline error trends, Last Probe Time), Fallback Chain Analysis.
+  - **Logs Tab**: Stream of recent events (e.g., "Switch to Fallback", "Channel Unhealthy"). All Keys marked `[REDACTED]`.
+
+### 13.3 Health Check Strategy
+- **Zero-Cost Probe (Default)**: `GET /v1/models` or `POST {}` (checking for 400 "model is required"). **Cost: $0.**
+- **Deep Verification (Recovery Phase)**: `POST max_tokens=1`. **Cost: < $0.0001.**
+- **Frequency**: 60s for normal state, 30s for degraded recovery.
+- **Rate Limit Protection**: Exponential backoff if 429 is received during probe.
+
+---
+
+## 14. Anti-Patterns (UI)
+- **❌ Don't**: Put complex charts in the Menu Bar popup.
+- **❌ Don't**: Use "User Behavior" metrics (local privacy guarantee).
+- **❌ Don't**: Perform health checks that burn tokens (use zero-cost probes).
