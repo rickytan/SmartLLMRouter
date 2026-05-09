@@ -155,6 +155,33 @@
     *   **禁止**: 绝不向客户端展示不属于当前请求协议的模型。
 *   **去重策略**: 同名模型取最大 `ContextLength` 和最低价格。
 
+#### E. 熔断器机制 (Circuit Breaker) **[cc-switch 借鉴]**
+*   **状态机**: 引入 `Closed` (正常) → `Open` (熔断) → `Half-Open` (半开) 三态流转。
+*   **触发条件**: 基于**错误率** (如 10 次请求错 6 次) 或 **连续失败次数** (如连错 5 次)。
+*   **半开恢复 (Half-Open Recovery)**:
+    *   熔断达到一定时间（如 60s）后，允许 **1 个试探性请求**通过。
+    *   成功 → 立即恢复 `Closed` (正常)；失败 → 立即再次 `Open` 并重新计时。
+    *   **优势**: 比固定冷却更动态，能快速响应不稳定的服务器。
+
+#### F. 智能重试与修复 (Smart Retry & Rectification) **[cc-switch 借鉴]**
+*   **流式错误缓冲 (Stream Error Buffering)**:
+    *   **场景**: 在 SSE 流式响应中，如果上游返回非 200 状态码。
+    *   **动作**: 暂停转发，**读取完整的错误 Body**。
+    *   **目的**: 只有拿到 Body 才能判断是 Key 过期 (401) 还是模型不对 (400)，从而决定是切换通道还是直接报错，防止客户端仅看到“断连”。
+*   **Thinking 自动修复 (Thinking Rectification)**:
+    *   **场景**: 上游返回 400 报错，信息包含 `budget_tokens exceeded` 或缺少 Beta Header。
+    *   **动作**: 
+        1. 拦截响应，提取错误原因。
+        2. **自动修改**请求 Body 中的 `thinking.budget_tokens` 为安全值，或注入缺失的 Header。
+        3. **本地静默重试**一次。
+*   **激进的 400 降级**: 即使上游返回 400，在修复重试失败后，依然尝试切换到下一个 Provider 重试（假设不同厂商对参数的宽容度不同）。
+
+#### G. 并发安全控制 (Concurrency Safety)
+*   **并发切换锁 (Switch Lock)**:
+    *   **场景**: 当多个请求同时发现当前通道不可用时，避免同时触发切换或重置熔断器的逻辑。
+    *   **动作**: 同一时间，只允许一个请求执行“切换/状态变更”操作，其他请求排队或等待结果。
+    *   **目的**: 保证本地代理状态机的一致性，防止竞态条件导致 Channel 频繁抖动。
+
 ### 3.4 模块四：菜单栏 UI (Menu Bar App)
 *   **Header**: 状态 (🟢/🔴) + 端口。
 *   **Stats**: 实时 Token 统计 (Callback 更新)。
@@ -523,9 +550,49 @@
           inputPricePer1M: pm.inputPrice,
           outputPricePer1M: pm.outputPrice,
           isEnabled: true
-      )
-  }
-  ```
+    )
+}
+```
+
+### 3.18 模块十八：从 cc switch 类工具/LiteLLM 导入配置 **[新增迁移能力]**
+
+#### 背景
+用户可能已经在使用 **ccLoad**, **ccany**, **LiteLLM**, 或 **cc-switch** 等工具。SmartLLM Router 提供**一键导入**功能，实现零成本迁移。
+
+#### 1. 自动探测路径
+代理启动 Onboarding 时，后台静默扫描常见路径：
+| 工具 | 探测路径 / 文件 | 数据格式 |
+|------|---------------|----------|
+| **ccLoad** | `~/.cc-load/data.db` | SQLite (Tables: `channels`, `api_keys`) |
+| **ccany** | `~/.ccany/data.db` | SQLite (Tables: `channels`, `keys`) |
+| **LiteLLM** | `~/.litellm/config.yaml` | YAML (`model_list` definitions) |
+| **cc-switch** | `~/.claude/settings.json` | JSON (`apiKey`, `apiHost`) |
+| **Env Vars** | 当前 Shell 环境 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
+
+#### 2. 映射与解析规则
+*   **Channel 提取**:
+    *   从 SQLite `channels` 表提取 `base_url`, `name`。
+    *   从 SQLite `api_keys` 表提取 `key` (解密后)。
+    *   根据 URL 特征自动推断协议 (e.g., `/v1` -> OpenAI, `/messages` -> Anthropic)。
+*   **去重检测**:
+    *   如果 SmartLLM Router 已存在相同 Base URL 的 Channel，跳过导入并提示。
+*   **元数据补全**:
+    *   导入的 Channel 若缺少模型列表，自动匹配 `providers.json` 补全元数据。
+
+#### 3. Onboarding 交互设计
+*   **触发**: Onboarding 首页增加入口 `📦 Import Existing Config`。
+*   **预览**:
+    *   "Found ccLoad (3 Channels) and LiteLLM (2 Providers)".
+    *   列出即将导入的厂商名称（API Key 脱敏）。
+*   **执行**:
+    *   点击 "Import All"。
+    *   Key 存入 Keychain。
+    *   Channels 加入本地存储。
+    *   自动跳转至"测速"或"完成"步骤。
+
+#### 4. 隐私安全
+*   **只读访问**: 仅读取源数据库，**不修改/删除**原工具的配置文件。
+*   **本地处理**: 所有解析在本地内存中进行，不上传任何 Key。
 
 #### Channel 初始化器参数顺序
 - Swift 初始化器参数有固定顺序，**位置参数必须在标签参数之前**
