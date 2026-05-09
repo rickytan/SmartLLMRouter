@@ -143,6 +143,9 @@ final class SmartRouter: ObservableObject {
     private var retryCounter: [String: Int] = [:]
     private var requestToChannel: [String: String] = [:]
 
+    /// Circuit breaker instance (replaces CooldownEngine)
+    private var circuitBreaker: CircuitBreaker { CircuitBreaker.shared }
+
     private init() {
         loadSettings()
     }
@@ -184,12 +187,12 @@ final class SmartRouter: ObservableObject {
     /// Select the best available channel for a request
     func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
         let channels = ChannelStore.shared.channels
-        let cooldownEngine = CooldownEngine.shared
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
 
+        // Use CircuitBreaker instead of CooldownEngine
         let availableChannels = sortedChannels.filter { channel in
-            !cooldownEngine.isCoolingDown(channelID: channel.id)
+            circuitBreaker.isAvailable(channelID: channel.id)
         }
 
         let compatibleChannels: [Channel] = if let model = modelName {
@@ -246,19 +249,21 @@ final class SmartRouter: ObservableObject {
 
         let previousChannelID = requestToChannel[requestID]
 
-        if let prevID = previousChannelID {
-            startCooldown(channelID: prevID, errorType: errorType)
+        // Use SwitchLock to prevent race conditions in state changes
+        SwitchLock.shared.execute {
+            if let prevID = previousChannelID {
+                self.circuitBreaker.recordFailure(channelID: prevID)
+            }
         }
 
         retryCounter[requestID] = currentRetryCount + 1
 
         let channels = ChannelStore.shared.channels
-        let cooldownEngine = CooldownEngine.shared
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
             channel.id != previousChannelID &&
-                !cooldownEngine.isCoolingDown(channelID: channel.id)
+                circuitBreaker.isAvailable(channelID: channel.id)
         }
 
         let compatibleChannels: [Channel] = if let model = modelName {
@@ -379,12 +384,11 @@ final class SmartRouter: ObservableObject {
         excludedChannelID: String?
     ) -> FallbackDecision? {
         let channels = ChannelStore.shared.channels
-        let cooldownEngine = CooldownEngine.shared
 
-        // 1. Get all channels NOT in cooldown and NOT the excluded channel
+        // 1. Get all channels NOT in circuit open state and NOT the excluded channel
         let availableChannels = channels.filter { channel in
             channel.id != excludedChannelID &&
-                !cooldownEngine.isCoolingDown(channelID: channel.id)
+                circuitBreaker.isAvailable(channelID: channel.id)
         }
 
         // 2. Build candidate list
@@ -523,22 +527,16 @@ final class SmartRouter: ObservableObject {
         }
     }
 
-    /// Start cooldown for a channel based on error type
-    private func startCooldown(channelID: String, errorType: RouterErrorType) {
-        let cooldownEngine = CooldownEngine.shared
-        let duration: TimeInterval = switch errorType {
-        case .rateLimit429:
-            Double(cooldown429Minutes) * 60.0
-        case .serverError5xx:
-            Double(cooldown5xxMinutes) * 60.0
-        case .authError401:
-            Double(cooldown401Hours) * 3600.0
-        default:
-            60.0
-        }
+    /// Record a successful request for the channel (closes circuit if half-open)
+    func recordSuccess(channelID: String) {
+        circuitBreaker.recordSuccess(channelID: channelID)
+    }
 
-        cooldownEngine.startCooldown(channelID: channelID, duration: duration)
-        Log.info("Started cooldown for channel \(channelID) - \(duration)s")
+    /// Start cooldown for a channel based on error type (now uses CircuitBreaker)
+    private func startCooldown(channelID: String, errorType _: RouterErrorType) {
+        // CircuitBreaker handles state internally via recordFailure
+        // This method is kept for backward compatibility
+        circuitBreaker.recordFailure(channelID: channelID)
     }
 
     /// Clear retry tracking for a completed request

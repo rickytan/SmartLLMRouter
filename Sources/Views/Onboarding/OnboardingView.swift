@@ -83,6 +83,9 @@ struct OnboardingView: View {
         .frame(width: DesignToken.Layout.onboardingWidth, height: DesignToken.Layout.onboardingHeight)
         .background(DesignToken.Colors.bgPrimary)
         .transition(.opacity)
+        .sheet(isPresented: $showingConfigImporter) {
+            ConfigImporterView()
+        }
     }
 
     // MARK: - Progress Indicator
@@ -167,15 +170,26 @@ struct OnboardingView: View {
 
     // MARK: - Add Channel Step (Batch Mode)
 
+    @State private var showingConfigImporter = false
+
     private var addChannelStep: some View {
         VStack(spacing: DesignToken.Spacing.md) {
-            // Header row: title + Add button
+            // Header row: title + buttons
             HStack {
                 Text(L10n.Onboarding.addedChannelsCount(pendingChannels.count))
                     .font(DesignToken.Font.h3())
                     .foregroundColor(DesignToken.Colors.textPrimary)
 
                 Spacer()
+
+                // Import Config button
+                BadgeButton(
+                    title: L10n.ConfigImporter.title,
+                    icon: "square.and.arrow.down.on.square"
+                ) {
+                    showingConfigImporter = true
+                }
+                .accessibilityIdentifier("onboarding.configimporter")
 
                 BadgeButton(
                     title: isAddingChannel ? L10n.AddChannel.cancel : L10n.Onboarding.addChannelAdd,

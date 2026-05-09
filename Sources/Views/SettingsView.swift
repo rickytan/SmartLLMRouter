@@ -173,6 +173,7 @@ struct ChannelsTab: View {
     @ObservedObject private var channelStore = ChannelStore.shared
     @ObservedObject private var channelManager = ChannelManager.shared
     @State private var showingAddChannel = false
+    @State private var showingConfigImporter = false
     @State private var isTestingAll = false
 
     var body: some View {
@@ -193,6 +194,15 @@ struct ChannelsTab: View {
                 .accessibilityIdentifier("settings.channels.testAll")
 
                 Spacer()
+
+                // Import Config button
+                HoverButton(
+                    title: L10n.ConfigImporter.title,
+                    icon: "square.and.arrow.down.on.square"
+                ) {
+                    showingConfigImporter = true
+                }
+                .accessibilityIdentifier("settings.channels.importConfig")
 
                 HoverButton(
                     title: L10n.Settings.channelsAdd,
@@ -229,6 +239,9 @@ struct ChannelsTab: View {
         .sheet(isPresented: $showingAddChannel) {
             AddChannelView()
         }
+        .sheet(isPresented: $showingConfigImporter) {
+            ConfigImporterView()
+        }
     }
 }
 
@@ -237,6 +250,8 @@ struct ChannelsTab: View {
 struct AdvancedTab: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var channelStore = ChannelStore.shared
+    @State private var circuitStates: [String: CircuitState] = [:]
+    @State private var refreshTimer: Timer?
 
     var body: some View {
         ScrollView {
@@ -262,6 +277,12 @@ struct AdvancedTab: View {
                 Divider()
                     .padding(.horizontal, DesignToken.Layout.cardPadding)
 
+                // Circuit Breaker Section
+                circuitBreakerSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
                 // Cooldown Section
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                     Text(L10n.Settings.advancedCooldown)
@@ -276,6 +297,17 @@ struct AdvancedTab: View {
                 }
             }
             .padding(DesignToken.Layout.cardPadding)
+        }
+        .onAppear {
+            refreshCircuitStates()
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+                Task { @MainActor in
+                    refreshCircuitStates()
+                }
+            }
+        }
+        .onDisappear {
+            refreshTimer?.invalidate()
         }
     }
 
@@ -322,6 +354,127 @@ struct AdvancedTab: View {
                 .font(DesignToken.Font.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundColor(DesignToken.Colors.textSecondary)
         }
+    }
+
+    // MARK: - Circuit Breaker Section
+
+    private var circuitBreakerSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            HStack {
+                Text(L10n.CircuitBreaker.title)
+                    .font(DesignToken.Font.h2())
+
+                Spacer()
+
+                Button {
+                    resetAllCircuits()
+                } label: {
+                    Text(L10n.CircuitBreaker.resetAll)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.accent)
+                }
+            }
+
+            Text(L10n.CircuitBreaker.description)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if circuitStates.isEmpty {
+                HStack(spacing: DesignToken.Spacing.sm) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(DesignToken.Colors.statusOnline)
+                    Text(L10n.CircuitBreaker.stateClosed)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+            } else {
+                ForEach(circuitStates.sorted(by: { $0.key < $1.key }), id: \.key) { channelID, state in
+                    circuitStateRow(channelID: channelID, state: state)
+                }
+            }
+        }
+    }
+
+    private func circuitStateRow(channelID: String, state: CircuitState) -> some View {
+        HStack(spacing: DesignToken.Spacing.sm) {
+            // Status indicator
+            Circle()
+                .fill(stateColor(for: state))
+                .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
+
+            // Channel name
+            let channelName = channelStore.channels.first(where: { $0.id == channelID })?.name ?? channelID
+            Text(channelName)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+
+            Spacer()
+
+            // State label
+            Text(stateLabel(for: state))
+                .font(DesignToken.Font.system(size: 11, weight: .medium))
+                .foregroundColor(stateColor(for: state))
+                .padding(.horizontal, DesignToken.Spacing.xs)
+                .padding(.vertical, 2)
+                .background(stateColor(for: state).opacity(0.1))
+                .cornerRadius(4)
+
+            // Remaining time (if open)
+            if case .open(let until) = state {
+                let remaining = max(0, until.timeIntervalSince(Date()))
+                if remaining > 0 {
+                    Text(formatRemainingTime(remaining))
+                        .font(DesignToken.Font.system(size: 10, design: .monospaced))
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, DesignToken.Spacing.sm)
+        .padding(.vertical, DesignToken.Spacing.xs)
+        .background(DesignToken.Colors.bgSecondary)
+        .cornerRadius(8)
+    }
+
+    private func stateColor(for state: CircuitState) -> Color {
+        switch state {
+        case .closed:
+            DesignToken.Colors.statusOnline
+        case .open:
+            DesignToken.Colors.statusOffline
+        case .halfOpen:
+            DesignToken.Colors.statusWarning
+        }
+    }
+
+    private func stateLabel(for state: CircuitState) -> String {
+        switch state {
+        case .closed:
+            L10n.CircuitBreaker.stateClosed
+        case .open:
+            L10n.CircuitBreaker.stateOpen
+        case .halfOpen:
+            L10n.CircuitBreaker.stateHalfOpen
+        }
+    }
+
+    private func formatRemainingTime(_ seconds: TimeInterval) -> String {
+        if seconds < 60 {
+            return "\(Int(seconds))s"
+        } else {
+            return "\(Int(seconds / 60))m"
+        }
+    }
+
+    private func refreshCircuitStates() {
+        circuitStates = CircuitBreaker.shared.allStates()
+    }
+
+    private func resetAllCircuits() {
+        for channel in channelStore.channels {
+            CircuitBreaker.shared.reset(channelID: channel.id)
+        }
+        refreshCircuitStates()
     }
 }
 

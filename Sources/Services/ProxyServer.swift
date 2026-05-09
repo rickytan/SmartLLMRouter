@@ -191,12 +191,36 @@ final class ProxyServer: ObservableObject {
                 Log.error("[#\(reqId)] HTTP \(statusCode) response from \(channel.name): \(responseBodyStr)")
             }
 
+            // Record success with CircuitBreaker for 2xx responses
+            if statusCode >= 200 && statusCode < 300 {
+                SmartRouter.shared.recordSuccess(channelID: channel.id)
+            }
+
             // Check for error status that should trigger retry
             // For 429/5xx: standard retry
-            // For 400: check for context_length_exceeded in error body
+            // For 400: check for context_length_exceeded or thinking budget issues in error body
             let isContextExceeded = statusCode == 400 && isContextLengthExceeded(data)
+            let isThinkingIssue = statusCode == 400 && isThinkingBudgetIssue(data)
 
-            if (statusCode >= 400 && statusCode != 400 && statusCode != 403) || isContextExceeded {
+            if (statusCode >= 400 && statusCode != 400 && statusCode != 403) || isContextExceeded || isThinkingIssue {
+                // Try thinking rectification first (for 400 with thinking budget issues)
+                if isThinkingIssue,
+                   let rectifiedBody = tryThinkingRectification(originalBody: bodyData, maxTokens: extractMaxTokens(from: bodyData)) {
+                    Log.info("[#\(reqId)] Thinking rectification: retrying with adjusted budget_tokens")
+                    return handleRetryWithModifiedBody(
+                        request: request,
+                        targetProtocol: targetProtocol,
+                        modifiedBody: rectifiedBody,
+                        bodyData: bodyData,
+                        incomingProtocol: incomingProtocol,
+                        channel: channel,
+                        apiKey: apiKey,
+                        reqId: reqId,
+                        startTime: startTime,
+                        modelName: modelName
+                    )
+                }
+
                 // Try to retry with another channel
                 if let retryDecision = SmartRouter.shared.handleError(
                     requestID: reqIdString,
@@ -267,6 +291,13 @@ final class ProxyServer: ObservableObject {
             )
 
         case let .failure(error):
+            // Record failure with CircuitBreaker
+            SmartRouter.shared.handleError(
+                requestID: reqIdString,
+                statusCode: 502,
+                modelName: modelName
+            )
+
             Log.error("[#\(reqId)] Forward failed: \(error.localizedDescription)")
 
             // Try to retry on network errors
@@ -571,6 +602,181 @@ final class ProxyServer: ObservableObject {
         }
 
         return false
+    }
+
+    /// Check if response body indicates a thinking budget error
+    private func isThinkingBudgetIssue(_ body: Data) -> Bool {
+        RequestForwarder.containsThinkingBudgetError(body)
+    }
+
+    /// Extract max_tokens from request body
+    private func extractMaxTokens(from body: Data) -> Int? {
+        RequestForwarder.extractMaxTokens(from: body)
+    }
+
+    /// Attempt thinking rectification: reduce budget_tokens to a safe value
+    private func tryThinkingRectification(originalBody: Data, maxTokens: Int?) -> Data? {
+        RequestForwarder.tryThinkingRectification(originalBody: originalBody, maxTokens: maxTokens)
+    }
+
+    /// Handle retry with a modified body (for thinking rectification)
+    private func handleRetryWithModifiedBody(
+        request: HttpRequest,
+        targetProtocol: RequestForwarder.RequestProtocol,
+        modifiedBody: Data,
+        bodyData _: Data,
+        incomingProtocol: RequestForwarder.RequestProtocol,
+        channel: Channel,
+        apiKey: String,
+        reqId: Int64,
+        startTime: Date,
+        modelName: String?
+    ) -> HttpResponse {
+        let isStream = RequestForwarder.isStreamingRequest(modifiedBody)
+
+        // Build upstream URL
+        var components = URLComponents(string: channel.baseURL)
+        components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
+        guard let upstreamURL = components?.url else {
+            return errorResponse(500, "Invalid upstream URL")
+        }
+
+        // Convert protocol if needed
+        let forwardedBody: Data
+        var convertedHeaders = request.headers
+
+        if incomingProtocol != targetProtocol {
+            do {
+                guard let json = try JSONSerialization.jsonObject(with: modifiedBody) as? [String: Any] else {
+                    return errorResponse(400, "Invalid JSON body")
+                }
+
+                let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                case (.anthropic, .openai):
+                    try ProtocolConverter.anthropicToOpenAI(body: json)
+                case (.openai, .anthropic):
+                    try ProtocolConverter.openAItoAnthropic(body: json)
+                default:
+                    json
+                }
+
+                forwardedBody = try JSONSerialization.data(withJSONObject: converted)
+                convertedHeaders["content-type"] = "application/json"
+                convertedHeaders["content-length"] = String(forwardedBody.count)
+            } catch {
+                return errorResponse(400, "Protocol conversion failed")
+            }
+        } else {
+            forwardedBody = modifiedBody
+        }
+
+        // Add auth headers
+        switch targetProtocol {
+        case .anthropic:
+            convertedHeaders["x-api-key"] = apiKey
+            convertedHeaders["anthropic-version"] = "2023-06-01"
+        case .openai, .unknown:
+            convertedHeaders["Authorization"] = "Bearer \(apiKey)"
+        }
+
+        convertedHeaders.removeValue(forKey: "host")
+
+        // Forward request
+        let result = forwardRequestSync(
+            reqId: reqId,
+            url: upstreamURL,
+            headers: convertedHeaders,
+            body: forwardedBody,
+            timeout: 120
+        )
+
+        switch result {
+        case let .success(data, statusCode, responseHeaders):
+            if statusCode < 200 || statusCode >= 300 {
+                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                Log.error("[#\(reqId)] HTTP \(statusCode) after thinking rectification: \(responseBodyStr)")
+
+                // If rectification failed, try standard failover
+                if let retryDecision = SmartRouter.shared.handleError(
+                    requestID: "req-\(reqId)",
+                    statusCode: statusCode,
+                    modelName: modelName,
+                    errorBody: data,
+                    requestProtocol: targetProtocol
+                ) {
+                    return handleRetryRequest(
+                        request: request,
+                        targetProtocol: targetProtocol,
+                        bodyData: modifiedBody,
+                        incomingProtocol: incomingProtocol,
+                        routingDecision: retryDecision,
+                        reqId: reqId,
+                        startTime: startTime
+                    )
+                }
+            } else {
+                SmartRouter.shared.recordSuccess(channelID: channel.id)
+            }
+
+            let latency = Date().timeIntervalSince(startTime)
+            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
+
+            var responseBody: Data? = data
+            if incomingProtocol != targetProtocol {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                    case (.openai, .anthropic):
+                        ProtocolConverter.anthropicToOpenAIResponse(body: json)
+                    case (.anthropic, .openai):
+                        ProtocolConverter.openAItoAnthropicResponse(body: json)
+                    default:
+                        json
+                    }
+                    responseBody = try? JSONSerialization.data(withJSONObject: converted)
+                }
+            }
+
+            let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
+            UsageTracker.shared.recordUsage(
+                channelID: channel.id, channelName: channel.name,
+                model: modelName ?? channel.models.first?.identifier ?? "unknown",
+                inputTokens: usage.input, outputTokens: usage.output,
+                estimatedCost: cost, latency: latency * 1000,
+                statusCode: statusCode, isError: statusCode >= 400
+            )
+
+            SmartRouter.shared.completeRequest(requestID: "req-\(reqId)")
+
+            return buildFinalResponse(
+                statusCode: statusCode,
+                body: responseBody ?? data,
+                isStream: isStream,
+                headers: responseHeaders
+            )
+
+        case let .failure(error):
+            Log.error("[#\(reqId)] Thinking rectification retry failed: \(error.localizedDescription)")
+
+            // Try standard failover
+            if let retryDecision = SmartRouter.shared.handleError(
+                requestID: "req-\(reqId)",
+                statusCode: 502,
+                modelName: modelName
+            ) {
+                return handleRetryRequest(
+                    request: request,
+                    targetProtocol: targetProtocol,
+                    bodyData: modifiedBody,
+                    incomingProtocol: incomingProtocol,
+                    routingDecision: retryDecision,
+                    reqId: reqId,
+                    startTime: startTime
+                )
+            }
+
+            SmartRouter.shared.completeRequest(requestID: "req-\(reqId)")
+            return errorResponse(502, "Upstream request failed after thinking rectification")
+        }
     }
 
     /// Apply model override from ModelSwitcher to request body

@@ -607,4 +607,88 @@ internal enum L10n {
       NSLocalizedString("about.appName", comment: "")
     }
   }
+
+  internal enum CircuitBreaker {
+    internal static var title: String {
+      NSLocalizedString("circuitbreaker.title", comment: "")
+    }
+    internal static var stateClosed: String {
+      NSLocalizedString("circuitbreaker.state.closed", comment: "")
+    }
+    internal static var stateOpen: String {
+      NSLocalizedString("circuitbreaker.state.open", comment: "")
+    }
+    internal static var stateHalfOpen: String {
+      NSLocalizedString("circuitbreaker.state.halfOpen", comment: "")
+    }
+    internal static var enabled: String {
+      NSLocalizedString("circuitbreaker.enabled", comment: "")
+    }
+    internal static var description: String {
+      NSLocalizedString("circuitbreaker.description", comment: "")
+    }
+    internal static var consecutiveFailures: String {
+      NSLocalizedString("circuitbreaker.consecutiveFailures", comment: "")
+    }
+    internal static var failureRate: String {
+      NSLocalizedString("circuitbreaker.failureRate", comment: "")
+    }
+    internal static var recoveryTimeout: String {
+      NSLocalizedString("circuitbreaker.recoveryTimeout", comment: "")
+    }
+    internal static func remainingTime(_ p1: String) -> String {
+      String(format: NSLocalizedString("circuitbreaker.remainingTime", comment: ""), p1)
+    }
+    internal static var resetAll: String {
+      NSLocalizedString("circuitbreaker.resetAll", comment: "")
+    }
+  }
+
+  internal enum ConfigImporter {
+    internal static var title: String {
+      NSLocalizedString("configimporter.title", comment: "")
+    }
+    internal static var subtitle: String {
+      NSLocalizedString("configimporter.subtitle", comment: "")
+    }
+    internal static var scan: String {
+      NSLocalizedString("configimporter.scan", comment: "")
+    }
+    internal static var scanning: String {
+      NSLocalizedString("configimporter.scanning", comment: "")
+    }
+    internal static var importSelected: String {
+      NSLocalizedString("configimporter.importSelected", comment: "")
+    }
+    internal static func importSuccess(_ p1: Int) -> String {
+      String(format: NSLocalizedString("configimporter.importSuccess", comment: ""), p1)
+    }
+    internal static var noResults: String {
+      NSLocalizedString("configimporter.noResults", comment: "")
+    }
+    internal static var noResultsDescription: String {
+      NSLocalizedString("configimporter.noResultsDescription", comment: "")
+    }
+    internal static func foundChannels(_ p1: Int) -> String {
+      String(format: NSLocalizedString("configimporter.foundChannels", comment: ""), p1)
+    }
+    internal static var selectAll: String {
+      NSLocalizedString("configimporter.selectAll", comment: "")
+    }
+    internal static var deselectAll: String {
+      NSLocalizedString("configimporter.deselectAll", comment: "")
+    }
+  }
+
+  internal enum Rectifier {
+    internal static var thinkingBudgetTitle: String {
+      NSLocalizedString("rectifier.thinkingBudget.title", comment: "")
+    }
+    internal static func thinkingBudgetReduced(_ p1: String, _ p2: String) -> String {
+      String(format: NSLocalizedString("rectifier.thinkingBudget.reduced", comment: ""), p1, p2)
+    }
+    internal static var streamErrorBuffering: String {
+      NSLocalizedString("rectifier.streamErrorBuffering", comment: "")
+    }
+  }
 }
