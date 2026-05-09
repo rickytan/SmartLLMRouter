@@ -128,6 +128,33 @@
 1.  **Manual**：用户指定，失败即报错。
 2.  **Auto**：开启自动切换策略。
 
+#### C. 模型驱动路由 (Model-Driven Routing) **[核心升级]**
+*   **路由键 (Routing Key)**: 请求的 `model` 字段是第一查找键，而非 Channel 优先级排序。
+*   **意图提取**: 代理从请求中识别 `Model ID` 和 `Protocol`。
+*   **双层降级链**:
+    1.  **Layer 1: 同模型冗余 (Exact Match Redundancy)**
+        *   **场景**: 用户请求 `model: "gpt-4o"`，首选 Channel 失败。
+        *   **动作**: 查找其他 **同样支持 "gpt-4o"** 且健康的 Channel。
+        *   **结果**: 用户获得同一模型的不同供应商响应 (无感切换)。
+    2.  **Layer 2: 智能降级 (Smart Model Fallback)**
+        *   **场景**: 所有支持 "gpt-4o" 的 Channel 全部不可用。
+        *   **动作**: 在 **同协议** 下寻找替代模型。
+        *   **约束**: 新模型的 `ContextLength` > 实际请求 Tokens；`EstimatedCost` ≤ `maxFallbackCost`。
+        *   **结果**: 用户获得替代模型响应 (例如降级到 GPT-4)。
+*   **容错透传 (Pass-Through)**:
+    *   **场景**: 请求的模型未在代理配置中列出。
+    *   **动作**: 转发至最高优先级的活跃 Channel。
+    *   **原因**: 保持对上游新模型的最大兼容性，防止因代理配置滞后导致请求失败。
+
+#### D. 模型聚合与协议隔离 (Model Aggregation & Protocol Isolation)
+*   **接口**: 拦截 `GET /v1/models`。
+*   **聚合逻辑**: 遍历所有 Channel 的模型列表，合并为一个虚拟模型池。
+*   **协议隔离规则**:
+    *   **OpenAI 请求**: 仅返回协议为 `OpenAI` 或 `Auto (Dual)` 的模型。
+    *   **Anthropic 请求**: 仅返回协议为 `Anthropic` 或 `Auto (Dual)` 的模型。
+    *   **禁止**: 绝不向客户端展示不属于当前请求协议的模型。
+*   **去重策略**: 同名模型取最大 `ContextLength` 和最低价格。
+
 ### 3.4 模块四：菜单栏 UI (Menu Bar App)
 *   **Header**: 状态 (🟢/🔴) + 端口。
 *   **Stats**: 实时 Token 统计 (Callback 更新)。
