@@ -10,10 +10,11 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 **SmartLLM Router** is a native macOS menu bar application that acts as a local HTTP gateway. It allows you to manage multiple API Keys from different providers (DeepSeek, OpenAI, Anthropic, Aliyun, MiniMax, etc.) and provides automatic failover and load balancing.
 
 ### Core Value
-1.  **Zero Client Configuration**: Claude Code only needs to configure `ANTHROPIC_BASE_URL=http://localhost:1897`.
-2.  **Transparent Routing**: Switch providers seamlessly or enable Auto-Failover for high availability.
-3.  **Protocol Compatibility**: Automatically converts between Anthropic and OpenAI protocols (JSON & SSE).
-4.  **Privacy First**: 100% Local Execution. No telemetry, no cloud sync. Your API Keys stay in your Mac's Keychain.
+1.  **Model-Driven Routing**: Just select a model in your client. The proxy automatically finds the best provider that supports it. No manual switching.
+2.  **Invisible Redundancy**: Multiple providers for the same model? If one fails, the proxy silently switches to another. You get the same model, different provider.
+3.  **Protocol Isolation**: Strict separation between OpenAI and Anthropic ecosystems. Never see a Claude model in an OpenAI list.
+4.  **Zero Client Configuration**: Claude Code only needs `ANTHROPIC_BASE_URL=http://localhost:1897`.
+5.  **Privacy First**: 100% Local Execution. No telemetry, no cloud sync. Your API Keys stay in your Mac's Keychain.
 
 ### Key Features
 *   ✅ **Multi-Provider Support**: Manage keys for Anthropic, OpenAI, DeepSeek, Aliyun DashScope, MiniMax, and more.
@@ -30,10 +31,11 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 **SmartLLM Router** 是一款原生 macOS 菜单栏应用，作为一个本地 HTTP 网关运行。它允许你管理来自不同提供商（DeepSeek、OpenAI、Anthropic、阿里百炼、MiniMax 等）的多个 API Key，并提供自动故障转移和负载均衡能力。
 
 ### 核心价值
-1.  **零配置客户端**：Claude Code 只需配置 `ANTHROPIC_BASE_URL=http://localhost:1897`。
-2.  **透明路由**：无缝切换提供商，或开启自动故障转移以实现高可用性。
-3.  **协议兼容**：自动处理 Anthropic 与 OpenAI 之间的请求/响应格式转换 (JSON & SSE)。
-4.  **隐私优先**：100% 本地运行。无遥测，无云同步。API Key 仅存储在您的 Mac Keychain 中。
+1.  **模型驱动路由**：在客户端直接选模型，代理自动寻找支持该模型的厂商。无需手动切换。
+2.  **隐形冗余**：同一个模型配了多家厂商？若一家挂了，代理自动切到另一家。你用的是同一个模型，只是换了供应商。
+3.  **协议隔离**：OpenAI 和 Anthropic 生态严格分离。绝不会在 OpenAI 列表里看到 Claude 模型。
+4.  **零配置客户端**：Claude Code 只需配置 `ANTHROPIC_BASE_URL=http://localhost:1897`。
+5.  **隐私优先**：100% 本地运行。无遥测，无云同步。API Key 仅存储在您的 Mac Keychain 中。
 
 ### 功能特性
 *   ✅ **多厂商支持**：管理 Anthropic, OpenAI, DeepSeek, 阿里百炼, MiniMax 等渠道的 Key。
@@ -132,9 +134,10 @@ export ANTHROPIC_API_KEY=placeholder # The proxy will handle the real key
 
 *   [x] **Phase 1**: Infrastructure, XcodeGen, CocoaPods setup, PRD Finalization.
 *   [x] **Phase 2**: Core Proxy Server & Protocol Adapter (SSE/JSON Transform).
-*   [x] **Phase 3**: Routing Engine, Menu Bar UI, Settings UI, `providers.json`.
-*   [x] **Phase 4**: Auto-Failover Logic, Usage Stats, Auto-Config Shell, Sparkle Integration.
-*   [ ] **Phase 5**: Advanced Metrics Dashboard, Zero-Cost Health Checks, Smart Model Fallback.
+*   [x] **Phase 3**: Routing Engine, Menu Bar UI, Settings UI, `providers.json`, Dark Mode.
+*   [x] **Phase 4**: Auto-Failover Logic, Cooldown Engine, Usage Stats, Auto-Config Shell, Sparkle.
+*   [x] **Phase 5**: Smart Model Fallback, 27-Component UI Library, Connection Test (4-Step Chain).
+*   [ ] **Phase 6**: Advanced Metrics Dashboard (Health/Stats Tabs), Zero-Cost Health Checks.
 
 ---
 

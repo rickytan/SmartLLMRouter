@@ -643,6 +643,44 @@ All colors are defined in `Assets.xcassets` with **Any + Dark Appearance** confi
 
 ---
 
+## 7. Routing Strategy & Failover (Core Logic)
+
+**Principle**: **Model-Driven Routing**. The `model` parameter in the request is the primary routing key, *not* the Channel priority order.
+
+### 7.1 Model Aggregation (`GET /v1/models`)
+*   **Protocol-Scoped**: Never mix protocols.
+    *   OpenAI Request → Returns OpenAI & Dual-Protocol models.
+    *   Anthropic Request → Returns Anthropic & Dual-Protocol models.
+*   **Deduplication**: Same Model ID from multiple Channels is merged (taking Max Context, Min Price).
+
+### 7.2 Routing Priority Chain
+When a request arrives for `model: "xyz"`, the proxy follows this chain:
+
+1.  **Layer 1: Exact Match Redundancy (Provider Failover)**
+    *   *Trigger*: Primary Channel for "xyz" fails (429/5xx/Timeout).
+    *   *Action*: Find *another* healthy Channel that **also supports "xyz"**.
+    *   *Result*: User gets the *exact same model* from a different provider.
+    *   *Scope*: Restricted to **Current Protocol**.
+
+2.  **Layer 2: Smart Model Fallback (Model Degradation)**
+    *   *Trigger*: All Channels for "xyz" fail.
+    *   *Action*: Find a *different* model in the **Same Protocol**.
+    *   *Constraint 1*: `ContextLength` must be > Actual Request Tokens.
+    *   *Constraint 2*: `EstimatedCost` must be ≤ `maxFallbackCost` threshold.
+    *   *Result*: Request succeeds with a "good enough" model (e.g., GPT-4o → GPT-4).
+
+3.  **Layer 3: Pass-Through (Fail-Safe)**
+    *   *Trigger*: Model not found in any Channel (Unknown Model).
+    *   *Action*: Route to the highest-priority active Channel.
+    *   *Result*: "Hope for the best" (upstream might support it even if proxy config is outdated).
+
+### 7.3 Anti-Patterns
+*   ❌ **Cross-Protocol Routing**: Never route an Anthropic request to a pure OpenAI endpoint without conversion.
+*   ❌ **Blind Failover**: Never fallback to a model with insufficient Context (guarantees crash).
+*   ❌ **Mixing Lists**: Never show Claude models to an OpenAI client.
+
+---
+
 ## 9. Accessibility
 
 | Rule | Value |
