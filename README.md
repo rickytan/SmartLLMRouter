@@ -49,20 +49,48 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 # 🏗️ Architecture / 系统架构
 
-```text
-[Client (Claude Code)] 
-       │
-       │ POST /v1/messages (Model: claude-3-5-sonnet)
-       ▼
-[Local Proxy Server (Port 1897)] 
-       │
-       ├── 1. Router Engine (Priority-based / Auto-Failover)
-       ├── 2. Protocol Adapter (Anthropic <-> OpenAI)
-       └── 3. Upstream Client (Alamofire)
-                │
-                ▼
-        [Upstream API (DeepSeek / OpenAI / etc.)]
+```mermaid
+flowchart TD
+    Client((Client<br>Claude Code)) -- "POST /v1/messages" --> Proxy[SmartLLM Proxy Server]
+    
+    subgraph ProxyCore [Local Proxy Core]
+        direction TB
+        Detect[1. Protocol Detection<br>Path & Body Analysis]
+        Extract[2. Intent Extraction<br>Model ID + Protocol]
+        
+        subgraph Router[Smart Router Engine (Model-Driven)]
+            Match[3. Channel Matching<br>Protocol + Model ID]
+            Check{4. Channel Healthy?}
+            
+            L1[Layer 1: Redundancy<br>Next Provider (Same Model)]
+            L2[Layer 2: Fallback<br>Next Compatible Model<br>(Context/Cost Constraints)]
+            L3[Layer 3: Pass-Through<br>Default Channel]
+            
+            Convert[5. Protocol Conversion<br>Anthropic <-> OpenAI]
+        end
+
+        Detect --> Extract --> Match --> Check
+        Check -- No --> L1 --> L2 --> L3 --> Convert
+        Check -- Yes --> Convert
+    end
+    
+    Convert -- "Forward Request" --> Upstream((Upstream API<br>DeepSeek / OpenAI / etc.))
+    
+    Upstream -- "Streaming Response" --> RespConvert[6. Response Conversion<br>Re-stream to Client]
+    
+    subgraph Metrics[Metrics & Privacy]
+        Usage[7. Usage Tracking<br>Tokens + Cost + Latency]
+        Log[8. Local Logging<br>Key Redacted]
+    end
+    
+    RespConvert --> Usage --> Log --> Client
 ```
+
+### 核心工作流 (Core Workflow)
+1. **识别与提取**: 自动识别客户端协议，提取请求模型。
+2. **模型驱动路由**: 根据模型匹配最佳厂商，包含三层降级保障（同模型冗余 -> 兼容模型降级 -> 默认通道透传）。
+3. **协议转换**: 透明处理 OpenAI 与 Anthropic 协议的互转。
+4. **隐私统计**: 本地记录 Token 消耗与预估费用，Key 全程脱敏。
 
 ---
 
