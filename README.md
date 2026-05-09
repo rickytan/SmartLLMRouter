@@ -51,36 +51,31 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ```mermaid
 flowchart TD
-    Client((Client<br>Claude Code)) -- "POST /v1/messages" --> Proxy[SmartLLM Proxy Server]
+    Client((Client<br/>Claude Code)) -- POST /v1/messages --> Proxy[SmartLLM Proxy]
     
-    subgraph ProxyCore [Local Proxy Core]
+    subgraph LocalProxy [Local Proxy Core]
         direction TB
-        Detect[1. Protocol Detection<br>Path & Body Analysis]
-        Extract[2. Intent Extraction<br>Model ID + Protocol]
+        Detect[1. Protocol Detection]
+        Extract[2. Intent Extraction]
+        Match[3. Channel Matching]
+        Check{4. Healthy?}
         
-        subgraph Router[Smart Router Engine (Model-Driven)]
-            Match[3. Channel Matching<br>Protocol + Model ID]
-            Check{4. Channel Healthy?}
-            
-            L1[Layer 1: Redundancy<br>Next Provider (Same Model)]
-            L2[Layer 2: Fallback<br>Next Compatible Model<br>(Context/Cost Constraints)]
-            L3[Layer 3: Pass-Through<br>Default Channel]
-            
-            Convert[5. Protocol Conversion<br>Anthropic <-> OpenAI]
-        end
-
-        Detect --> Extract --> Match --> Check
-        Check -- No --> L1 --> L2 --> L3 --> Convert
-        Check -- Yes --> Convert
+        L1[Layer 1 Same Model]
+        L2[Layer 2 Compatible Model]
+        L3[Layer 3 Pass-Through]
+        Convert[5. Protocol Conversion]
     end
     
-    Convert -- "Forward Request" --> Upstream((Upstream API<br>DeepSeek / OpenAI / etc.))
+    Detect --> Extract --> Match --> Check
+    Check -- No --> L1 --> L2 --> L3 --> Convert
+    Check -- Yes --> Convert
     
-    Upstream -- "Streaming Response" --> RespConvert[6. Response Conversion<br>Re-stream to Client]
+    Convert -- Forward --> Upstream((Upstream API))
+    Upstream -- Stream Response --> RespConvert[6. Response Conversion]
     
-    subgraph Metrics[Metrics & Privacy]
-        Usage[7. Usage Tracking<br>Tokens + Cost + Latency]
-        Log[8. Local Logging<br>Key Redacted]
+    subgraph Metrics [Metrics & Privacy]
+        Usage[7. Usage Tracking]
+        Log[8. Local Logging]
     end
     
     RespConvert --> Usage --> Log --> Client
