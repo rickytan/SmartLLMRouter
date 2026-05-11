@@ -50,42 +50,41 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 # 🏗️ Architecture / 系统架构
 
 ```mermaid
-flowchart TD
-    Client((Client<br/>Claude Code)) -- POST /v1/messages --> Proxy[SmartLLM Proxy]
+flowchart LR
+    CC((Claude Code)) -- request --> Proxy
+    Proxy -- forward --> Upstream((Upstream API))
+    Upstream -- response --> Proxy
     
-    subgraph LocalProxy [Local Proxy Core]
+    subgraph Proxy [SmartLLM Proxy Core]
         direction TB
         Detect[1. Protocol Detection]
         Extract[2. Intent Extraction]
         Match[3. Channel Matching]
         Check{4. Healthy?}
-        
-        L1[Layer 1 Same Model]
-        L2[Layer 2 Compatible Model]
-        L3[Layer 3 Pass-Through]
+        L1[Layer 1: Same Model Fallback]
+        L2[Layer 2: Compatible Model Fallback]
+        L3[Layer 3: Pass-Through]
         Convert[5. Protocol Conversion]
+        
+        Detect --> Extract --> Match --> Check
+        Check -- No --> L1 --> L2 --> L3 --> Convert
+        Check -- Yes --> Convert
     end
     
-    Detect --> Extract --> Match --> Check
-    Check -- No --> L1 --> L2 --> L3 --> Convert
-    Check -- Yes --> Convert
-    
-    Convert -- Forward --> Upstream((Upstream API))
-    Upstream -- Stream Response --> RespConvert[6. Response Conversion]
-    
-    subgraph Metrics [Metrics & Privacy]
+    subgraph Metrics [Metrics & Privacy (async)]
         Usage[7. Usage Tracking]
         Log[8. Local Logging]
     end
     
-    RespConvert --> Usage --> Log --> Client
+    Proxy -. track .-> Metrics
 ```
 
 ### 核心工作流 (Core Workflow)
-1. **识别与提取**: 自动识别客户端协议，提取请求模型。
-2. **模型驱动路由**: 根据模型匹配最佳厂商，包含三层降级保障（同模型冗余 -> 兼容模型降级 -> 默认通道透传）。
+1. **识别与提取**: Claude Code 发送请求到本地代理，自动识别协议，提取请求模型。
+2. **模型驱动路由**: 根据模型匹配最佳厂商，包含三层降级保障（同模型冗余 → 兼容模型降级 → 默认通道透传）。
 3. **协议转换**: 透明处理 OpenAI 与 Anthropic 协议的互转。
 4. **隐私统计**: 本地记录 Token 消耗与预估费用，Key 全程脱敏。
+5. **响应返回**: 转换后的响应流回传给 Claude Code。
 
 ---
 
