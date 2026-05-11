@@ -46,26 +46,139 @@ final class ProxyServer: ObservableObject {
     private func setupRoutes() {
         httpServer.post["/v1/messages"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return handleRequestSync(request, targetProtocol: .anthropic)
+            return self.handleRequestSync(request, targetProtocol: .anthropic)
         }
 
         httpServer.post["/v1/chat/completions"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return handleRequestSync(request, targetProtocol: .openai)
+            return self.handleRequestSync(request, targetProtocol: .openai)
         }
 
         httpServer["/health"] = { [weak self] _ in
             guard let self else { return HttpResponse.internalServerError }
+            // Read @MainActor properties via DispatchGroup bridge
+            var status = "stopped"
+            var portNum = 0
+            let group = DispatchGroup()
+            group.enter()
+            DispatchQueue.main.async {
+                status = self.isRunning ? "running" : "stopped"
+                portNum = self.port
+                group.leave()
+            }
+            _ = group.wait(timeout: .now() + 1)
             let json: [String: Any] = [
-                "status": isRunning ? "running" : "stopped",
-                "port": port,
+                "status": status,
+                "port": portNum,
             ]
             return HttpResponse.ok(.json(json))
         }
 
         httpServer.get["/v1/models"] = { [weak self] _ in
             guard let self else { return HttpResponse.internalServerError }
-            return handleModelsRequest()
+            return self.handleModelsRequest()
+        }
+    }
+
+    // MARK: - Thread-safe state bridge
+
+    /// Captures shared state from @MainActor services in a single main-thread hop.
+    /// This struct is Sendable (all fields are value types) and safe to use on any thread.
+    struct RequestState {
+        let channel: Channel
+        let apiKey: String
+        let routingDecision: RoutingDecision
+    }
+
+    /// Synchronously reads channel + routing decision from MainActor-isolated services.
+    /// Must be called from a background thread (Swifter handler context).
+    private func readRequestState(
+        request: HttpRequest,
+        bodyData: Data,
+        reqIdString: String
+    ) -> RequestState? {
+        var result: RequestState?
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.main.sync {
+            let modelName = self.extractModelName(from: bodyData)
+            guard let decision = SmartRouter.shared.selectChannel(
+                requestID: reqIdString,
+                modelName: modelName
+            ) else {
+                group.leave()
+                return
+            }
+            guard let apiKey = KeychainManager.shared.getAPIKey(for: decision.channel.id),
+                  !apiKey.isEmpty
+            else {
+                group.leave()
+                return
+            }
+            result = RequestState(
+                channel: decision.channel,
+                apiKey: apiKey,
+                routingDecision: decision
+            )
+            group.leave()
+        }
+        _ = group.wait(timeout: .now() + 1)
+        return result
+    }
+
+    /// Synchronously reads model override info from MainActor-isolated ModelSwitcher.
+    private func readModelOverride() -> (hasOverride: Bool, selectedModelID: String?) {
+        var result: (Bool, String?) = (false, nil)
+        DispatchQueue.main.sync {
+            result = (ModelSwitcher.shared.hasOverride, ModelSwitcher.shared.selectedModelID)
+        }
+        return result
+    }
+
+    // MARK: - Thread-safe SmartRouter helpers
+    // All SmartRouter methods are @MainActor-isolated; these helpers bridge from background threads.
+
+    private func routerRecordSuccess(channelID: String) {
+        DispatchQueue.main.sync {
+            SmartRouter.shared.recordSuccess(channelID: channelID)
+        }
+    }
+
+    private func routerHandleError(
+        requestID: String,
+        statusCode: Int,
+        modelName: String?,
+        errorBody: Data? = nil,
+        requestProtocol: RequestForwarder.RequestProtocol? = nil
+    ) -> RoutingDecision? {
+        var decision: RoutingDecision?
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.main.sync {
+            if let requestProtocol {
+                decision = SmartRouter.shared.handleError(
+                    requestID: requestID,
+                    statusCode: statusCode,
+                    modelName: modelName,
+                    errorBody: errorBody,
+                    requestProtocol: requestProtocol
+                )
+            } else {
+                decision = SmartRouter.shared.handleError(
+                    requestID: requestID,
+                    statusCode: statusCode,
+                    modelName: modelName
+                )
+            }
+            group.leave()
+        }
+        _ = group.wait(timeout: .now() + 1)
+        return decision
+    }
+
+    private func routerCompleteRequest(requestID: String) {
+        DispatchQueue.main.sync {
+            SmartRouter.shared.completeRequest(requestID: requestID)
         }
     }
 
@@ -92,27 +205,25 @@ final class ProxyServer: ObservableObject {
         let incomingProtocol = RequestForwarder.detectProtocol(path: request.path, body: bodyData)
         let modelName = extractModelName(from: bodyData)
 
-        // Use SmartRouter for channel selection
-        guard let routingDecision = SmartRouter.shared.selectChannel(requestID: reqIdString, modelName: modelName)
-        else {
-            Log.error("[#\(reqId)] No available channels")
+        // Thread-safe: read channel + routing decision from @MainActor services in one hop
+        guard let state = readRequestState(
+            request: request,
+            bodyData: bodyData,
+            reqIdString: reqIdString
+        ) else {
+            Log.error("[#\(reqId)] No available channels or missing API key")
             return errorResponse(503, "No available channel - all channels in cooldown or no channels configured")
         }
 
-        let channel = routingDecision.channel
-
-        // Validate API key
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
-              !apiKey.isEmpty
-        else {
-            Log.error("[#\(reqId)] No API key for channel \(channel.name)")
-            return errorResponse(503, "No API key configured for selected channel")
-        }
+        let channel = state.channel
+        let apiKey = state.apiKey
+        let routingDecision = state.routingDecision
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
 
-        // Apply model override from ModelSwitcher before forwarding
-        let effectiveBody = applyModelOverride(body: bodyData)
+        // Thread-safe: read model override from @MainActor ModelSwitcher
+        let override = readModelOverride()
+        let effectiveBody = applyModelOverride(body: bodyData, hasOverride: override.hasOverride, selectedModelID: override.selectedModelID)
 
         // Apply smart fallback model swap if routing decision has a different effective model
         var swappedBody = effectiveBody
@@ -193,7 +304,7 @@ final class ProxyServer: ObservableObject {
 
             // Record success with CircuitBreaker for 2xx responses
             if statusCode >= 200 && statusCode < 300 {
-                SmartRouter.shared.recordSuccess(channelID: channel.id)
+                routerRecordSuccess(channelID: channel.id)
             }
 
             // Check for error status that should trigger retry
@@ -222,7 +333,7 @@ final class ProxyServer: ObservableObject {
                 }
 
                 // Try to retry with another channel
-                if let retryDecision = SmartRouter.shared.handleError(
+                if let retryDecision = routerHandleError(
                     requestID: reqIdString,
                     statusCode: statusCode,
                     modelName: modelName,
@@ -280,7 +391,7 @@ final class ProxyServer: ObservableObject {
             )
 
             // Complete request tracking
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
 
             // Build response
             return buildFinalResponse(
@@ -292,7 +403,7 @@ final class ProxyServer: ObservableObject {
 
         case let .failure(error):
             // Record failure with CircuitBreaker
-            SmartRouter.shared.handleError(
+            routerHandleError(
                 requestID: reqIdString,
                 statusCode: 502,
                 modelName: modelName
@@ -301,7 +412,7 @@ final class ProxyServer: ObservableObject {
             Log.error("[#\(reqId)] Forward failed: \(error.localizedDescription)")
 
             // Try to retry on network errors
-            if let retryDecision = SmartRouter.shared.handleError(
+            if let retryDecision = routerHandleError(
                 requestID: reqIdString,
                 statusCode: 502,
                 modelName: modelName
@@ -328,7 +439,7 @@ final class ProxyServer: ObservableObject {
                 statusCode: 502, isError: true
             )
 
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
             return errorResponse(502, "Upstream request failed")
         }
     }
@@ -349,14 +460,15 @@ final class ProxyServer: ObservableObject {
         guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
               !apiKey.isEmpty
         else {
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
             return errorResponse(503, "No API key for retry channel")
         }
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
 
-        // Apply model override from ModelSwitcher before forwarding
-        let effectiveBody = applyModelOverride(body: bodyData)
+        // Thread-safe: read model override from @MainActor ModelSwitcher
+        let override = readModelOverride()
+        let effectiveBody = applyModelOverride(body: bodyData, hasOverride: override.hasOverride, selectedModelID: override.selectedModelID)
 
         // Apply smart fallback model swap if routing decision has a different effective model
         var swappedBody = effectiveBody
@@ -372,7 +484,7 @@ final class ProxyServer: ObservableObject {
         var components = URLComponents(string: channel.baseURL)
         components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
         guard let upstreamURL = components?.url else {
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -383,7 +495,7 @@ final class ProxyServer: ObservableObject {
         if incomingProtocol != targetProtocol {
             do {
                 guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
-                    SmartRouter.shared.completeRequest(requestID: reqIdString)
+                    routerCompleteRequest(requestID: reqIdString)
                     return errorResponse(400, "Invalid JSON body")
                 }
 
@@ -400,7 +512,7 @@ final class ProxyServer: ObservableObject {
                 convertedHeaders["content-type"] = "application/json"
                 convertedHeaders["content-length"] = String(forwardedBody.count)
             } catch {
-                SmartRouter.shared.completeRequest(requestID: reqIdString)
+                routerCompleteRequest(requestID: reqIdString)
                 return errorResponse(400, "Protocol conversion failed")
             }
         } else {
@@ -437,7 +549,7 @@ final class ProxyServer: ObservableObject {
 
             // Check for another retry
             if statusCode >= 400, statusCode != 400, statusCode != 403 {
-                if let nextRetry = SmartRouter.shared.handleError(
+                if let nextRetry = routerHandleError(
                     requestID: reqIdString,
                     statusCode: statusCode,
                     modelName: extractModelName(from: bodyData)
@@ -485,7 +597,7 @@ final class ProxyServer: ObservableObject {
                 statusCode: statusCode, isError: statusCode >= 400
             )
 
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
 
             return buildFinalResponse(
                 statusCode: statusCode,
@@ -495,7 +607,7 @@ final class ProxyServer: ObservableObject {
             )
 
         case .failure:
-            SmartRouter.shared.completeRequest(requestID: reqIdString)
+            routerCompleteRequest(requestID: reqIdString)
             return errorResponse(502, "All retry attempts failed")
         }
     }
@@ -697,7 +809,7 @@ final class ProxyServer: ObservableObject {
                 Log.error("[#\(reqId)] HTTP \(statusCode) after thinking rectification: \(responseBodyStr)")
 
                 // If rectification failed, try standard failover
-                if let retryDecision = SmartRouter.shared.handleError(
+                if let retryDecision = routerHandleError(
                     requestID: "req-\(reqId)",
                     statusCode: statusCode,
                     modelName: modelName,
@@ -715,7 +827,7 @@ final class ProxyServer: ObservableObject {
                     )
                 }
             } else {
-                SmartRouter.shared.recordSuccess(channelID: channel.id)
+                routerRecordSuccess(channelID: channel.id)
             }
 
             let latency = Date().timeIntervalSince(startTime)
@@ -745,7 +857,7 @@ final class ProxyServer: ObservableObject {
                 statusCode: statusCode, isError: statusCode >= 400
             )
 
-            SmartRouter.shared.completeRequest(requestID: "req-\(reqId)")
+            routerCompleteRequest(requestID: "req-\(reqId)")
 
             return buildFinalResponse(
                 statusCode: statusCode,
@@ -758,7 +870,7 @@ final class ProxyServer: ObservableObject {
             Log.error("[#\(reqId)] Thinking rectification retry failed: \(error.localizedDescription)")
 
             // Try standard failover
-            if let retryDecision = SmartRouter.shared.handleError(
+            if let retryDecision = routerHandleError(
                 requestID: "req-\(reqId)",
                 statusCode: 502,
                 modelName: modelName
@@ -774,17 +886,17 @@ final class ProxyServer: ObservableObject {
                 )
             }
 
-            SmartRouter.shared.completeRequest(requestID: "req-\(reqId)")
+            routerCompleteRequest(requestID: "req-\(reqId)")
             return errorResponse(502, "Upstream request failed after thinking rectification")
         }
     }
 
     /// Apply model override from ModelSwitcher to request body
     /// Returns modified body data with the selected model, or original body if no override
-    private func applyModelOverride(body: Data) -> Data {
+    private func applyModelOverride(body: Data, hasOverride: Bool, selectedModelID: String?) -> Data {
         // Check if user has selected a specific model
-        guard ModelSwitcher.shared.hasOverride,
-              let modelID = ModelSwitcher.shared.selectedModelID,
+        guard hasOverride,
+              let modelID = selectedModelID,
               var json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
         else {
             return body
@@ -821,29 +933,72 @@ final class ProxyServer: ObservableObject {
     }
 
     private func handleModelsRequest() -> HttpResponse {
-        let channels = ChannelStore.shared.channels
-        var allModels: [[String: Any]] = []
-        var seenIdentifiers = Set<String>()
+        // Use ModelAggregator to fetch models from all upstream channels concurrently.
+        // Since Swifter handlers run on background threads, we use a Task + DispatchGroup
+        // to bridge async fetch into the synchronous handler.
+        var modelsJSON: [[String: Any]]?
 
-        // Aggregate models from all channels matching the OpenAI protocol
-        // /v1/models is an OpenAI-standard endpoint.
-        for channel in channels {
-            if channel.protocol == .openai || channel.protocol == .auto {
-                for model in channel.models {
-                    if !seenIdentifiers.contains(model.identifier) {
-                        seenIdentifiers.insert(model.identifier)
-                        allModels.append([
-                            "id": model.identifier,
-                            "object": "model",
-                            "created": Int(Date().timeIntervalSince1970),
-                            "owned_by": channel.name
-                        ])
-                    }
+        let group = DispatchGroup()
+        group.enter()
+
+        Task {
+            defer { group.leave() }
+
+            // Lazy-load: fetch from all channels on first request
+            await ModelAggregator.shared.fetchAllModelsIfNeeded()
+
+            // Get aggregated models (includes cached + channel template models)
+            let allModels = ModelAggregator.shared.allModels()
+
+            // Also include any models directly from ChannelStore that weren't in the aggregator
+            // (e.g., user-configured models from templates that haven't been refreshed yet)
+            var channelModels: [ModelEntry] = []
+            await MainActor.run {
+                let channels = ChannelStore.shared.channels
+                for channel in channels {
+                    channelModels.append(contentsOf: channel.models)
                 }
             }
+
+            // Merge: aggregator models + channel models, deduplicated by identifier
+            var seen = Set<String>()
+            var combined: [[String: Any]] = []
+
+            for model in allModels {
+                if !seen.contains(model.identifier) {
+                    seen.insert(model.identifier)
+                    combined.append([
+                        "id": model.identifier,
+                        "object": "model",
+                        "created": Int(Date().timeIntervalSince1970),
+                        "owned_by": "aggregated"
+                    ])
+                }
+            }
+            for model in channelModels {
+                if !seen.contains(model.identifier) {
+                    seen.insert(model.identifier)
+                    let ownerName = await MainActor.run {
+                        let channels = ChannelStore.shared.channels
+                        return channels.first { $0.models.contains(where: { $0.identifier == model.identifier }) }?.name ?? "unknown"
+                    }
+                    combined.append([
+                        "id": model.identifier,
+                        "object": "model",
+                        "created": Int(Date().timeIntervalSince1970),
+                        "owned_by": ownerName
+                    ])
+                }
+            }
+
+            modelsJSON = combined
         }
 
-        return HttpResponse.ok(.json(["object": "list", "data": allModels]))
+        // Wait for async fetch (max 8 seconds: 5s timeout + 3s buffer)
+        _ = group.wait(timeout: .now() + 8)
+
+        let result = modelsJSON ?? []
+        return HttpResponse.ok(.json(["object": "list", "data": result]))
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {

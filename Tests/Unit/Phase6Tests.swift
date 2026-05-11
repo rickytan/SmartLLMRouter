@@ -276,7 +276,7 @@ final class ConfigImporterTests: XCTestCase {
     func testScanPathsContainExpectedLocations() {
         let paths = ConfigImporter.scanPaths
         XCTAssertGreaterThanOrEqual(paths.count, 2)
-        XCTAssertTrue(paths.contains { $0.hasSuffix("data.db") })
+        XCTAssertTrue(paths.contains { $0.hasSuffix("cc-switch.db") })
         XCTAssertTrue(paths.contains { $0.hasSuffix("settings.json") })
     }
 
@@ -445,6 +445,7 @@ final class SmartRoutingIntegrationTests: XCTestCase {
     }
     
     func testErrorHandling_ContextExceeded_Failover() throws {
+        SmartRouter.shared.mode = .auto
         let errorBody = """
         {"error": {"code": "context_length_exceeded", "message": "This model's maximum context length is 8192 tokens"}}
         """.data(using: .utf8)!
