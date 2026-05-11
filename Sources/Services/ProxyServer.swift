@@ -821,14 +821,29 @@ final class ProxyServer: ObservableObject {
     }
 
     private func handleModelsRequest() -> HttpResponse {
-        guard let channel = ChannelStore.shared.activeChannel else {
-            return errorResponse(503, "No active channel configured")
+        let channels = ChannelStore.shared.channels
+        var allModels: [[String: Any]] = []
+        var seenIdentifiers = Set<String>()
+
+        // Aggregate models from all channels matching the OpenAI protocol
+        // /v1/models is an OpenAI-standard endpoint.
+        for channel in channels {
+            if channel.protocol == .openai || channel.protocol == .auto {
+                for model in channel.models {
+                    if !seenIdentifiers.contains(model.identifier) {
+                        seenIdentifiers.insert(model.identifier)
+                        allModels.append([
+                            "id": model.identifier,
+                            "object": "model",
+                            "created": Int(Date().timeIntervalSince1970),
+                            "owned_by": channel.name
+                        ])
+                    }
+                }
+            }
         }
-        let models = channel.models.map { model in
-            ["id": model.identifier, "object": "model",
-             "created": Int(Date().timeIntervalSince1970), "owned_by": channel.name] as [String: Any]
-        }
-        return HttpResponse.ok(.json(["object": "list", "data": models]))
+
+        return HttpResponse.ok(.json(["object": "list", "data": allModels]))
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
