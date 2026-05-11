@@ -1,11 +1,12 @@
 # 🚅 SmartLLM Router
 
 A privacy-first local API gateway for LLMs, specifically optimized for **Claude Code** and developer workflows.
-专为 **Claude Code** 设计的隐私优先本地 LLM API 网关。
+
+> 🇨🇳 [查看中文文档](README_ZH.md)
 
 ---
 
-# 🇺🇸 Introduction
+## 🇺🇸 Introduction
 
 **SmartLLM Router** is a native macOS menu bar application that acts as a local HTTP gateway. It allows you to manage multiple API Keys from different providers (DeepSeek, OpenAI, Anthropic, Aliyun, MiniMax, etc.) and provides automatic failover and load balancing.
 
@@ -26,28 +27,7 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ---
 
-# 🇨🇳 简介
-
-**SmartLLM Router** 是一款原生 macOS 菜单栏应用，作为一个本地 HTTP 网关运行。它允许你管理来自不同提供商（DeepSeek、OpenAI、Anthropic、阿里百炼、MiniMax 等）的多个 API Key，并提供自动故障转移和负载均衡能力。
-
-### 核心价值
-1.  **模型驱动路由**：在客户端直接选模型，代理自动寻找支持该模型的厂商。无需手动切换。
-2.  **隐形冗余**：同一个模型配了多家厂商？若一家挂了，代理自动切到另一家。你用的是同一个模型，只是换了供应商。
-3.  **协议隔离**：OpenAI 和 Anthropic 生态严格分离。绝不会在 OpenAI 列表里看到 Claude 模型。
-4.  **零配置客户端**：Claude Code 只需配置 `ANTHROPIC_BASE_URL=http://localhost:1897`。
-5.  **隐私优先**：100% 本地运行。无遥测，无云同步。API Key 仅存储在您的 Mac Keychain 中。
-
-### 功能特性
-*   ✅ **多厂商支持**：管理 Anthropic, OpenAI, DeepSeek, 阿里百炼, MiniMax 等渠道的 Key。
-*   🔄 **智能自动切换**：基于优先级的路由，具备智能冷却机制（自动静默处理 429/5xx/401 错误）。
-*   🔀 **协议适配器**：Anthropic (Claude) 与 OpenAI 格式之间的无缝转换。
-*   📊 **实时统计**：追踪每日 Token 消耗和预估费用（30 天历史记录）。
-*   📦 **内置供应商配置**：通过 `providers.json` 实现主流厂商的一键初始化。
-*   🛡️ **本地安全**：API Key 存储在 macOS Keychain，数据绝不外发。
-
----
-
-# 🏗️ Architecture / 系统架构
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TD
@@ -82,16 +62,60 @@ flowchart TD
     ProxyNode -- stream --> Client
 ```
 
-### 核心工作流 (Core Workflow)
-1. **识别与提取**: Claude Code 发送请求到本地代理，自动识别协议，提取请求模型。
-2. **模型驱动路由**: 根据模型匹配最佳厂商，包含三层降级保障（同模型冗余 → 兼容模型降级 → 默认通道透传）。
-3. **协议转换**: 透明处理 OpenAI 与 Anthropic 协议的互转。
-4. **隐私统计**: 本地记录 Token 消耗与预估费用，Key 全程脱敏。
-5. **响应返回**: 转换后的响应流回传给 Claude Code。
+### Core Workflow
+1.  **Detection & Extraction**: Claude Code sends requests to the local proxy, automatically identifying the protocol and extracting the requested model.
+2.  **Model-Driven Routing**: Matches the best provider for the model, with a three-layer fallback guarantee (Same Model Redundancy → Compatible Model Degradation → Default Channel Pass-Through).
+3.  **Protocol Conversion**: Transparently handles the conversion between OpenAI and Anthropic protocols.
+4.  **Privacy Stats**: Locally records Token consumption and estimated costs. Keys are always masked.
+5.  **Response Streaming**: Converted response streams are returned to Claude Code.
 
 ---
 
-# 🛠️ Development Guide / 开发指南
+## 📉 Fallback Strategy
+
+SmartLLM Router implements a **Layered Fallback** strategy with **Circuit Breaker** protection to ensure high availability and stability.
+
+```mermaid
+flowchart TD
+    Start((Request Received)) --> Error{Error Occurred?}
+    
+    Error -- No --> Success[Return Success Response]
+    Error -- Yes --> TypeCheck{Check Error Type}
+    
+    TypeCheck -- "401 / 403 Auth" --> Block[Block Request: Credential Invalid]
+    TypeCheck -- "400 Context Exceeded" --> L2[L2: Compatible Model]
+    TypeCheck -- "429 / 5xx" --> RetryCheck{Retries < Max?}
+    
+    RetryCheck -- No --> MaxRetries[Return Error: Max Retries Reached]
+    
+    RetryCheck -- Yes --> CircuitBreaker{Channel Healthy?}
+    
+    CircuitBreaker -- "No (Tripped)" --> Remove[Remove Channel from Pool]
+    CircuitBreaker -- "Yes" --> Pool[Select from Available Pool]
+    
+    Remove --> Pool
+    
+    Pool --> L1[L1: Same Model Redundancy]
+    L1 --> L2
+    L2 --> L3[L3: Default Pass-Through]
+    L3 --> Retry[Retry Request]
+    
+    Retry --> Start
+```
+
+### Fallback Layers
+*   **Layer 1 (Same Model)**: Tries other channels configured with the **exact same model**. Best for handling rate limits or transient outages.
+*   **Layer 2 (Compatible Model)**: Tries a different model from the **same protocol family** that has **larger context** or higher capacity. Used for `context_length_exceeded` or model-specific outages.
+*   **Layer 3 (Pass-Through)**: Falls back to the default channel as a last resort.
+
+### Circuit Breaker
+*   **Closed**: Normal operation.
+*   **Open**: Channel has failed too many times (e.g., 3 consecutive failures or >60% failure rate). Temporarily excluded from the pool.
+*   **Half-Open**: After a cool-down period, a single "probe" request is allowed. If successful, the channel is restored; otherwise, it remains Open.
+
+---
+
+## 🛠️ Development Guide
 
 ## Prerequisites
 - macOS 13.0+
@@ -131,9 +155,9 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 
 ---
 
-# 🚀 Usage / 使用指南
+## 🚀 Usage
 
-### 1. Quick Start / 快速开始
+### 1. Quick Start
 1.  **Install & Launch**: Run the app. The first launch will open the Onboarding Wizard.
 2.  **Configure Channel**: Follow the wizard to add your API Key (e.g., DeepSeek or OpenAI).
 3.  **Auto-Config Shell**: Click **"Help me configure"** in Settings to automatically update your `.zshenv`.
@@ -146,7 +170,7 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
    claude
    ```
 
-### 2. Manual Setup / 手动设置
+### 2. Manual Setup
 You can also manually export the variables in your shell profile:
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:1897
@@ -155,7 +179,7 @@ export ANTHROPIC_API_KEY=placeholder # The proxy will handle the real key
 
 ---
 
-# 🛣️ Roadmap / 开发计划
+## 🛣️ Roadmap
 
 *   [x] **Phase 1**: Infrastructure, XcodeGen, CocoaPods setup, PRD Finalization.
 *   [x] **Phase 2**: Core Proxy Server & Protocol Adapter (SSE/JSON Transform).
@@ -166,7 +190,6 @@ export ANTHROPIC_API_KEY=placeholder # The proxy will handle the real key
 
 ---
 
-# 📄 License / 许可证
+## 📄 License
 
 This project is open-source and available under the MIT License.
-本项目是开源的，基于 MIT 许可证。
