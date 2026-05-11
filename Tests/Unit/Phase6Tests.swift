@@ -280,13 +280,13 @@ final class ConfigImporterTests: XCTestCase {
         XCTAssertTrue(paths.contains { $0.hasSuffix("settings.json") })
     }
 
-    func testScanNonExistentFile() {
-        let channels = ConfigImporter.scan(path: "/nonexistent/path/data.db")
+    func testScanNonExistentFile() async {
+        let channels = await ConfigImporter.scan(path: "/nonexistent/path/data.db")
         XCTAssertTrue(channels.isEmpty)
     }
 
-    func testScanNonExistentJSON() {
-        let channels = ConfigImporter.scan(path: "/nonexistent/settings.json")
+    func testScanNonExistentJSON() async {
+        let channels = await ConfigImporter.scan(path: "/nonexistent/settings.json")
         XCTAssertTrue(channels.isEmpty)
     }
 
@@ -340,7 +340,7 @@ final class ConfigImporterTests: XCTestCase {
 
         XCTAssertFalse(channel.name.isEmpty)
         XCTAssertFalse(channel.baseURL.isEmpty)
-        XCTAssertFalse(channel.id.isEmpty)
+        XCTAssertFalse(channel.id.uuidString.isEmpty)
         XCTAssertFalse(channel.isSelected) // Default should be false
     }
 }
@@ -372,7 +372,7 @@ final class RouterErrorTypeTests: XCTestCase {
         XCTAssertFalse(RouterErrorType.unknown.shouldFailover)
     }
 
-    func testContextLengthExceededFromBody() {
+    func testContextLengthExceededFromBody() throws {
         // OpenAI-style error
         let openAIBody = """
         {"error": {"code": "context_length_exceeded", "message": "This model's maximum context length is 8192 tokens"}}
@@ -394,5 +394,70 @@ final class RouterErrorTypeTests: XCTestCase {
         """.data(using: .utf8)!
         let error3 = RouterErrorType(statusCode: 400, errorBody: otherBody)
         XCTAssertEqual(error3, .clientError400)
+    }
+}
+
+// MARK: - Smart Routing Integration Tests
+
+@MainActor
+final class SmartRoutingIntegrationTests: XCTestCase {
+
+    func testRoutingDecision_L1_To_L2_Fallback() throws {
+        // Create test channels
+        let ch1 = Channel(name: "Primary", baseURL: "https://primary.com", protocol: .openai)
+        let ch2 = Channel(name: "Secondary", baseURL: "https://secondary.com", protocol: .openai)
+        
+        // Add to store (assuming ChannelStore allows addition)
+        ChannelStore.shared.addChannel(ch1)
+        ChannelStore.shared.addChannel(ch2)
+        
+        // Assign models
+        if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch1.id }) {
+            ChannelStore.shared.channels[idx].models = [ModelEntry(id: "m1", identifier: "gpt-4o", displayName: "GPT-4o")]
+        }
+        if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch2.id }) {
+            ChannelStore.shared.channels[idx].models = [ModelEntry(id: "m2", identifier: "gpt-4o", displayName: "GPT-4o")]
+        }
+        
+        // Trip Circuit Breaker for Primary
+        for _ in 0..<5 { CircuitBreaker.shared.recordFailure(channelID: ch1.id) }
+        
+        // Verify Primary is unavailable
+        XCTAssertFalse(CircuitBreaker.shared.isAvailable(channelID: ch1.id))
+        
+        // Request routing
+        let decision = SmartRouter.shared.selectChannel(requestID: "req-fallback-1", modelName: "gpt-4o")
+        
+        // Should skip broken Primary and select Secondary
+        XCTAssertNotNil(decision)
+        XCTAssertNotEqual(decision?.channel.id, ch1.id, "Should not select tripped channel")
+    }
+
+    func testErrorHandling_401_NoFailover() throws {
+        let decision = SmartRouter.shared.handleError(
+            requestID: "req-401", 
+            statusCode: 401, 
+            modelName: "gpt-4o", 
+            errorBody: nil
+        )
+        
+        XCTAssertNil(decision, "401 Auth Error should NEVER trigger failover")
+    }
+    
+    func testErrorHandling_ContextExceeded_Failover() throws {
+        let errorBody = """
+        {"error": {"code": "context_length_exceeded", "message": "This model's maximum context length is 8192 tokens"}}
+        """.data(using: .utf8)!
+        
+        let decision = SmartRouter.shared.handleError(
+            requestID: "req-context", 
+            statusCode: 400, 
+            modelName: "gpt-4o", 
+            errorBody: errorBody
+        )
+        
+        // Context exceeded SHOULD trigger failover if retries < max
+        // Since we haven't set retries, it uses default (3). So it should return a decision.
+        XCTAssertNotNil(decision, "Context length exceeded should trigger failover")
     }
 }
