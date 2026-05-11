@@ -933,7 +933,7 @@ final class ProxyServer: ObservableObject {
     }
 
     private func handleModelsRequest() -> HttpResponse {
-        // Non-blocking check: If we have cached models, return them immediately.
+        // Fast path: If we have cached models, return them immediately.
         if ModelAggregator.shared.hasCachedModels() {
             let models = ModelAggregator.shared.allModels()
             let modelsJSON = models.map { model in
@@ -944,14 +944,35 @@ final class ProxyServer: ObservableObject {
             return HttpResponse.ok(.json(["object": "list", "data": modelsJSON]))
         }
 
-        // First request: Fire-and-forget fetch in background.
-        // Do NOT block the handler thread. Return empty list this time.
+        // First request path: Block and wait for the fetch to complete.
+        // We use a semaphore to bridge the async fetch into this sync handler.
+        // Timeout is set to 8s (5s request timeout + 3s processing buffer).
+        let semaphore = DispatchSemaphore(value: 0)
+        var fetchCompleted = false
+
         Task {
             await ModelAggregator.shared.fetchAllModelsIfNeeded()
+            fetchCompleted = true
+            semaphore.signal()
         }
 
-        // Fallback to static channel models if cache is not ready
-        // We read from ChannelStore on Main Thread safely
+        // Wait for the fetch to finish, but don't wait forever.
+        let waitResult = semaphore.wait(timeout: .now() + 8)
+
+        if waitResult == .success && fetchCompleted {
+            // Fetch succeeded, return fresh models
+            let models = ModelAggregator.shared.allModels()
+            let modelsJSON = models.map { model in
+                ["id": model.identifier, "object": "model",
+                 "created": Int(Date().timeIntervalSince1970),
+                 "owned_by": "aggregated"] as [String: Any]
+            }
+            return HttpResponse.ok(.json(["object": "list", "data": modelsJSON]))
+        }
+
+        // Fallback path: Timeout or fetch failed.
+        // Return whatever static models we have in ChannelStore to avoid empty response.
+        Log.warn("[Proxy] /v1/models fetch timed out or failed, returning fallback models")
         var fallbackModels: [[String: Any]] = []
         DispatchQueue.main.sync {
             let channels = ChannelStore.shared.channels
