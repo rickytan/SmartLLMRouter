@@ -51,7 +51,7 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ```mermaid
 flowchart TD
-    CC((Claude Code)) -- request --> P[SmartLLM Proxy]
+    Client((Claude Code)) -- request --> ProxyNode[SmartLLM Proxy]
     
     subgraph ProxyCore [Proxy Core]
         direction TB
@@ -69,17 +69,17 @@ flowchart TD
         Check -- Yes --> Convert
     end
 
-    P --> ProxyCore
-    Convert -- forward --> API((Upstream API))
-    API -- response --> P
+    ProxyNode --> ProxyCore
+    Convert -- forward --> UpstreamAPI((Upstream API))
+    UpstreamAPI -- response --> ProxyNode
     
-    subgraph Metrics [Metrics & Privacy (async)]
+    subgraph Metrics [Metrics & Privacy async]
         Usage[7. Usage Tracking]
         Log[8. Local Logging]
     end
     
-    P -. track .-> Metrics
-    P -- stream --> CC
+    ProxyNode -. track .-> Metrics
+    ProxyNode -- stream --> Client
 ```
 
 ### 核心工作流 (Core Workflow)
