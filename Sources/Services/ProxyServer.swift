@@ -900,6 +900,12 @@ final class ChannelStore: ObservableObject {
     }
 
     func addChannel(_ channel: Channel) {
+        // Prevent adding duplicate base URLs
+        if channels.contains(where: { $0.baseURL.lowercased() == channel.baseURL.lowercased() }) {
+            Log.info("[ChannelStore] Skipping duplicate channel: \\(channel.baseURL)")
+            return
+        }
+
         channels.append(channel)
         if activeChannelID == nil { activeChannelID = channel.id }
         saveChannels()
