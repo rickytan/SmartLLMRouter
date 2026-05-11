@@ -50,19 +50,17 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 # 🏗️ Architecture / 系统架构
 
 ```mermaid
-flowchart LR
-    CC((Claude Code)) -- request --> Proxy
-    Proxy -- forward --> Upstream((Upstream API))
-    Upstream -- response --> Proxy
+flowchart TD
+    CC((Claude Code)) -- request --> P[SmartLLM Proxy]
     
-    subgraph Proxy [SmartLLM Proxy Core]
+    subgraph ProxyCore [Proxy Core]
         direction TB
         Detect[1. Protocol Detection]
         Extract[2. Intent Extraction]
         Match[3. Channel Matching]
         Check{4. Healthy?}
-        L1[Layer 1: Same Model Fallback]
-        L2[Layer 2: Compatible Model Fallback]
+        L1[Layer 1: Same Model]
+        L2[Layer 2: Compatible Model]
         L3[Layer 3: Pass-Through]
         Convert[5. Protocol Conversion]
         
@@ -70,13 +68,18 @@ flowchart LR
         Check -- No --> L1 --> L2 --> L3 --> Convert
         Check -- Yes --> Convert
     end
+
+    P --> ProxyCore
+    Convert -- forward --> API((Upstream API))
+    API -- response --> P
     
     subgraph Metrics [Metrics & Privacy (async)]
         Usage[7. Usage Tracking]
         Log[8. Local Logging]
     end
     
-    Proxy -. track .-> Metrics
+    P -. track .-> Metrics
+    P -- stream --> CC
 ```
 
 ### 核心工作流 (Core Workflow)
