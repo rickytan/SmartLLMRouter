@@ -933,72 +933,40 @@ final class ProxyServer: ObservableObject {
     }
 
     private func handleModelsRequest() -> HttpResponse {
-        // Use ModelAggregator to fetch models from all upstream channels concurrently.
-        // Since Swifter handlers run on background threads, we use a Task + DispatchGroup
-        // to bridge async fetch into the synchronous handler.
-        var modelsJSON: [[String: Any]]?
-
-        let group = DispatchGroup()
-        group.enter()
-
-        Task {
-            defer { group.leave() }
-
-            // Lazy-load: fetch from all channels on first request
-            await ModelAggregator.shared.fetchAllModelsIfNeeded()
-
-            // Get aggregated models (includes cached + channel template models)
-            let allModels = ModelAggregator.shared.allModels()
-
-            // Also include any models directly from ChannelStore that weren't in the aggregator
-            // (e.g., user-configured models from templates that haven't been refreshed yet)
-            var channelModels: [ModelEntry] = []
-            await MainActor.run {
-                let channels = ChannelStore.shared.channels
-                for channel in channels {
-                    channelModels.append(contentsOf: channel.models)
-                }
+        // Non-blocking check: If we have cached models, return them immediately.
+        if ModelAggregator.shared.hasCachedModels() {
+            let models = ModelAggregator.shared.allModels()
+            let modelsJSON = models.map { model in
+                ["id": model.identifier, "object": "model",
+                 "created": Int(Date().timeIntervalSince1970),
+                 "owned_by": "aggregated"] as [String: Any]
             }
-
-            // Merge: aggregator models + channel models, deduplicated by identifier
-            var seen = Set<String>()
-            var combined: [[String: Any]] = []
-
-            for model in allModels {
-                if !seen.contains(model.identifier) {
-                    seen.insert(model.identifier)
-                    combined.append([
-                        "id": model.identifier,
-                        "object": "model",
-                        "created": Int(Date().timeIntervalSince1970),
-                        "owned_by": "aggregated"
-                    ])
-                }
-            }
-            for model in channelModels {
-                if !seen.contains(model.identifier) {
-                    seen.insert(model.identifier)
-                    let ownerName = await MainActor.run {
-                        let channels = ChannelStore.shared.channels
-                        return channels.first { $0.models.contains(where: { $0.identifier == model.identifier }) }?.name ?? "unknown"
-                    }
-                    combined.append([
-                        "id": model.identifier,
-                        "object": "model",
-                        "created": Int(Date().timeIntervalSince1970),
-                        "owned_by": ownerName
-                    ])
-                }
-            }
-
-            modelsJSON = combined
+            return HttpResponse.ok(.json(["object": "list", "data": modelsJSON]))
         }
 
-        // Wait for async fetch (max 8 seconds: 5s timeout + 3s buffer)
-        _ = group.wait(timeout: .now() + 8)
+        // First request: Fire-and-forget fetch in background.
+        // Do NOT block the handler thread. Return empty list this time.
+        Task {
+            await ModelAggregator.shared.fetchAllModelsIfNeeded()
+        }
 
-        let result = modelsJSON ?? []
-        return HttpResponse.ok(.json(["object": "list", "data": result]))
+        // Fallback to static channel models if cache is not ready
+        // We read from ChannelStore on Main Thread safely
+        var fallbackModels: [[String: Any]] = []
+        DispatchQueue.main.sync {
+            let channels = ChannelStore.shared.channels
+            for channel in channels {
+                for model in channel.models {
+                    fallbackModels.append([
+                        "id": model.identifier, "object": "model",
+                        "created": Int(Date().timeIntervalSince1970),
+                        "owned_by": channel.name
+                    ])
+                }
+            }
+        }
+        
+        return HttpResponse.ok(.json(["object": "list", "data": fallbackModels]))
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {

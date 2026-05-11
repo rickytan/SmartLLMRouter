@@ -3,18 +3,19 @@ import Foundation
 /// Singleton service that manages an in-memory cache of aggregated models
 /// from all configured upstream channels. Fetches lazily on first request
 /// and merges results with deduplication by model identifier.
-@MainActor
+/// NOTE: This class is NOT @MainActor. Network requests run in the background.
+/// Only updates to ChannelStore happen on MainActor.
 final class ModelAggregator {
     static let shared = ModelAggregator()
 
     /// In-memory cache of aggregated model entries, keyed by channel ID.
     private var cachedModels: [String: [ModelEntry]] = [:]
 
-    /// Timestamp of the last successful fetch. Used for cache freshness checks.
-    private var lastFetchDate: Date?
-
     /// Tracks whether the initial lazy fetch has been triggered.
     private var hasInitialized: Bool = false
+    
+    /// Lock to protect `hasInitialized` and `cachedModels` access.
+    private let lock = NSLock()
 
     private init() {}
 
@@ -22,10 +23,18 @@ final class ModelAggregator {
 
     /// Fetches models from all channels, merges, deduplicates, and updates
     /// the ChannelStore. Triggers lazy loading on first call.
-    /// Safe to call from any thread (bridges to MainActor internally).
+    /// This is an async function and should be called from a background context or Task.
     func fetchAllModelsIfNeeded() async {
-        guard !hasInitialized else { return }
-        hasInitialized = true
+        // Check flag with lock
+        var shouldFetch = false
+        lock.lock()
+        if !hasInitialized {
+            hasInitialized = true
+            shouldFetch = true
+        }
+        lock.unlock()
+
+        guard shouldFetch else { return }
 
         await fetchAndMergeAllChannels()
     }
@@ -37,24 +46,18 @@ final class ModelAggregator {
 
     /// Returns the aggregated, deduplicated list of all known model entries
     /// across all channels. Reads from the in-memory cache.
+    /// Thread-safe.
     func allModels() -> [ModelEntry] {
+        lock.lock()
+        let cacheSnapshot = cachedModels
+        lock.unlock()
+
         var seen = Set<String>()
         var result: [ModelEntry] = []
 
         // Gather from cache first
-        for models in cachedModels.values {
+        for models in cacheSnapshot.values {
             for model in models {
-                if !seen.contains(model.identifier) {
-                    seen.insert(model.identifier)
-                    result.append(model)
-                }
-            }
-        }
-
-        // Also include models stored directly in channels (from user config / templates)
-        let channels = ChannelStore.shared.channels
-        for channel in channels {
-            for model in channel.models {
                 if !seen.contains(model.identifier) {
                     seen.insert(model.identifier)
                     result.append(model)
@@ -64,13 +67,24 @@ final class ModelAggregator {
 
         return result
     }
+    
+    /// Checks if we have any cached models.
+    func hasCachedModels() -> Bool {
+        lock.lock()
+        let isEmpty = cachedModels.isEmpty
+        lock.unlock()
+        return !isEmpty
+    }
 
     // MARK: - Internal
 
     /// Fetches models from every channel concurrently, merges results,
     /// and updates each channel's model list in ChannelStore.
     private func fetchAndMergeAllChannels() async {
-        let channels = ChannelStore.shared.channels
+        let channels = await MainActor.run {
+            return ChannelStore.shared.channels
+        }
+        
         guard !channels.isEmpty else {
             Log.info("[ModelAggregator] No channels configured, skipping fetch")
             return
@@ -94,15 +108,13 @@ final class ModelAggregator {
             return channelResults
         }
 
-        // Merge results and update channels
+        // Merge results and prepare updates
         var allUniqueModels: [String: ModelEntry] = [:]
-        var updatedChannels: [Channel] = []
+        var updates: [(id: String, models: [ModelEntry])] = []
 
         for (channel, models) in results {
             if !models.isEmpty {
-                var updatedChannel = channel
-                updatedChannel.models = models
-                updatedChannels.append(updatedChannel)
+                updates.append((id: channel.id, models: models))
 
                 // Add to global dedup map
                 for model in models {
@@ -112,7 +124,10 @@ final class ModelAggregator {
                 }
 
                 // Update cache
+                lock.lock()
                 cachedModels[channel.id] = models
+                lock.unlock()
+                
                 Log.info("[ModelAggregator] Channel '\(channel.name)': \(models.count) models fetched")
             } else {
                 Log.warn("[ModelAggregator] Channel '\(channel.name)': no models returned")
@@ -120,22 +135,29 @@ final class ModelAggregator {
         }
 
         // Write updated models back to ChannelStore on MainActor
-        for updatedChannel in updatedChannels {
-            ChannelStore.shared.updateChannel(updatedChannel)
+        // Create a local copy to avoid capturing mutable 'updates' across actor boundary
+        let finalUpdates = updates
+        await MainActor.run {
+            for update in finalUpdates {
+                if let index = ChannelStore.shared.channels.firstIndex(where: { $0.id == update.id }) {
+                    ChannelStore.shared.channels[index].models = update.models
+                }
+            }
+            ChannelStore.shared.saveChannels()
         }
 
-        lastFetchDate = Date()
-
         let totalUnique = allUniqueModels.count
-        Log.info("[ModelAggregator] Aggregation complete: \(totalUnique) unique models from \(updatedChannels.count) channels")
+        Log.info("[ModelAggregator] Aggregation complete: \(totalUnique) unique models from \(updates.count) channels")
     }
 
     /// Fetches models from a single channel with appropriate auth headers
     /// and a 5-second timeout.
     private func fetchModelsForChannel(_ channel: Channel) async -> [ModelEntry] {
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
-              !apiKey.isEmpty
-        else {
+        let apiKey = await MainActor.run {
+            return KeychainManager.shared.getAPIKey(for: channel.id)
+        }
+        
+        guard let apiKey = apiKey, !apiKey.isEmpty else {
             Log.warn("[ModelAggregator] No API key for channel '\(channel.name)', skipping")
             return []
         }
@@ -187,22 +209,44 @@ final class ModelAggregator {
     }
 
     /// Parses an OpenAI-style /v1/models JSON response into ModelEntry objects.
+    /// Fallback parsing for non-standard responses.
     private func parseModelsResponse(data: Data) -> [ModelEntry] {
         do {
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let modelList = json["data"] as? [[String: Any]]
-            else {
-                Log.warn("[ModelAggregator] Invalid models response format")
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return []
+            }
+            
+            var modelList: [[String: Any]] = []
+            
+            // Standard OpenAI format
+            if let list = json["data"] as? [[String: Any]] {
+                modelList = list
+            } 
+            // Google/Other format (sometimes uses "models" array)
+            else if let list = json["models"] as? [[String: Any]] {
+                // Transform to match OpenAI structure
+                modelList = list.map { model in
+                    var transformed = model
+                    if let name = model["name"] as? String {
+                        transformed["id"] = name.replacingOccurrences(of: "models/", with: "")
+                    }
+                    return transformed
+                }
+            }
+            
+            guard !modelList.isEmpty else {
                 return []
             }
 
             return modelList.compactMap { modelDict -> ModelEntry? in
-                guard let modelId = modelDict["id"] as? String else { return nil }
+                // Try "id" first, then "name" (some proxies return name)
+                let modelId = (modelDict["id"] as? String) ?? (modelDict["name"] as? String)
+                guard let id = modelId else { return nil }
 
                 return ModelEntry(
                     id: UUID().uuidString,
-                    identifier: modelId,
-                    displayName: modelId,
+                    identifier: id,
+                    displayName: id,
                     contextLength: nil,
                     inputPricePer1M: nil,
                     outputPricePer1M: nil,
