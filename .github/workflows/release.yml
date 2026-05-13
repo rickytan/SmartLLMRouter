@@ -1,0 +1,225 @@
+name: CI & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_NAME: SmartLLMRouter
+  SCHEME: SmartLLMRouter
+  BUILD_DIR: build
+
+jobs:
+  # ─────────────────────────────────────────────
+  # CI: Build & Test (on every push/PR)
+  # ─────────────────────────────────────────────
+  ci:
+    name: Build & Test
+    runs-on: macos-14
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Install dependencies
+        run: bundle exec pod install
+
+      - name: Run SwiftGen
+        run: |
+          if command -v swiftgen &>/dev/null; then
+            swiftgen config run
+          else
+            echo "warning: SwiftGen not installed, skipping"
+          fi
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -destination "platform=macOS,arch=arm64" \
+            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            | xcpretty --color
+
+      - name: Run Unit Tests
+        run: |
+          xcodebuild test \
+            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -destination "platform=macOS,arch=arm64" \
+            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty --color
+
+  # ─────────────────────────────────────────────
+  # Release: Sign, Notarize, Package, Publish
+  # ─────────────────────────────────────────────
+  release:
+    name: Release
+    runs-on: macos-14
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [] # Independent; can run without CI job
+
+    env:
+      APP_NAME: SmartLLMRouter.app
+      OUTPUT_DIR: release-artifacts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      # ── Build ──
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Install dependencies
+        run: bundle exec pod install
+
+      - name: Run SwiftGen
+        run: |
+          if command -v swiftgen &>/dev/null; then
+            swiftgen config run
+          else
+            echo "warning: SwiftGen not installed, skipping"
+          fi
+
+      - name: Build Release
+        run: |
+          xcodebuild build \
+            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -destination "platform=macOS,arch=arm64" \
+            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
+            CODE_SIGN_IDENTITY="${{ vars.CODE_SIGN_IDENTITY_NAME }}" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            ONLY_ACTIVE_ARCH=NO \
+            | xcpretty --color
+
+      # ── Code Signing ──
+      - name: Setup signing keychain
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: .github/scripts/setup-keychain.sh
+
+      - name: Sign App
+        env:
+          CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY_NAME }}
+        run: |
+          APP_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          codesign --force --options runtime --sign "$CODE_SIGN_IDENTITY" \
+            --entitlements Resources/SmartLLMRouter.entitlements \
+            "$APP_PATH"
+          codesign --verify --verbose "$APP_PATH"
+
+      # ── Notarization ──
+      - name: Create ZIP for notarization
+        run: |
+          mkdir -p "${{ env.OUTPUT_DIR }}"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}" \
+            "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
+
+      - name: Notarize App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+      - name: Staple Notarization Ticket
+        run: |
+          xcrun stapler staple "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+
+      # ── Final packaging ──
+      - name: Package final release ZIP
+        run: |
+          rm -f "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}" \
+            "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
+          cp "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}.dSYM" \
+            "${{ env.OUTPUT_DIR }}/" 2>/dev/null || true
+
+      # ── Sparkle Appcast Generation ──
+      - name: Download Sparkle CLI tools
+        run: |
+          SPARKLE_VERSION="2.6.4"
+          curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o sparkle.tar.xz
+          tar xf sparkle.tar.xz
+          chmod +x sparkle/bin/generate_appcast
+          echo "$PWD/sparkle/bin" >> $GITHUB_PATH
+
+      - name: Generate Appcast
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          echo "$SPARKLE_ED_KEY" > sparkle_private.pem
+          generate_appcast \
+            --ed-key-file sparkle_private.pem \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/" \
+            --link "https://github.com/${{ github.repository }}" \
+            "${{ env.OUTPUT_DIR }}"
+          rm -f sparkle_private.pem
+
+      # ── Deploy ──
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip
+            ${{ env.OUTPUT_DIR }}/*.dSYM
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      - name: Deploy Appcast to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.OUTPUT_DIR }}
+          keep_files: false
+          force_orphan: true
+        if: ${{ !contains(github.ref, 'beta') && !contains(github.ref, 'alpha') }}
+
+      - name: Save Appcast (for review)
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast-xml
+          path: ${{ env.OUTPUT_DIR }}/appcast.xml
+          retention-days: 30
