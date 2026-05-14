@@ -1,0 +1,105 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anthropic Models API",
+    "version": "2023-06-01",
+    "description": "The Models API allows you to list available models."
+  },
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List models",
+        "description": "Returns a list of available models.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/ForbiddenError" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/v1/models/{model_id}": {
+      "get": {
+        "operationId": "retrieveModel",
+        "summary": "Retrieve model",
+        "description": "Returns a specific model's details.",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Model" }
+          },
+          "has_more": { "type": "boolean", "description": "Whether there are more models available." },
+          "first_id": { "type": "string" },
+          "last_id": { "type": "string" }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "The model identifier, e.g., 'claude-3-opus-20240229'." },
+          "type": { "type": "string", "const": "model" },
+          "display_name": { "type": "string", "description": "The display name of the model." },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "description": "Error type, e.g., 'authentication_error'." },
+          "message": { "type": "string", "description": "Human-readable error message." }
+        }
+      }
+    },
+    "responses": {
+      "UnauthorizedError": {
+        "description": "Authentication failed.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "ForbiddenError": {
+        "description": "Access forbidden.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "InternalServerError": {
+        "description": "Internal server error.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    }
+  }
+}

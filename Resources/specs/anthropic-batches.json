@@ -1,0 +1,180 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anthropic Batches API",
+    "version": "2023-06-01",
+    "description": "The Batches API allows you to create and manage batch jobs for asynchronous processing."
+  },
+  "paths": {
+    "/v1/messages/batches": {
+      "post": {
+        "operationId": "createMessageBatch",
+        "summary": "Create message batch",
+        "description": "Creates a new batch for processing multiple messages asynchronously.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateBatchRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageBatch" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listMessageBatches",
+        "summary": "List message batches",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageBatchList" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/batches/{batch_id}": {
+      "get": {
+        "operationId": "retrieveMessageBatch",
+        "summary": "Retrieve message batch",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageBatch" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/batches/{batch_id}/cancel": {
+      "post": {
+        "operationId": "cancelMessageBatch",
+        "summary": "Cancel message batch",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageBatch" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/batches/{batch_id}/results": {
+      "get": {
+        "operationId": "getMessageBatchResults",
+        "summary": "Get message batch results",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "content-disposition": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "text/jsonl": {
+                "schema": { "type": "string", "description": "JSONL formatted results." }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateBatchRequest": {
+        "type": "object",
+        "properties": {
+          "requests": {
+            "type": "array",
+            "description": "List of requests to process in the batch.",
+            "items": { "$ref": "#/components/schemas/BatchRequest" }
+          },
+          "custom_id": { "type": "string", "description": "Client-provided ID for the batch." }
+        },
+        "required": ["requests"]
+      },
+      "BatchRequest": {
+        "type": "object",
+        "properties": {
+          "custom_id": { "type": "string" },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the message request (model, messages, etc.)."
+          }
+        }
+      },
+      "MessageBatch": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "const": "message_batch" },
+          "processing_status": {
+            "type": "string",
+            "enum": ["in_progress", "succeeded", "canceling", "canceled", "expired"]
+          },
+          "request_counts": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "completed": { "type": "integer" },
+              "errored": { "type": "integer" }
+            }
+          },
+          "ended_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "results_url": { "type": "string", "description": "URL to download results." }
+        }
+      },
+      "MessageBatchList": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/MessageBatch" } },
+          "has_more": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

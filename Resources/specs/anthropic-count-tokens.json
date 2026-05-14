@@ -1,0 +1,70 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anthropic Count Tokens API",
+    "version": "2023-06-01",
+    "description": "The Count Tokens API allows you to count tokens in a message before sending it."
+  },
+  "paths": {
+    "/v1/messages/count_tokens": {
+      "post": {
+        "operationId": "countMessageTokens",
+        "summary": "Count message tokens",
+        "description": "Returns the number of tokens in a message request.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CountTokensRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CountTokensResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CountTokensRequest": {
+        "type": "object",
+        "properties": {
+          "model": { "type": "string", "description": "The model that will complete your prompt." },
+          "system": {
+            "description": "System prompt. Can be a string or an array of content blocks.",
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "array",
+                "items": { "type": "object" }
+              }
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "tools": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        },
+        "required": ["model", "messages"]
+      },
+      "CountTokensResponse": {
+        "type": "object",
+        "properties": {
+          "input_tokens": { "type": "integer", "description": "Total input token count." }
+        }
+      }
+    }
+  }
+}
