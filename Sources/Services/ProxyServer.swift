@@ -696,6 +696,7 @@ final class ProxyServer: ObservableObject {
     private func forwardRequestSync(
         reqId _: Int64,
         url: URL,
+        method: String = "POST",
         headers: [String: String],
         body: Data,
         timeout: TimeInterval
@@ -710,8 +711,10 @@ final class ProxyServer: ObservableObject {
         Task {
             do {
                 var urlRequest = URLRequest(url: url)
-                urlRequest.httpMethod = "POST"
-                urlRequest.httpBody = body
+                urlRequest.httpMethod = method
+                if !body.isEmpty {
+                    urlRequest.httpBody = body
+                }
                 urlRequest.timeoutInterval = timeout
                 for (k, v) in headers {
                     urlRequest.setValue(v, forHTTPHeaderField: k)
@@ -1022,14 +1025,6 @@ final class ProxyServer: ObservableObject {
         return request.params[paramName]
     }
 
-    /// Extract a URL query parameter by name.
-    private func extractQueryParameter(from request: HttpRequest, named paramName: String) -> String? {
-        guard let query = request.queryParams.first(where: { $0.0 == paramName }) else {
-            return nil
-        }
-        return query.1
-    }
-
     // MARK: - New endpoint handlers
 
     // MARK: 1. Single model lookup — GET /v1/models/{id}
@@ -1056,13 +1051,15 @@ final class ProxyServer: ObservableObject {
                         }
                     }
                 }
-                let modelJSON: [String: Any] = [
-                    "id": foundModel!.identifier,
-                    "object": "model",
-                    "created": Int(Date().timeIntervalSince1970),
-                    "owned_by": foundChannelName
-                ]
-                return HttpResponse.ok(.json(modelJSON))
+                if let foundModel {
+                    let modelJSON: [String: Any] = [
+                        "id": foundModel.identifier,
+                        "object": "model",
+                        "created": Int(Date().timeIntervalSince1970),
+                        "owned_by": foundChannelName
+                    ]
+                    return HttpResponse.ok(.json(modelJSON))
+                }
             }
         }
 
@@ -1227,13 +1224,15 @@ final class ProxyServer: ObservableObject {
             bodyData: bodyData,
             reqIdString: reqIdString
         ) else {
-            // Fallback: use first available channel
+            // Fallback: use first available channel, with model override applied
             guard let fallbackChannel = getFirstAvailableChannel() else {
                 Log.error("[#\(reqId)] No available channels for \(targetPath)")
                 return errorResponse(503, "No available channel")
             }
+            let override = readModelOverride()
+            let effectiveBody = applyModelOverride(body: bodyData, hasOverride: override.hasOverride, selectedModelID: override.selectedModelID)
             return forwardMultipartWithChannel(
-                request: request, bodyData: bodyData, channel: fallbackChannel,
+                request: request, bodyData: effectiveBody, channel: fallbackChannel,
                 targetPath: targetPath, reqId: reqId, startTime: startTime,
                 reqIdString: reqIdString, modelName: modelName
             )
@@ -1379,6 +1378,23 @@ final class ProxyServer: ObservableObject {
         return result
     }
 
+    /// Get the first available OpenAI-protocol channel (for OpenAI-only APIs like Files).
+    private func getFirstOpenAIChannel() -> Channel? {
+        var result: Channel?
+        DispatchQueue.main.sync {
+            for channel in ChannelStore.shared.channels {
+                switch channel.protocol {
+                case .openai, .auto:
+                    result = channel
+                    return
+                case .anthropic:
+                    break
+                }
+            }
+        }
+        return result
+    }
+
     // MARK: 10,11. Files API endpoints
 
     /// Handles all Files API requests (list, upload, retrieve, delete, download).
@@ -1395,9 +1411,9 @@ final class ProxyServer: ObservableObject {
 
         Log.info("[#\(reqId)] \(request.method) \(request.path) (files)")
 
-        // Use first available channel
-        guard let channel = getFirstAvailableChannel() else {
-            return errorResponse(503, "No available channel")
+        // Use first available OpenAI channel (Files API is OpenAI-only)
+        guard let channel = getFirstOpenAIChannel() else {
+            return errorResponse(503, "No available OpenAI channel for Files API")
         }
 
         guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
@@ -1468,7 +1484,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Forward request with method
-        let result = forwardRequestWithMethod(
+        let result = forwardRequestSync(
             reqId: reqId,
             url: upstreamURL,
             method: method,
@@ -1522,70 +1538,6 @@ final class ProxyServer: ObservableObject {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(502, "Upstream request failed")
         }
-    }
-
-    /// Forward request with arbitrary HTTP method
-    private func forwardRequestWithMethod(
-        reqId _: Int64,
-        url: URL,
-        method: String,
-        headers: [String: String],
-        body: Data,
-        timeout: TimeInterval
-    ) -> ForwardResult {
-        var resultData: Data?
-        var resultStatusCode = 200
-        var resultHeaders: [String: String] = [:]
-        var forwardErr: Error?
-        let group = DispatchGroup()
-        group.enter()
-
-        Task {
-            do {
-                var urlRequest = URLRequest(url: url)
-                urlRequest.httpMethod = method
-                if !body.isEmpty {
-                    urlRequest.httpBody = body
-                }
-                urlRequest.timeoutInterval = timeout
-                for (k, v) in headers {
-                    urlRequest.setValue(v, forHTTPHeaderField: k)
-                }
-
-                let (responseData, urlResponse) = try await URLSession.shared.data(for: urlRequest)
-                let httpResponse = urlResponse as? HTTPURLResponse
-
-                let rHeaders: [String: String] = (httpResponse?.allHeaderFields ?? [:])
-                    .reduce(into: [:]) { dict, pair in
-                        if let key = pair.key as? String, let value = pair.value as? String {
-                            dict[key] = value
-                        }
-                    }
-
-                resultData = responseData
-                resultStatusCode = httpResponse?.statusCode ?? 200
-                resultHeaders = rHeaders
-            } catch {
-                forwardErr = error
-            }
-            group.leave()
-        }
-
-        _ = group.wait(timeout: .now() + timeout + 5)
-
-        if let forwardErr {
-            return .failure(forwardErr)
-        }
-
-        guard let data = resultData else {
-            return .failure(NSError(
-                domain: "ProxyServer",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "No response data"]
-            ))
-        }
-
-        return .success(data: data, statusCode: resultStatusCode, headers: resultHeaders)
     }
 
     private func handleModelsRequest() -> HttpResponse {
