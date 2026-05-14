@@ -402,38 +402,82 @@ final class RouterErrorTypeTests: XCTestCase {
 @MainActor
 final class SmartRoutingIntegrationTests: XCTestCase {
 
+    // MARK: - Test Isolation
+    
+    /// Reset all shared singleton state before each test
+    private func resetSharedState() {
+        // Clear ChannelStore
+        ChannelStore.shared.channels = []
+        ChannelStore.shared.activeChannelID = nil
+        
+        // Reset CircuitBreaker by creating a fresh instance via its private state
+        // Since CircuitBreaker.shared is a singleton, we reset individual channel states
+        for i in 0..<10 { CircuitBreaker.shared.reset(channelID: "test-ch-\(i)") }
+        
+        // Reset SmartRouter shared state
+        SmartRouter.shared.mode = .auto
+        SmartRouter.shared.maxRetries = 3
+        SmartRouter.shared.smartFallbackEnabled = false
+        
+        // Clear UserDefaults channels to prevent stale data from loading
+        UserDefaults.standard.removeObject(forKey: "smartllm_channels")
+        UserDefaults.standard.removeObject(forKey: "smartllm_active_channel")
+    }
+
+    // MARK: - Tests
+
     func testRoutingDecision_L1_To_L2_Fallback() throws {
-        // Create test channels
+        // Reset state for isolation
+        resetSharedState()
+        
+        // Create test channels with proper model data
         let ch1 = Channel(name: "Primary", baseURL: "https://primary.com", protocol: .openai)
         let ch2 = Channel(name: "Secondary", baseURL: "https://secondary.com", protocol: .openai)
+        let ch3 = Channel(name: "Tertiary", baseURL: "https://tertiary.com", protocol: .openai)
         
-        // Add to store (assuming ChannelStore allows addition)
-        ChannelStore.shared.addChannel(ch1)
-        ChannelStore.shared.addChannel(ch2)
+        // Add to store
+        ChannelStore.shared.channels.append(ch1)
+        ChannelStore.shared.channels.append(ch2)
+        ChannelStore.shared.channels.append(ch3)
         
-        // Assign models
+        // Assign models with contextLength and pricing
+        let modelEntry = ModelEntry(
+            id: "m1", identifier: "gpt-4o", displayName: "GPT-4o",
+            contextLength: 8192, inputPricePer1M: 5.0, outputPricePer1M: 15.0
+        )
         if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch1.id }) {
-            ChannelStore.shared.channels[idx].models = [ModelEntry(id: "m1", identifier: "gpt-4o", displayName: "GPT-4o")]
+            ChannelStore.shared.channels[idx].models = [modelEntry]
         }
         if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch2.id }) {
-            ChannelStore.shared.channels[idx].models = [ModelEntry(id: "m2", identifier: "gpt-4o", displayName: "GPT-4o")]
+            ChannelStore.shared.channels[idx].models = [modelEntry]
+        }
+        if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch3.id }) {
+            ChannelStore.shared.channels[idx].models = [modelEntry]
         }
         
-        // Trip Circuit Breaker for Primary
+        // Trip Circuit Breaker for Primary (threshold = 5)
         for _ in 0..<5 { CircuitBreaker.shared.recordFailure(channelID: ch1.id) }
         
         // Verify Primary is unavailable
         XCTAssertFalse(CircuitBreaker.shared.isAvailable(channelID: ch1.id))
         
+        // Verify Secondary and Tertiary are available
+        XCTAssertTrue(CircuitBreaker.shared.isAvailable(channelID: ch2.id))
+        XCTAssertTrue(CircuitBreaker.shared.isAvailable(channelID: ch3.id))
+        
         // Request routing
         let decision = SmartRouter.shared.selectChannel(requestID: "req-fallback-1", modelName: "gpt-4o")
         
-        // Should skip broken Primary and select Secondary
+        // Should skip broken Primary and select Secondary (lower priority)
         XCTAssertNotNil(decision)
         XCTAssertNotEqual(decision?.channel.id, ch1.id, "Should not select tripped channel")
+        XCTAssertEqual(decision?.channel.id, ch2.id, "Should select Secondary channel")
     }
 
     func testErrorHandling_401_NoFailover() throws {
+        // Reset state for isolation
+        resetSharedState()
+        
         let decision = SmartRouter.shared.handleError(
             requestID: "req-401", 
             statusCode: 401, 
@@ -445,7 +489,40 @@ final class SmartRoutingIntegrationTests: XCTestCase {
     }
     
     func testErrorHandling_ContextExceeded_Failover() throws {
+        // Reset state for isolation
+        resetSharedState()
+        
+        // Create test channels so handleError has channels to fail over to
+        let ch1 = Channel(name: "Primary", baseURL: "https://primary.com", protocol: .openai)
+        let ch2 = Channel(name: "Secondary", baseURL: "https://secondary.com", protocol: .openai)
+        
+        ChannelStore.shared.channels.append(ch1)
+        ChannelStore.shared.channels.append(ch2)
+        
+        // Assign models with contextLength
+        let modelEntry = ModelEntry(
+            id: "m1", identifier: "gpt-4o", displayName: "GPT-4o",
+            contextLength: 8192, inputPricePer1M: 5.0, outputPricePer1M: 15.0
+        )
+        if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch1.id }) {
+            ChannelStore.shared.channels[idx].models = [modelEntry]
+        }
+        if let idx = ChannelStore.shared.channels.firstIndex(where: { $0.id == ch2.id }) {
+            ChannelStore.shared.channels[idx].models = [modelEntry]
+        }
+        
+        // Set auto mode
         SmartRouter.shared.mode = .auto
+        
+        // Step 1: Select channel BEFORE tripping circuit — this ensures ch1 is recorded as the chosen channel
+        let initialDecision = SmartRouter.shared.selectChannel(requestID: "req-context", modelName: "gpt-4o")
+        XCTAssertNotNil(initialDecision, "Should select a channel")
+        XCTAssertEqual(initialDecision?.channel.id, ch1.id, "Should initially select Primary (ch1)")
+        
+        // Step 2: Now trip circuit breaker for ch1 to simulate the error
+        for _ in 0..<5 { CircuitBreaker.shared.recordFailure(channelID: ch1.id) }
+        XCTAssertFalse(CircuitBreaker.shared.isAvailable(channelID: ch1.id), "ch1 should be tripped")
+        
         let errorBody = """
         {"error": {"code": "context_length_exceeded", "message": "This model's maximum context length is 8192 tokens"}}
         """.data(using: .utf8)!
@@ -457,8 +534,9 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             errorBody: errorBody
         )
         
-        // Context exceeded SHOULD trigger failover if retries < max
-        // Since we haven't set retries, it uses default (3). So it should return a decision.
+        // Context exceeded SHOULD trigger failover — should select ch2 (same model, available)
         XCTAssertNotNil(decision, "Context length exceeded should trigger failover")
+        XCTAssertNotEqual(decision?.channel.id, ch1.id, "Should not select tripped channel")
+        XCTAssertEqual(decision?.channel.id, ch2.id, "Should failover to Secondary (ch2)")
     }
 }

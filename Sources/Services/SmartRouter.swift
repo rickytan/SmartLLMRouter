@@ -274,40 +274,60 @@ final class SmartRouter: ObservableObject {
             availableChannels
         }
 
-        // For context_length_exceeded: direct fallback (skip same-model search)
-        if errorType == .contextLengthExceeded, smartFallbackEnabled {
-            let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-            let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
+        // For context_length_exceeded: first try same-model channel downgrade, then smart fallback
+        if errorType == .contextLengthExceeded {
+            // Step 1: Try standard downgrade — find same model on another available channel
+            if let nextChannel = compatibleChannels.first {
+                requestToChannel[requestID] = nextChannel.id
 
-            if let fallback = selectFallbackModel(
-                requestID: requestID,
-                originalModel: modelName ?? "unknown",
-                actualTokensUsed: actualTokensUsed,
-                errorType: errorType,
-                apiProtocol: protocolType,
-                excludedChannelID: previousChannelID
-            ) {
-                Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
-                Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                requestToChannel[requestID] = fallback.channel.id
+                Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
 
                 return RoutingDecision(
-                    channel: fallback.channel,
+                    channel: nextChannel,
                     isRetry: true,
                     previousChannelID: previousChannelID,
                     retryCount: currentRetryCount + 1,
-                    originalModel: fallback.originalModel,
-                    effectiveModel: fallback.fallbackModel
+                    originalModel: modelName,
+                    effectiveModel: modelName
                 )
-            } else {
-                Log.warn("No suitable fallback model found for request \(requestID)")
-                return nil
             }
+
+            // Step 2: No same-model channel — try smart fallback (only if enabled)
+            if smartFallbackEnabled {
+                let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
+                let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
+
+                if let fallback = selectFallbackModel(
+                    requestID: requestID,
+                    originalModel: modelName ?? "unknown",
+                    actualTokensUsed: actualTokensUsed,
+                    errorType: errorType,
+                    apiProtocol: protocolType,
+                    excludedChannelID: previousChannelID
+                ) {
+                    Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
+                    Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
+                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
+                    Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
+                    Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
+                    Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
+
+                    requestToChannel[requestID] = fallback.channel.id
+
+                    return RoutingDecision(
+                        channel: fallback.channel,
+                        isRetry: true,
+                        previousChannelID: previousChannelID,
+                        retryCount: currentRetryCount + 1,
+                        originalModel: fallback.originalModel,
+                        effectiveModel: fallback.fallbackModel
+                    )
+                }
+            }
+
+            // Step 3: Both standard downgrade and smart fallback failed
+            Log.warn("No suitable channel or fallback for context_length_exceeded on request \(requestID)")
+            return nil
         }
 
         // For 429/5xx: first try same-model channel, then fallback
