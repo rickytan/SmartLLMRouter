@@ -32,8 +32,8 @@ struct ConfigImporterView: View {
         }
         .padding(DesignToken.Layout.cardPadding)
         .frame(width: 500, height: 450)
-        .alert("Import Complete", isPresented: $showingImportSuccess) {
-            Button("OK", role: .cancel) { dismiss() }
+        .alert(L10n.ConfigImporter.importComplete, isPresented: $showingImportSuccess) {
+            Button(L10n.ConfigImporter.ok, role: .cancel) { dismiss() }
         } message: {
             Text(importAlertMessage ?? "")
         }

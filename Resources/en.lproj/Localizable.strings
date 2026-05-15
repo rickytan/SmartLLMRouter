@@ -238,3 +238,36 @@
 
 // Add Channel
 "addchannel.delete" = "Delete";
+
+// Circuit Breaker
+"circuitbreaker.title" = "Circuit Breaker";
+"circuitbreaker.description" = "Automatically disable channels after consecutive failures";
+"circuitbreaker.enabled" = "Enabled";
+"circuitbreaker.consecutiveFailures" = "Consecutive Failures";
+"circuitbreaker.failureRate" = "Failure Rate";
+"circuitbreaker.recoveryTimeout" = "Recovery Timeout";
+"circuitbreaker.remainingTime" = "Remaining: %@";
+"circuitbreaker.resetAll" = "Reset All";
+"circuitbreaker.state.closed" = "Closed";
+"circuitbreaker.state.open" = "Open";
+"circuitbreaker.state.halfOpen" = "Half-Open";
+
+// Config Importer
+"configimporter.title" = "Import Channels";
+"configimporter.subtitle" = "Scan for existing channel configurations";
+"configimporter.scan" = "Scan";
+"configimporter.scanning" = "Scanning...";
+"configimporter.foundChannels" = "Found %d channels";
+"configimporter.noResults" = "No channels found";
+"configimporter.noResultsDescription" = "Try adding channels manually or check your configuration files";
+"configimporter.selectAll" = "Select All";
+"configimporter.deselectAll" = "Deselect All";
+"configimporter.importSelected" = "Import Selected";
+"configimporter.importSuccess" = "Successfully imported %d channels";
+"configimporter.importComplete" = "Import Complete";
+"configimporter.ok" = "OK";
+
+// Thinking Rectifier
+"rectifier.thinkingBudget.title" = "Thinking Budget Adjusted";
+"rectifier.thinkingBudget.reduced" = "Budget reduced to %@ tokens";
+"rectifier.streamErrorBuffering" = "Stream error: buffering response";
