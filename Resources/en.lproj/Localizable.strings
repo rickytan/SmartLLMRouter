@@ -43,13 +43,13 @@
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
 "settings.general.service" = "Service";
-"settings.general.startService" = "▶️ Start Service";
-"settings.general.stopService" = "⏹️ Stop Service";
+"settings.general.startService" = "Start Service";
+"settings.general.stopService" = "Stop Service";
 "settings.general.runningOnPort" = "Running on port %d";
 "settings.general.serviceStopped" = "Service stopped";
 "settings.general.shellEnv" = "Shell Environment";
-"settings.general.updateShellConfig" = "✅ Update Shell Config";
-"settings.general.setupShellEnv" = "⚙️ Setup Shell Environment";
+"settings.general.updateShellConfig" = "Update Shell Config";
+"settings.general.setupShellEnv" = "Setup Shell Environment";
 "settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
 
@@ -65,7 +65,7 @@
 "settings.channels.priority" = "Priority";
 "settings.channels.protocol" = "Protocol";
 "settings.channels.test_connection" = "Test Connection";
-"settings.channels.testAll" = "⚡ Test All";
+"settings.channels.testAll" = "Test All";
 "settings.channels.testing" = "Testing...";
 "settings.channels.reorderHint" = "Reorder: drag using ⠿ handle on left";
 "settings.channels.emptyTitle" = "No channels configured";

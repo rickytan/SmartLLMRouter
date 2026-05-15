@@ -43,13 +43,13 @@
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
 "settings.general.service" = "服务";
-"settings.general.startService" = "▶️ 启动服务";
-"settings.general.stopService" = "⏹️ 停止服务";
+"settings.general.startService" = "启动服务";
+"settings.general.stopService" = "停止服务";
 "settings.general.runningOnPort" = "运行于端口 %d";
 "settings.general.serviceStopped" = "服务已停止";
 "settings.general.shellEnv" = "Shell 环境";
-"settings.general.updateShellConfig" = "✅ 更新 Shell 配置";
-"settings.general.setupShellEnv" = "⚙️ 配置 Shell 环境";
+"settings.general.updateShellConfig" = "更新 Shell 配置";
+"settings.general.setupShellEnv" = "配置 Shell 环境";
 "settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
 "settings.general.notConfigured" = "未配置";
 
@@ -65,7 +65,7 @@
 "settings.channels.priority" = "优先级";
 "settings.channels.protocol" = "协议";
 "settings.channels.test_connection" = "测试连接";
-"settings.channels.testAll" = "⚡ 全部测速";
+"settings.channels.testAll" = "全部测速";
 "settings.channels.testing" = "测试中...";
 "settings.channels.reorderHint" = "调整顺序：拖动左侧 ⠿ 手柄";
 "settings.channels.emptyTitle" = "未配置通道";
