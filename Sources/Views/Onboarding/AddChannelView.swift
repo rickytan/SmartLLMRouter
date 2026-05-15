@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - AddChannelView (Redesigned: Split-pane layout)
+// MARK: - AddChannelView (Modal Form Layout)
 
 struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
@@ -25,7 +25,6 @@ struct AddChannelView: View {
     // Custom provider state
     @State private var isCustomProvider: Bool = false
     @State private var customProviderName: String = ""
-    @State private var customProviderIcon: String = "globe"
 
     // Validation
     @State private var errorMessage: String?
@@ -33,7 +32,7 @@ struct AddChannelView: View {
     @State private var isTesting: Bool = false
     @State private var testResult: ChannelManager.ConnectionTestResult?
 
-    // Search
+    // Search (for provider picker)
     @State private var searchQuery: String = ""
 
     init(editingChannel: Channel? = nil) {
@@ -51,25 +50,29 @@ struct AddChannelView: View {
             Divider()
                 .padding(.horizontal, DesignToken.Spacing.lg)
 
-            // Split-pane content
-            if editingChannel == nil {
-                HStack(spacing: 0) {
-                    // Left pane: Provider list
-                    providerListPane
-                        .frame(width: 220)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 0)
-                                .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
-                        )
+            // Scrollable form
+            ScrollView {
+                VStack(spacing: DesignToken.Spacing.lg) {
+                    // Provider selection
+                    providerSection
+
+                    // Protocol selector (Segmented)
+                    protocolSegmentedView
 
                     Divider()
 
-                    // Right pane: Config form
-                    configFormPane
+                    // Connection details
+                    connectionSection
+
+                    // Test connection
+                    testConnectionSection
+
+                    Divider()
+
+                    // Models section
+                    modelsSection
                 }
-            } else {
-                // Editing mode: just the form
-                configFormPane
+                .padding(DesignToken.Spacing.lg)
             }
 
             Divider()
@@ -96,6 +99,14 @@ struct AddChannelView: View {
                 applyTemplateSelection()
             }
         }
+        .sheet(isPresented: $showingModelEditor) {
+            if let index = editingModelIndex, index < models.count {
+                ModelMetadataEditorView(model: models[index]) { updated in
+                    models[index] = updated
+                    showingModelEditor = false
+                }
+            }
+        }
     }
 
     // MARK: - Header
@@ -107,175 +118,76 @@ struct AddChannelView: View {
 
             Spacer()
 
-            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
+            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.cancel) {
                 dismiss()
             }
         }
     }
 
-    // MARK: - Left Pane: Provider List
+    // MARK: - Provider Section
 
-    private var providerListPane: some View {
-        VStack(spacing: 0) {
-            // Search bar
-            SearchBar(
-                text: $searchQuery,
-                placeholder: L10n.AddChannel.searchPlaceholder
-            )
+    private var providerSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            Text(L10n.AddChannel.providerName)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
 
-            Divider()
-
-            // Scrollable provider list
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    // Custom provider option (always first)
-                    ProviderRow(
-                        id: "custom",
-                        name: L10n.AddChannel.customProvider,
-                        icon: "globe",
-                        isSelected: isCustomProvider,
-                        isCustom: true
-                    ) {
-                        selectProvider(id: "custom", isCustom: true)
-                    }
-
-                    Divider()
-                        .padding(.horizontal, DesignToken.Spacing.sm)
-
-                    // Built-in providers
-                    ForEach(filteredProviders) { template in
-                        ProviderRow(
-                            id: template.id,
-                            name: template.nameEn,
-                            icon: ProviderIconMapper.symbol(for: template.id),
-                            isSelected: selectedProviderId == template.id && !isCustomProvider,
-                            isCustom: false
-                        ) {
-                            selectProvider(id: template.id, isCustom: false)
-                        }
-                    }
+            if isCustomProvider {
+                LabeledTextField(
+                    label: "",
+                    text: $customProviderName,
+                    placeholder: L10n.AddChannel.providerNamePlaceholder
+                )
+                .onChange(of: customProviderName) { newName in
+                    name = newName
                 }
-                .padding(.vertical, DesignToken.Spacing.xs)
+            } else {
+                Picker(selection: $selectedProviderId) {
+                    Text(L10n.AddChannel.customProvider).tag("custom" as String?)
+                    ForEach(channelManager.providerTemplates) { template in
+                        Text(template.nameEn).tag(template.id as String?)
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.menu)
+                .onChange(of: selectedProviderId) { _ in
+                    if selectedProviderId == "custom" {
+                        isCustomProvider = true
+                        name = ""
+                        baseURL = ""
+                        apiKey = ""
+                        selectedProtocol = .openai
+                        models = []
+                    } else {
+                        isCustomProvider = false
+                        applyTemplateSelection()
+                    }
+                    testResult = nil
+                }
             }
         }
     }
 
-    private var filteredProviders: [ProviderTemplate] {
-        if searchQuery.isEmpty {
-            return channelManager.providerTemplates
-        }
-        let q = searchQuery.lowercased()
-        return channelManager.providerTemplates.filter {
-            $0.nameEn.lowercased().contains(q) ||
-            $0.id.lowercased().contains(q)
-        }
-    }
+    // MARK: - Protocol Segmented View
 
-    private func selectProvider(id: String, isCustom: Bool) {
-        self.isCustomProvider = isCustom
-        selectedProviderId = isCustom ? nil : id
-
-        if isCustom {
-            // Reset to defaults for custom
-            name = ""
-            baseURL = ""
-            apiKey = ""
-            selectedProtocol = .openai
-            models = []
-        } else {
-            applyTemplateSelection()
-        }
-        testResult = nil
-    }
-
-    private func applyTemplateSelection() {
-        guard let templateId = selectedProviderId,
-              let template = channelManager.getProviderTemplate(id: templateId) else { return }
-
-        name = template.nameEn
-        // Use first protocol's URL as default
-        if let firstProtocol = template.supportsProtocols.first {
-            selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
-            baseURL = template.baseURL(for: firstProtocol) ?? ""
-        } else if let fallback = template.baseURL {
-            baseURL = fallback
-        }
-        models = template.defaultModels.map { providerModelToModelEntry($0) }
-        isCustomProvider = false
-    }
-
-    // MARK: - Right Pane: Config Form
-
-    private var configFormPane: some View {
-        ScrollView {
-            VStack(spacing: DesignToken.Spacing.lg) {
-                // Provider name / Custom name
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                    if isCustomProvider {
-                        LabeledTextField(
-                            label: L10n.AddChannel.providerName,
-                            text: $customProviderName,
-                            placeholder: L10n.AddChannel.providerNamePlaceholder
-                        )
-                        .onChange(of: customProviderName) { newName in
-                            name = newName
-                        }
-                    } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                        HStack {
-                            Image(systemName: ProviderIconMapper.symbol(for: template.id))
-                                .foregroundColor(DesignToken.Colors.accent)
-                            Text(template.nameEn)
-                                .font(DesignToken.Font.h3())
-                        }
-                    }
-                }
-
-                // Protocol selector (for custom or multi-protocol providers)
-                protocolSelectorView
-
-                Divider()
-
-                // Connection details
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                    LabeledTextField(
-                        label: L10n.Settings.channelsBaseUrl,
-                        text: $baseURL,
-                        placeholder: L10n.AddChannel.baseUrlPlaceholder
-                    )
-
-                    LabeledSecureField(
-                        label: L10n.Settings.channelsApiKey,
-                        text: $apiKey,
-                        placeholder: L10n.AddChannel.apiKeyPlaceholder
-                    )
-
-                    LabeledNumberField(
-                        L10n.Settings.channelsPriority,
-                        placeholder: "1",
-                        value: $priority,
-                        accessibilityID: "addchannel.priority"
-                    )
-                }
-
-                // Test connection
-                testConnectionSection
-
-                Divider()
-
-                // Models section
-                modelsSection
-            }
-            .padding(DesignToken.Spacing.lg)
-        }
-    }
-
-    private var protocolSelectorView: some View {
+    private var protocolSegmentedView: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             Text(L10n.AddChannel.protocol)
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
-            ProtocolSelector(selection: $selectedProtocol) { _ in
+            Picker(selection: $selectedProtocol) {
+                Text(L10n.Settings.generalProtocolOpenai).tag(APIProtocol.openai)
+                Text(L10n.Settings.generalProtocolAnthropic).tag(APIProtocol.anthropic)
+                if isCustomProvider {
+                    Text(L10n.Settings.generalProtocolAuto).tag(APIProtocol.auto)
+                }
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: selectedProtocol) { _ in
                 if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
                     if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
                         baseURL = url
@@ -285,6 +197,33 @@ struct AddChannelView: View {
             }
         }
     }
+
+    // MARK: - Connection Section
+
+    private var connectionSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            LabeledTextField(
+                label: L10n.Settings.channelsBaseUrl,
+                text: $baseURL,
+                placeholder: L10n.AddChannel.baseUrlPlaceholder
+            )
+
+            LabeledSecureField(
+                label: L10n.Settings.channelsApiKey,
+                text: $apiKey,
+                placeholder: L10n.AddChannel.apiKeyPlaceholder
+            )
+
+            LabeledNumberField(
+                L10n.Settings.channelsPriority,
+                placeholder: "1",
+                value: $priority,
+                accessibilityID: "addchannel.priority"
+            )
+        }
+    }
+
+    // MARK: - Test Connection
 
     private var testConnectionSection: some View {
         VStack(spacing: DesignToken.Spacing.sm) {
@@ -344,7 +283,6 @@ struct AddChannelView: View {
 
         if result.success {
             testResult = result
-            // Auto-fetch and enrich models (don't block save — if fetch fails, keep empty models)
             let template = selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0) }
             let enrichedModels = channelManager.mergeModelsWithTemplateMetadata(
                 fetchedModels: result.models,
@@ -394,7 +332,7 @@ struct AddChannelView: View {
             // Add model manually
             HStack(spacing: DesignToken.Spacing.sm) {
                 LabeledTextField(
-                    label: L10n.AddChannel.models,
+                    label: "",
                     text: $newModelName,
                     placeholder: L10n.AddChannel.modelNamePlaceholder
                 )
@@ -493,7 +431,7 @@ struct AddChannelView: View {
 
     private var footerButtons: some View {
         HStack {
-            SecondaryButton(L10n.Onboarding.back) {
+            SecondaryButton(L10n.AddChannel.cancel) {
                 dismiss()
             }
             .frame(width: 100)
@@ -580,6 +518,21 @@ struct AddChannelView: View {
             isEnabled: true
         )
     }
+
+    private func applyTemplateSelection() {
+        guard let templateId = selectedProviderId,
+              let template = channelManager.getProviderTemplate(id: templateId) else { return }
+
+        name = template.nameEn
+        if let firstProtocol = template.supportsProtocols.first {
+            selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
+            baseURL = template.baseURL(for: firstProtocol) ?? ""
+        } else if let fallback = template.baseURL {
+            baseURL = fallback
+        }
+        models = template.defaultModels.map { providerModelToModelEntry($0) }
+        isCustomProvider = false
+    }
 }
 
 // MARK: - ModelMetadataEditorView
@@ -650,4 +603,10 @@ struct ModelMetadataEditorView: View {
         .padding(DesignToken.Spacing.lg)
         .frame(width: 360, height: 320)
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    AddChannelView()
 }
