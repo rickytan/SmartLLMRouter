@@ -248,17 +248,17 @@
 "circuitbreaker.state.halfOpen" = "半开";
 
 // Config Importer
-"configimporter.title" = "导入频道";
-"configimporter.subtitle" = "扫描现有频道配置";
+"configimporter.title" = "导入 API 供应商";
+"configimporter.subtitle" = "扫描现有供应商配置";
 "configimporter.scan" = "扫描";
 "configimporter.scanning" = "扫描中...";
-"configimporter.foundChannels" = "找到 %d 个频道";
-"configimporter.noResults" = "未找到频道";
-"configimporter.noResultsDescription" = "尝试手动添加频道或检查配置文件";
+"configimporter.foundChannels" = "找到 %d 个供应商";
+"configimporter.noResults" = "未找到供应商";
+"configimporter.noResultsDescription" = "尝试手动添加供应商或检查配置文件";
 "configimporter.selectAll" = "全选";
 "configimporter.deselectAll" = "取消全选";
 "configimporter.importSelected" = "导入选中项";
-"configimporter.importSuccess" = "成功导入 %d 个频道";
+"configimporter.importSuccess" = "成功导入 %d 个供应商";
 "configimporter.importComplete" = "导入完成";
 "configimporter.ok" = "确定";
 
