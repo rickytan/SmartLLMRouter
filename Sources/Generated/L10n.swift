@@ -141,6 +141,9 @@ internal enum L10n {
     internal static var generalProtocolAnthropic: String {
       NSLocalizedString("settings.general.protocol.anthropic", comment: "")
     }
+    internal static var generalProtocolAuto: String {
+      NSLocalizedString("settings.general.protocol.auto", comment: "")
+    }
     internal static var channelsAdd: String {
       NSLocalizedString("settings.channels.add", comment: "")
     }
