@@ -233,3 +233,40 @@
 // Protocol names (used in ProtocolSelector)
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
+
+// Circuit Breaker
+"circuitbreaker.title" = "熔断器";
+"circuitbreaker.description" = "连续失败后自动禁用通道";
+"circuitbreaker.enabled" = "已启用";
+"circuitbreaker.consecutiveFailures" = "连续失败次数";
+"circuitbreaker.failureRate" = "失败率";
+"circuitbreaker.recoveryTimeout" = "恢复超时";
+"circuitbreaker.remainingTime" = "剩余: %@";
+"circuitbreaker.resetAll" = "重置全部";
+"circuitbreaker.state.closed" = "已关闭";
+"circuitbreaker.state.open" = "已打开";
+"circuitbreaker.state.halfOpen" = "半开";
+
+// Config Importer
+"configimporter.title" = "导入频道";
+"configimporter.subtitle" = "扫描现有频道配置";
+"configimporter.scan" = "扫描";
+"configimporter.scanning" = "扫描中...";
+"configimporter.foundChannels" = "找到 %d 个频道";
+"configimporter.noResults" = "未找到频道";
+"configimporter.noResultsDescription" = "尝试手动添加频道或检查配置文件";
+"configimporter.selectAll" = "全选";
+"configimporter.deselectAll" = "取消全选";
+"configimporter.importSelected" = "导入选中项";
+"configimporter.importSuccess" = "成功导入 %d 个频道";
+"configimporter.importComplete" = "导入完成";
+"configimporter.ok" = "确定";
+
+// Thinking Rectifier
+"rectifier.thinkingBudget.title" = "思考预算已调整";
+"rectifier.thinkingBudget.reduced" = "预算已减少到 %@ tokens";
+"rectifier.streamErrorBuffering" = "流错误：缓冲响应";
+
+// Onboarding shell (missing in zh)
+"onboarding.shell_config_target_file" = "目标文件：";
+"onboarding.shell_config_will_add" = "将添加：";

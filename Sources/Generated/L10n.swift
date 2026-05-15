@@ -678,6 +678,12 @@ internal enum L10n {
     internal static var deselectAll: String {
       NSLocalizedString("configimporter.deselectAll", comment: "")
     }
+    internal static var importComplete: String {
+      NSLocalizedString("configimporter.importComplete", comment: "")
+    }
+    internal static var ok: String {
+      NSLocalizedString("configimporter.ok", comment: "")
+    }
   }
 
   internal enum Rectifier {
