@@ -253,17 +253,17 @@
 "circuitbreaker.state.halfOpen" = "Half-Open";
 
 // Config Importer
-"configimporter.title" = "Import Channels";
-"configimporter.subtitle" = "Scan for existing channel configurations";
+"configimporter.title" = "Import API Providers";
+"configimporter.subtitle" = "Scan for existing provider configurations";
 "configimporter.scan" = "Scan";
 "configimporter.scanning" = "Scanning...";
-"configimporter.foundChannels" = "Found %d channels";
-"configimporter.noResults" = "No channels found";
-"configimporter.noResultsDescription" = "Try adding channels manually or check your configuration files";
+"configimporter.foundChannels" = "Found %d providers";
+"configimporter.noResults" = "No providers found";
+"configimporter.noResultsDescription" = "Try adding providers manually or check your configuration files";
 "configimporter.selectAll" = "Select All";
 "configimporter.deselectAll" = "Deselect All";
 "configimporter.importSelected" = "Import Selected";
-"configimporter.importSuccess" = "Successfully imported %d channels";
+"configimporter.importSuccess" = "Successfully imported %d providers";
 "configimporter.importComplete" = "Import Complete";
 "configimporter.ok" = "OK";
 
