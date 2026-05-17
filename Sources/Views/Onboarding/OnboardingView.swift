@@ -36,7 +36,6 @@ struct OnboardingView: View {
     @State private var customProviderName: String = ""
     @State private var isTestingConnection: Bool = false
     @State private var connectionTestResult: ChannelManager.ConnectionTestResult?
-    @State private var searchQuery: String = ""
 
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var channelManager = ChannelManager.shared
@@ -326,124 +325,110 @@ struct OnboardingView: View {
 
     private var channelForm: some View {
         VStack(spacing: DesignToken.Spacing.md) {
-            // Inner split-pane form
-            HStack(spacing: 0) {
-                // Left pane: Provider list
-                VStack(spacing: 0) {
-                    // Search bar
-                    SearchBar(
-                        text: $searchQuery,
-                        placeholder: L10n.AddChannel.search
-                    )
+            ScrollView {
+                VStack(spacing: DesignToken.Spacing.lg) {
+                    // Provider Picker
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                        Text(L10n.AddChannel.providerName)
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
 
-                    Divider()
-
-                    // Provider list
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            // Custom provider
-                            ProviderListItem(
-                                id: "custom",
-                                name: L10n.AddChannel.customProvider,
-                                icon: "globe",
-                                isSelected: isCustomProvider
-                            ) {
-                                isCustomProvider = true
-                                selectedProviderId = nil
-                                selectedProtocol = .openai
-                                baseURL = "http://localhost:11434/v1"
-                                connectionTestResult = nil
-                            }
-
-                            Divider().padding(.horizontal, DesignToken.Spacing.sm)
-
-                            // Built-in providers
-                            ForEach(filteredProviders) { template in
-                                ProviderListItem(
-                                    id: template.id,
-                                    name: template.nameEn,
-                                    icon: ProviderIconMapper.symbol(for: template.id),
-                                    isSelected: selectedProviderId == template.id && !isCustomProvider
-                                ) {
-                                    isCustomProvider = false
-                                    selectProviderTemplate(template)
-                                }
-                            }
-                        }
-                        .padding(.vertical, DesignToken.Spacing.xs)
-                    }
-                }
-                .frame(width: 200)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 0)
-                        .stroke(DesignToken.Colors.hoverFill, lineWidth: 0.5)
-                )
-
-                Divider()
-
-                // Right pane: Config form
-                ScrollView {
-                    VStack(spacing: DesignToken.Spacing.lg) {
-                        // Provider header
                         if isCustomProvider {
                             LabeledTextField(
-                                label: L10n.Onboarding.providerName,
+                                label: "",
                                 text: $customProviderName,
                                 placeholder: L10n.AddChannel.providerNamePlaceholder
                             )
-                        } else if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                            HStack {
-                                Image(systemName: ProviderIconMapper.symbol(for: template.id))
-                                    .foregroundColor(DesignToken.Colors.accent)
-                                Text(template.nameEn)
-                                    .font(DesignToken.Font.h3())
-                            }
-                        }
-
-                        // Protocol selector
-                        protocolSelector
-
-                        Divider()
-
-                        // Base URL
-                        LabeledTextField(
-                            label: L10n.Onboarding.baseUrl,
-                            text: $baseURL,
-                            placeholder: L10n.AddChannel.baseUrlPlaceholder
-                        )
-
-                        // API Key
-                        LabeledSecureField(
-                            label: L10n.Settings.channelsApiKey,
-                            text: $apiKey,
-                            placeholder: L10n.AddChannel.apiKeyPlaceholder
-                        )
-
-                        // Test & Add button row
-                        HStack(spacing: DesignToken.Spacing.sm) {
-                            HoverButton(
-                                title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testAndAdd,
-                                icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
-                            ) {
-                                Task { await testAndAdd() }
-                            }
-                            .disabled(!isFormValid || isTestingConnection)
-                            .accessibilityIdentifier("onboarding.addchannel.testAndAdd")
-
-                            SecondaryButton(L10n.Onboarding.cancel) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isAddingChannel = false
+                        } else {
+                            Picker(selection: $selectedProviderId) {
+                                Text(L10n.AddChannel.customProvider).tag("custom" as String?)
+                                ForEach(channelManager.providerTemplates) { template in
+                                    Text(template.nameEn).tag(template.id as String?)
                                 }
+                            } label: {
+                                EmptyView()
                             }
-                        }
-
-                        // Test result
-                        if let result = connectionTestResult {
-                            connectionTestStatus(result: result)
+                            .pickerStyle(.menu)
+                            .onChange(of: selectedProviderId) { _ in
+                                if selectedProviderId == "custom" {
+                                    isCustomProvider = true
+                                    baseURL = "http://localhost:11434/v1"
+                                } else {
+                                    isCustomProvider = false
+                                    if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                                        selectProviderTemplate(template)
+                                    }
+                                }
+                                connectionTestResult = nil
+                            }
                         }
                     }
-                    .padding(DesignToken.Spacing.lg)
+
+                    // Protocol Segmented Picker
+                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+                        Text(L10n.Onboarding.apiProtocol)
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+
+                        Picker(selection: $selectedProtocol) {
+                            Text(L10n.Settings.generalProtocolOpenai).tag(APIProtocol.openai)
+                            Text(L10n.Settings.generalProtocolAnthropic).tag(APIProtocol.anthropic)
+                            if isCustomProvider {
+                                Text(L10n.Settings.generalProtocolAuto).tag(APIProtocol.auto)
+                            }
+                        } label: {
+                            EmptyView()
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: selectedProtocol) { _ in
+                            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                                if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
+                                    baseURL = url
+                                }
+                            }
+                            connectionTestResult = nil
+                        }
+                    }
+
+                    Divider()
+
+                    // Connection Details
+                    LabeledTextField(
+                        label: L10n.Onboarding.baseUrl,
+                        text: $baseURL,
+                        placeholder: L10n.AddChannel.baseUrlPlaceholder
+                    )
+
+                    LabeledSecureField(
+                        label: L10n.Settings.channelsApiKey,
+                        text: $apiKey,
+                        placeholder: L10n.AddChannel.apiKeyPlaceholder
+                    )
+
+                    // Test Result
+                    if let result = connectionTestResult {
+                        connectionTestStatus(result: result)
+                    }
+
+                    // Action Buttons
+                    HStack(spacing: DesignToken.Spacing.sm) {
+                        HoverButton(
+                            title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testAndAdd,
+                            icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
+                        ) {
+                            Task { await testAndAdd() }
+                        }
+                        .disabled(!isFormValid || isTestingConnection)
+                        .accessibilityIdentifier("onboarding.addchannel.testAndAdd")
+
+                        SecondaryButton(L10n.Onboarding.cancel) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isAddingChannel = false
+                            }
+                        }
+                    }
                 }
+                .padding(DesignToken.Spacing.lg)
             }
             .frame(height: 380)
             .overlay(
@@ -458,18 +443,6 @@ struct OnboardingView: View {
         !apiKey.isEmpty && !baseURL.isEmpty
     }
 
-    // MARK: - Form helpers
-
-    private var filteredProviders: [ProviderTemplate] {
-        if searchQuery.isEmpty {
-            return channelManager.providerTemplates
-        }
-        let q = searchQuery.lowercased()
-        return channelManager.providerTemplates.filter {
-            $0.nameEn.lowercased().contains(q) || $0.id.lowercased().contains(q)
-        }
-    }
-
     private func selectProviderTemplate(_ template: ProviderTemplate) {
         selectedProviderId = template.id
         if let firstProtocol = template.supportsProtocols.first {
@@ -480,27 +453,6 @@ struct OnboardingView: View {
             selectedProtocol = .openai
         }
         connectionTestResult = nil
-    }
-
-    private var protocolSelector: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text(L10n.Onboarding.apiProtocol)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-
-            ProtocolSelector(
-                selection: $selectedProtocol,
-                onProtocolChange: { proto in
-                    // Update base URL if using a template
-                    if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                        if let url = template.baseURL(for: proto.rawValue.lowercased()) {
-                            baseURL = url
-                        }
-                    }
-                    connectionTestResult = nil
-                }
-            )
-        }
     }
 
     private func connectionTestStatus(result: ChannelManager.ConnectionTestResult) -> some View {
@@ -614,7 +566,6 @@ struct OnboardingView: View {
         customProviderName = ""
         connectionTestResult = nil
         errorMessage = nil
-        searchQuery = ""
     }
 
     // MARK: - Shell Config Step
