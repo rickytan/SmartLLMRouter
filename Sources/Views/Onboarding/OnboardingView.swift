@@ -1,20 +1,5 @@
 import SwiftUI
 
-// MARK: - PendingChannel
-
-/// Temporary channel held during onboarding before batch-persisting
-struct PendingChannel: Identifiable {
-    let id = UUID()
-    let channel: Channel
-    let apiKey: String
-    let testStatus: TestStatus
-
-    enum TestStatus: Equatable {
-        case success
-        case failure(String)
-    }
-}
-
 // MARK: - OnboardingView
 
 struct OnboardingView: View {
@@ -22,20 +7,6 @@ struct OnboardingView: View {
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var shellConfigResult: ShellConfigResult?
-
-    // Batch channel-add state
-    @State private var pendingChannels: [PendingChannel] = []
-    @State private var isAddingChannel: Bool = false
-
-    // Form-level state (reset after each Test & Add)
-    @State private var selectedProviderId: String?
-    @State private var isCustomProvider: Bool = false
-    @State private var selectedProtocol: APIProtocol = .openai
-    @State private var apiKey: String = ""
-    @State private var baseURL: String = ""
-    @State private var customProviderName: String = ""
-    @State private var isTestingConnection: Bool = false
-    @State private var connectionTestResult: ChannelManager.ConnectionTestResult?
 
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var channelManager = ChannelManager.shared
@@ -170,12 +141,13 @@ struct OnboardingView: View {
     // MARK: - Add Channel Step (Batch Mode)
 
     @State private var showingConfigImporter = false
+    @State private var showingAddChannelSheet = false
 
     private var addChannelStep: some View {
         VStack(spacing: DesignToken.Spacing.md) {
             // Header row: title + buttons
             HStack {
-                Text(L10n.Onboarding.addedChannelsCount(pendingChannels.count))
+                Text(L10n.Onboarding.addedChannelsCount(ChannelStore.shared.channels.count))
                     .font(DesignToken.Font.h3())
                     .foregroundColor(DesignToken.Colors.textPrimary)
 
@@ -191,15 +163,10 @@ struct OnboardingView: View {
                 .accessibilityIdentifier("onboarding.configimporter")
 
                 BadgeButton(
-                    title: isAddingChannel ? L10n.AddChannel.cancel : L10n.Onboarding.addChannelAdd,
-                    icon: isAddingChannel ? "minus" : "plus"
+                    title: L10n.Onboarding.addChannelAdd,
+                    icon: "plus"
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isAddingChannel.toggle()
-                        if isAddingChannel {
-                            resetForm()
-                        }
-                    }
+                    showingAddChannelSheet = true
                 }
                 .accessibilityIdentifier("onboarding.addchannel.toggle")
             }
@@ -212,10 +179,7 @@ struct OnboardingView: View {
             // Scrollable content area
             ScrollView {
                 VStack(spacing: DesignToken.Spacing.md) {
-                    // Pending channel list
-                    if !pendingChannels.isEmpty {
-                        pendingChannelList
-                    } else if !isAddingChannel {
+                    if ChannelStore.shared.channels.isEmpty {
                         // Empty state
                         VStack(spacing: DesignToken.Spacing.sm) {
                             Image(systemName: "arrow.down.app")
@@ -227,24 +191,24 @@ struct OnboardingView: View {
                                 .multilineTextAlignment(.center)
                         }
                         .padding(.vertical, DesignToken.Spacing.lg)
-                    }
-
-                    // Expandable form
-                    if isAddingChannel {
-                        channelForm
+                    } else {
+                        channelList
                     }
                 }
                 .padding(.horizontal, DesignToken.Spacing.lg)
             }
         }
+        .sheet(isPresented: $showingAddChannelSheet) {
+            AddChannelView()
+        }
     }
 
-    // MARK: - Pending Channel List
+    // MARK: - Channel List
 
-    private var pendingChannelList: some View {
+    private var channelList: some View {
         VStack(spacing: DesignToken.Spacing.xs) {
-            ForEach(Array(pendingChannels.enumerated()), id: \.element.id) { index, pending in
-                pendingChannelRow(pending: pending, index: index)
+            ForEach(ChannelStore.shared.channels) { channel in
+                channelRow(channel: channel)
             }
         }
         .padding(DesignToken.Spacing.sm)
@@ -256,10 +220,10 @@ struct OnboardingView: View {
         )
     }
 
-    private func pendingChannelRow(pending: PendingChannel, index: Int) -> some View {
+    private func channelRow(channel: Channel) -> some View {
         HStack(spacing: DesignToken.Spacing.sm) {
             // Icon
-            if let providerId = pending.channel.providerId, providerId != "custom" {
+            if let providerId = channel.providerId, providerId != "custom" {
                 Image(systemName: ProviderIconMapper.symbol(for: providerId))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(DesignToken.Colors.accent)
@@ -273,299 +237,37 @@ struct OnboardingView: View {
 
             // Name + protocol
             VStack(alignment: .leading, spacing: 2) {
-                Text(pending.channel.name)
+                Text(channel.name)
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textPrimary)
                     .lineLimit(1)
-                Text(pending.channel.protocol.rawValue)
+                Text(channel.protocol.rawValue)
                     .font(DesignToken.Font.system(size: 10))
                     .foregroundColor(DesignToken.Colors.textTertiary)
             }
 
             Spacer()
 
-            // Status
-            switch pending.testStatus {
-            case .success:
-                HStack(spacing: DesignToken.Spacing.xxs) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(DesignToken.Colors.statusOnline)
-                    Text(L10n.Onboarding.connected)
-                        .font(DesignToken.Font.system(size: 11))
-                        .foregroundColor(DesignToken.Colors.statusOnline)
-                }
-            case .failure(let message):
-                HStack(spacing: DesignToken.Spacing.xxs) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(DesignToken.Colors.statusOffline)
-                    Text(L10n.Onboarding.connectionFailed)
-                        .font(DesignToken.Font.system(size: 11))
-                        .foregroundColor(DesignToken.Colors.statusOffline)
-                    if !message.isEmpty {
-                        Text(message)
-                            .font(DesignToken.Font.system(size: 10))
-                            .foregroundColor(DesignToken.Colors.textTertiary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
+            // Status (Always connected since it's saved)
+            HStack(spacing: DesignToken.Spacing.xxs) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(DesignToken.Colors.statusOnline)
+                Text(L10n.Onboarding.connected)
+                    .font(DesignToken.Font.system(size: 11))
+                    .foregroundColor(DesignToken.Colors.statusOnline)
             }
 
             // Delete button
             IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
-                pendingChannels.remove(at: index)
+                removeChannel(channel)
             }
-            .accessibilityIdentifier("onboarding.addchannel.delete.\(index)")
         }
         .padding(.horizontal, DesignToken.Spacing.xs)
         .padding(.vertical, DesignToken.Spacing.xs)
     }
 
-    // MARK: - Channel Form (Expandable)
-
-    private var channelForm: some View {
-        VStack(spacing: DesignToken.Spacing.md) {
-            ScrollView {
-                VStack(spacing: DesignToken.Spacing.lg) {
-                    // Provider Picker
-                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                        Text(L10n.AddChannel.providerName)
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-
-                        if isCustomProvider {
-                            LabeledTextField(
-                                label: "",
-                                text: $customProviderName,
-                                placeholder: L10n.AddChannel.providerNamePlaceholder
-                            )
-                        } else {
-                            Picker(selection: $selectedProviderId) {
-                                Text(L10n.AddChannel.customProvider).tag("custom" as String?)
-                                ForEach(channelManager.providerTemplates) { template in
-                                    Text(template.nameEn).tag(template.id as String?)
-                                }
-                            } label: {
-                                EmptyView()
-                            }
-                            .pickerStyle(.menu)
-                            .onChange(of: selectedProviderId) { _ in
-                                if selectedProviderId == "custom" {
-                                    isCustomProvider = true
-                                    baseURL = "http://localhost:11434/v1"
-                                } else {
-                                    isCustomProvider = false
-                                    if let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                                        selectProviderTemplate(template)
-                                    }
-                                }
-                                connectionTestResult = nil
-                            }
-                        }
-                    }
-
-                    // Protocol Segmented Picker
-                    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-                        Text(L10n.Onboarding.apiProtocol)
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.textSecondary)
-
-                        Picker(selection: $selectedProtocol) {
-                            Text(L10n.Settings.generalProtocolOpenai).tag(APIProtocol.openai)
-                            Text(L10n.Settings.generalProtocolAnthropic).tag(APIProtocol.anthropic)
-                            if isCustomProvider {
-                                Text(L10n.Settings.generalProtocolAuto).tag(APIProtocol.auto)
-                            }
-                        } label: {
-                            EmptyView()
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: selectedProtocol) { _ in
-                            if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                                if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
-                                    baseURL = url
-                                }
-                            }
-                            connectionTestResult = nil
-                        }
-                    }
-
-                    Divider()
-
-                    // Connection Details
-                    LabeledTextField(
-                        label: L10n.Onboarding.baseUrl,
-                        text: $baseURL,
-                        placeholder: L10n.AddChannel.baseUrlPlaceholder
-                    )
-
-                    LabeledSecureField(
-                        label: L10n.Settings.channelsApiKey,
-                        text: $apiKey,
-                        placeholder: L10n.AddChannel.apiKeyPlaceholder
-                    )
-
-                    // Test Result
-                    if let result = connectionTestResult {
-                        connectionTestStatus(result: result)
-                    }
-
-                    // Action Buttons
-                    HStack(spacing: DesignToken.Spacing.sm) {
-                        HoverButton(
-                            title: isTestingConnection ? L10n.Status.testing : L10n.Onboarding.testAndAdd,
-                            icon: isTestingConnection ? "ellipsis.circle.fill" : "checkmark.circle"
-                        ) {
-                            Task { await testAndAdd() }
-                        }
-                        .disabled(!isFormValid || isTestingConnection)
-                        .accessibilityIdentifier("onboarding.addchannel.testAndAdd")
-
-                        SecondaryButton(L10n.Onboarding.cancel) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isAddingChannel = false
-                            }
-                        }
-                    }
-                }
-                .padding(DesignToken.Spacing.lg)
-            }
-            .frame(height: 380)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(DesignToken.Colors.accent.opacity(0.3), lineWidth: 1)
-            )
-            .cornerRadius(8)
-        }
-    }
-
-    private var isFormValid: Bool {
-        !apiKey.isEmpty && !baseURL.isEmpty
-    }
-
-    private func selectProviderTemplate(_ template: ProviderTemplate) {
-        selectedProviderId = template.id
-        if let firstProtocol = template.supportsProtocols.first {
-            selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
-            baseURL = template.baseURL(for: firstProtocol) ?? ""
-        } else if let fallback = template.baseURL {
-            baseURL = fallback
-            selectedProtocol = .openai
-        }
-        connectionTestResult = nil
-    }
-
-    private func connectionTestStatus(result: ChannelManager.ConnectionTestResult) -> some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-            HStack(spacing: DesignToken.Spacing.xxs) {
-                Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(result.success
-                        ? DesignToken.Colors.statusOnline
-                        : DesignToken.Colors.statusOffline)
-
-                Text(result.success ? L10n.Status.connected : L10n.Status.disconnected)
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-            }
-
-            if !result.success, let msg = errorMessage {
-                Text(msg)
-                    .font(DesignToken.Font.system(size: 11))
-                    .foregroundColor(DesignToken.Colors.statusOffline)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if result.success && !result.models.isEmpty {
-                Text(L10n.Onboarding.modelsFetched(result.models.count))
-                    .font(DesignToken.Font.system(size: 11))
-                    .foregroundColor(DesignToken.Colors.statusOnline)
-            }
-        }
-        .accessibilityIdentifier("onboarding.addchannel.connectionStatus")
-    }
-
-    @State private var errorMessage: String?
-
-    // MARK: - Test & Add
-
-    private func testAndAdd() async {
-        isTestingConnection = true
-        connectionTestResult = nil
-        errorMessage = nil
-
-        let resolvedProtocol = selectedProtocol
-
-        let tempChannel = Channel(
-            id: UUID().uuidString,
-            name: isCustomProvider ? (customProviderName.isEmpty ? "Custom" : customProviderName) : (selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0)?.nameEn } ?? "Test"),
-            providerId: isCustomProvider ? "custom" : selectedProviderId,
-            baseURL: baseURL,
-            protocol: resolvedProtocol,
-            models: []
-        )
-
-        // Temporarily store key for test
-        do {
-            try KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
-        } catch {
-            Log.error("Failed to set temporary API key for test: \(error.localizedDescription)")
-        }
-        defer {
-            do {
-                try KeychainManager.shared.removeAPIKey(for: tempChannel.id)
-            } catch {
-                Log.error("Failed to remove temporary API key: \(error.localizedDescription)")
-            }
-        }
-
-        let result = await channelManager.testConnection(channel: tempChannel)
-
-        if result.success {
-            connectionTestResult = result
-            // Enrich models with template metadata
-            let template = selectedProviderId.flatMap { channelManager.getProviderTemplate(id: $0) }
-            let enrichedModels = channelManager.mergeModelsWithTemplateMetadata(
-                fetchedModels: result.models,
-                template: template
-            )
-
-            // Create channel with enriched models
-            let enrichedChannel = Channel(
-                id: tempChannel.id,
-                name: tempChannel.name,
-                providerId: tempChannel.providerId,
-                baseURL: tempChannel.baseURL,
-                protocol: tempChannel.protocol,
-                models: enrichedModels
-            )
-
-            // Add to pending list
-            let pending = PendingChannel(
-                channel: enrichedChannel,
-                apiKey: apiKey,
-                testStatus: .success
-            )
-            pendingChannels.append(pending)
-            // Reset form but keep it open for adding more
-            resetForm()
-        } else {
-            connectionTestResult = result
-            errorMessage = result.errorMessage ?? "Connection failed"
-            // Keep form filled so user can retry
-        }
-        isTestingConnection = false
-    }
-
-    private func resetForm() {
-        selectedProviderId = nil
-        isCustomProvider = false
-        selectedProtocol = .openai
-        apiKey = ""
-        baseURL = ""
-        customProviderName = ""
-        connectionTestResult = nil
-        errorMessage = nil
+    private func removeChannel(_ channel: Channel) {
+        ChannelStore.shared.removeChannel(id: channel.id)
     }
 
     // MARK: - Shell Config Step
@@ -752,7 +454,7 @@ struct OnboardingView: View {
     }
 
     private var successCount: Int {
-        pendingChannels.filter { $0.testStatus == .success }.count
+        ChannelStore.shared.channels.count
     }
 
     private var nextButtonTitle: String {
@@ -774,7 +476,7 @@ struct OnboardingView: View {
         case .welcome:
             true
         case .addChannel:
-            // At least 1 successfully tested channel
+            // At least 1 channel added
             successCount > 0
         case .shellConfig:
             true
@@ -788,15 +490,7 @@ struct OnboardingView: View {
         case .welcome:
             currentStep = .addChannel
         case .addChannel:
-            // Batch-save all success channels
-            for pending in pendingChannels where pending.testStatus == .success {
-                do {
-                    try KeychainManager.shared.setAPIKey(pending.apiKey, for: pending.channel.id)
-                } catch {
-                    Log.error("Failed to save API key for channel \(pending.channel.name): \(error.localizedDescription)")
-                }
-                ChannelStore.shared.addChannel(pending.channel)
-            }
+            // Channels are already saved by AddChannelView
             currentStep = .shellConfig
         case .shellConfig:
             currentStep = .done
