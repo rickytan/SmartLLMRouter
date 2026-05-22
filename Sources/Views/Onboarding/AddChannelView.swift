@@ -136,7 +136,8 @@ struct AddChannelView: View {
                 LabeledTextField(
                     label: "",
                     text: $customProviderName,
-                    placeholder: L10n.AddChannel.providerNamePlaceholder
+                    placeholder: L10n.AddChannel.providerNamePlaceholder,
+                    accessibilityID: "addChannel.customNameField"
                 )
                 .onChange(of: customProviderName) { newName in
                     name = newName
@@ -151,6 +152,7 @@ struct AddChannelView: View {
                     EmptyView()
                 }
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("addChannel.providerPicker")
                 .onChange(of: selectedProviderId) { _ in
                     if selectedProviderId == "custom" {
                         isCustomProvider = true
@@ -187,6 +189,7 @@ struct AddChannelView: View {
                 EmptyView()
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("addChannel.protocolPicker")
             .onChange(of: selectedProtocol) { _ in
                 if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
                     if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
@@ -205,20 +208,22 @@ struct AddChannelView: View {
             LabeledTextField(
                 label: L10n.Settings.channelsBaseUrl,
                 text: $baseURL,
-                placeholder: L10n.AddChannel.baseUrlPlaceholder
+                placeholder: L10n.AddChannel.baseUrlPlaceholder,
+                accessibilityID: "addChannel.baseUrlField"
             )
 
             LabeledSecureField(
                 label: L10n.Settings.channelsApiKey,
                 text: $apiKey,
-                placeholder: L10n.AddChannel.apiKeyPlaceholder
+                placeholder: L10n.AddChannel.apiKeyPlaceholder,
+                accessibilityID: "addChannel.apiKeyField"
             )
 
             LabeledNumberField(
                 L10n.Settings.channelsPriority,
                 placeholder: "1",
                 value: $priority,
-                accessibilityID: "addchannel.priority"
+                accessibilityID: "addChannel.priorityField"
             )
         }
     }
@@ -235,6 +240,7 @@ struct AddChannelView: View {
                     Task { await testConnection() }
                 }
                 .disabled(apiKey.isEmpty || baseURL.isEmpty || isTesting)
+                .accessibilityIdentifier("addChannel.testConnectionButton")
 
                 Spacer()
 
@@ -312,6 +318,7 @@ struct AddChannelView: View {
                     Task { await fetchModels() }
                 }
                 .disabled(isFetchingModels || baseURL.isEmpty || apiKey.isEmpty)
+                .accessibilityIdentifier("addChannel.fetchModelsButton")
             }
 
             if models.isEmpty {
@@ -365,11 +372,13 @@ struct AddChannelView: View {
                 showingModelEditor = true
             }
             .foregroundColor(DesignToken.Colors.textSecondary)
+            .accessibilityIdentifier("addChannel.modelRow.editButton")
 
             IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
                 models.remove(at: index)
             }
             .foregroundColor(DesignToken.Colors.textSecondary)
+            .accessibilityIdentifier("addChannel.modelRow.deleteButton")
         }
         .padding(.horizontal, DesignToken.Spacing.sm)
         .padding(.vertical, DesignToken.Spacing.xs)
@@ -435,6 +444,7 @@ struct AddChannelView: View {
                 dismiss()
             }
             .frame(width: 100)
+            .accessibilityIdentifier("addChannel.cancelButton")
 
             Spacer()
 
@@ -447,6 +457,7 @@ struct AddChannelView: View {
                 Task { await saveChannel() }
             }
             .frame(maxWidth: 200)
+            .accessibilityIdentifier("addChannel.saveButton")
         }
     }
 

@@ -18,35 +18,35 @@ struct SettingsView: View {
                     Label(L10n.Settings.general, systemImage: "gearshape")
                 }
                 .tag(0)
-                .accessibilityIdentifier("settings.tab.general")
+                .accessibilityIdentifier("settings.tabGeneral")
 
             ChannelsTab()
                 .tabItem {
                     Label(L10n.Settings.channels, systemImage: "server.rack")
                 }
                 .tag(1)
-                .accessibilityIdentifier("settings.tab.channels")
+                .accessibilityIdentifier("settings.tabChannels")
 
             AdvancedTab()
                 .tabItem {
                     Label(L10n.Settings.advanced, systemImage: "slider.horizontal.3")
                 }
                 .tag(2)
-                .accessibilityIdentifier("settings.tab.advanced")
+                .accessibilityIdentifier("settings.tabAdvanced")
 
             UsageTab()
                 .tabItem {
                     Label(L10n.Settings.usage, systemImage: "chart.bar.fill")
                 }
                 .tag(3)
-                .accessibilityIdentifier("settings.tab.usage")
+                .accessibilityIdentifier("settings.tabUsage")
 
             AboutTab()
                 .tabItem {
                     Label(L10n.Settings.about, systemImage: "info.circle")
                 }
                 .tag(4)
-                .accessibilityIdentifier("settings.tab.about")
+                .accessibilityIdentifier("settings.tabAbout")
         }
         .frame(width: DesignToken.Layout.settingsFrameWidth, height: DesignToken.Layout.settingsFrameHeight)
     }
@@ -96,7 +96,7 @@ struct GeneralSettingsTab: View {
                     }
                 }
             }
-            .accessibilityIdentifier(proxy.isRunning ? "settings.general.stop" : "settings.general.start")
+            .accessibilityIdentifier("settings.general.startStopButton")
 
             // Status Line
             HStack(spacing: DesignToken.Spacing.xs) {
@@ -118,7 +118,7 @@ struct GeneralSettingsTab: View {
                 L10n.Settings.generalPort,
                 placeholder: L10n.Settings.generalPortPlaceholder,
                 value: $appState.port,
-                accessibilityID: "settings.general.port"
+                accessibilityID: "settings.general.portField"
             )
 
             // Launch at Login Toggle
@@ -126,7 +126,7 @@ struct GeneralSettingsTab: View {
                 L10n.Settings.generalAutoStart,
                 isOn: $appState.launchAtLogin
             )
-            .accessibilityIdentifier("settings.general.launchAtLogin")
+            .accessibilityIdentifier("settings.general.autoStartToggle")
         }
     }
 
@@ -210,7 +210,7 @@ struct ChannelsTab: View {
                 ) {
                     showingAddChannel = true
                 }
-                .accessibilityIdentifier("settings.channels.add")
+                .accessibilityIdentifier("settings.channels.addButton")
             }
             .padding(.horizontal, DesignToken.Layout.cardPadding)
 
@@ -265,7 +265,7 @@ struct AdvancedTab: View {
                         L10n.Settings.advancedFailover,
                         isOn: $appState.autoFailover
                     )
-                    .accessibilityIdentifier("settings.advanced.failover")
+                    .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
                 }
 
                 Divider()
@@ -811,7 +811,7 @@ struct AboutTab: View {
                 ) {
                     updaterDelegate.checkForUpdates()
                 }
-                .accessibilityIdentifier("about.checkForUpdates")
+                .accessibilityIdentifier("settings.about.checkUpdateButton")
 
                 HoverButton(
                     title: L10n.Settings.aboutGithub,

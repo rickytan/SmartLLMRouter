@@ -69,7 +69,7 @@ struct ChannelRowView: View {
                 ) {
                     // Edit channel
                 }
-                .accessibilityIdentifier("channel.edit.\(index)")
+                .accessibilityIdentifier("settings.channels.row.editButton")
 
                 IconButton(
                     icon: "trash",
@@ -77,7 +77,7 @@ struct ChannelRowView: View {
                 ) {
                     ChannelStore.shared.removeChannel(id: channel.id)
                 }
-                .accessibilityIdentifier("channel.delete.\(index)")
+                .accessibilityIdentifier("settings.channels.row.deleteButton")
             }
         }
         .padding(.vertical, DesignToken.Spacing.sm)

@@ -6,7 +6,20 @@ import SwiftUI
 struct LabeledPicker<Content: View>: View {
     let label: String
     @Binding var selection: String
+    let accessibilityID: String?
     @ViewBuilder let content: () -> Content
+
+    init(
+        label: String,
+        selection: Binding<String>,
+        accessibilityID: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.label = label
+        self._selection = selection
+        self.accessibilityID = accessibilityID
+        self.content = content
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
@@ -21,6 +34,7 @@ struct LabeledPicker<Content: View>: View {
             }
             .pickerStyle(.menu)
         }
+        .accessibilityIdentifier(accessibilityID ?? "")
     }
 }
 

@@ -114,6 +114,7 @@ struct ConfigImporterView: View {
                             .font(DesignToken.Font.caption())
                             .foregroundColor(DesignToken.Colors.accent)
                     }
+                    .accessibilityIdentifier("configImporter.selectAllButton")
                 }
             }
             .padding(.horizontal, DesignToken.Spacing.xs)
@@ -138,6 +139,7 @@ struct ConfigImporterView: View {
             ))
             .labelsHidden()
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("configImporter.row.toggle")
 
             // Provider icon
             Image(systemName: ProviderIconMapper.symbol(for: channel.source == "claude" ? "anthropic" : channel.name.lowercased()))
@@ -188,6 +190,7 @@ struct ConfigImporterView: View {
                 SecondaryButton(L10n.ConfigImporter.scan, icon: "arrow.clockwise", isDisabled: isScanning) {
                     Task { await scanConfigs() }
                 }
+                .accessibilityIdentifier("configImporter.scanButton")
             }
 
             Spacer()
@@ -195,11 +198,13 @@ struct ConfigImporterView: View {
             SecondaryButton(L10n.Onboarding.cancel) {
                 dismiss()
             }
+            .accessibilityIdentifier("configImporter.cancelButton")
 
             let hasSelection = discoveredChannels.contains { $0.isSelected }
             PrimaryButton(L10n.ConfigImporter.importSelected, icon: "square.and.arrow.down", isDisabled: isScanning || !hasSelection) {
                 Task { await importSelected() }
             }
+            .accessibilityIdentifier("configImporter.importButton")
         }
     }
 

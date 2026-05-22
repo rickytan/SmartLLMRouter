@@ -106,6 +106,7 @@ struct MenuView: View {
             .font(DesignToken.Font.caption())
             .foregroundColor(DesignToken.Colors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityIdentifier("menu.statsLabel")
     }
 
     // MARK: - Failover Toggle
@@ -254,7 +255,7 @@ struct MenuView: View {
                 }
             }
         }
-        .accessibilityIdentifier("menu.recent.requests")
+            .accessibilityIdentifier("menu.recentRequestsList")
     }
 
     private func timeAgo(from date: Date) -> String {
@@ -281,7 +282,7 @@ struct MenuView: View {
                     forType: .string
                 )
             }
-            .accessibilityIdentifier("menu.copy环境变量")
+            .accessibilityIdentifier("menu.copyEnvButton")
 
             HoverButton(
                 title: isTestingKey ? L10n.Status.testing : L10n.Menu.testKey,
@@ -296,7 +297,7 @@ struct MenuView: View {
                 }
             }
             .disabled(channelStore.activeChannel == nil || isTestingKey)
-            .accessibilityIdentifier("menu测试密钥")
+            .accessibilityIdentifier("menu.testKeyButton")
         }
         .font(DesignToken.Font.system(size: 12))
     }
@@ -308,14 +309,14 @@ struct MenuView: View {
             HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
-            .accessibilityIdentifier("menu.settings")
+            .accessibilityIdentifier("menu.settingsButton")
 
             Spacer()
 
             HoverButton(title: L10n.Menu.quit, icon: "power") {
                 NSApp.terminate(nil)
             }
-            .accessibilityIdentifier("menu.quit")
+            .accessibilityIdentifier("menu.quitButton")
         }
         .font(DesignToken.Font.system(size: 12))
     }
