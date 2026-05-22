@@ -150,6 +150,7 @@ struct OnboardingView: View {
                 Text(L10n.Onboarding.addedChannelsCount(ChannelStore.shared.channels.count))
                     .font(DesignToken.Font.h3())
                     .foregroundColor(DesignToken.Colors.textPrimary)
+                    .accessibilityIdentifier("onboarding.addChannels.title")
 
                 Spacer()
 
@@ -160,7 +161,7 @@ struct OnboardingView: View {
                 ) {
                     showingConfigImporter = true
                 }
-                .accessibilityIdentifier("onboarding.configimporter")
+                .accessibilityIdentifier("onboarding.addChannels.importButton")
 
                 BadgeButton(
                     title: L10n.Onboarding.addChannelAdd,
@@ -168,7 +169,7 @@ struct OnboardingView: View {
                 ) {
                     showingAddChannelSheet = true
                 }
-                .accessibilityIdentifier("onboarding.addchannel.toggle")
+                .accessibilityIdentifier("onboarding.addChannels.addButton")
             }
             .padding(.horizontal, DesignToken.Spacing.lg)
             .padding(.top, DesignToken.Spacing.xs)
@@ -261,6 +262,7 @@ struct OnboardingView: View {
             IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
                 removeChannel(channel)
             }
+            .accessibilityIdentifier("onboarding.addChannels.channelRow.deleteButton")
         }
         .padding(.horizontal, DesignToken.Spacing.xs)
         .padding(.vertical, DesignToken.Spacing.xs)
@@ -334,7 +336,7 @@ struct OnboardingView: View {
                         await configureShell()
                     }
                 }
-                .accessibilityIdentifier("onboarding.shellconfig.configureButton")
+                .accessibilityIdentifier("onboarding.shellConfig.applyButton")
 
                 // Status
                 if let result = shellConfigResult {
@@ -439,7 +441,7 @@ struct OnboardingView: View {
                 ) {
                     completeOnboarding()
                 }
-                .accessibilityIdentifier("onboarding.launch")
+                .accessibilityIdentifier("onboarding.done.launchButton")
             } else {
                 HoverButton(
                     title: nextButtonTitle,
@@ -448,7 +450,7 @@ struct OnboardingView: View {
                     goToNextStep()
                 }
                 .disabled(!canProceed)
-                .accessibilityIdentifier("onboarding.next")
+                .accessibilityIdentifier("onboarding.welcome.nextButton")
             }
         }
     }
