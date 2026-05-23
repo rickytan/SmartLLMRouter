@@ -258,6 +258,10 @@ struct AddChannelView: View {
         }
     }
 
+    private var isTestSuccessful: Bool {
+        testResult?.success == true
+    }
+
     private func testConnection() async {
         isTesting = true
         testResult = nil
@@ -316,7 +320,7 @@ struct AddChannelView: View {
                 ) {
                     Task { await fetchModels() }
                 }
-                .disabled(isFetchingModels || baseURL.isEmpty || apiKey.isEmpty)
+                .disabled(isFetchingModels || !isTestSuccessful)
                 .accessibilityIdentifier("addChannel.fetchModelsButton")
             }
 
@@ -343,9 +347,17 @@ struct AddChannelView: View {
                     placeholder: L10n.AddChannel.modelNamePlaceholder
                 )
 
-                HoverButton(title: "+", icon: "plus") {
+                Button {
                     addManualModel()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .medium))
+                        .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
+                        .background(DesignToken.Colors.accent.opacity(0.1))
+                        .foregroundColor(DesignToken.Colors.accent)
+                        .cornerRadius(DesignToken.Layout.buttonCornerRadius)
                 }
+                .buttonStyle(.plain)
                 .disabled(newModelName.isEmpty)
             }
         }
@@ -377,8 +389,10 @@ struct AddChannelView: View {
 
             // Edit Button (Standard Button for reliable interaction)
             Button {
+                Log.info("[AddChannelView] Edit button tapped for model at index \(index), model: \(model.identifier)")
                 editingModelIndex = index
                 showingModelEditor = true
+                Log.info("[AddChannelView] showingModelEditor set to true, editingModelIndex: \(index)")
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 12))
