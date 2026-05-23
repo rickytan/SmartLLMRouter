@@ -74,6 +74,7 @@ struct AddChannelView: View {
                 }
                 .padding(DesignToken.Spacing.lg)
             }
+            .frame(maxHeight: .infinity) // Ensure ScrollView takes all available vertical space
 
             Divider()
                 .padding(.horizontal, DesignToken.Spacing.lg)
