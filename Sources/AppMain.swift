@@ -17,6 +17,10 @@ struct SmartLLMRouterApp: App {
             OnboardingView(onComplete: {
                 AppState.shared.completeOnboarding()
                 Self.closeOnboardingWindow()
+                // Show menu bar popover once on first launch
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    MenuBarManager.shared.showPopover()
+                }
             })
         }
         .windowStyle(.hiddenTitleBar)

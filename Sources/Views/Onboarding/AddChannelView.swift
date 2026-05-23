@@ -19,8 +19,6 @@ struct AddChannelView: View {
     @State private var models: [ModelEntry] = []
     @State private var isFetchingModels: Bool = false
     @State private var newModelName: String = ""
-    @State private var showingModelEditor: Bool = false
-    @State private var editingModelIndex: Int?
 
     // Custom provider state
     @State private var isCustomProvider: Bool = false
@@ -74,7 +72,7 @@ struct AddChannelView: View {
                 }
                 .padding(DesignToken.Spacing.lg)
             }
-            .frame(maxHeight: .infinity) // Ensure ScrollView takes all available vertical space
+            .frame(maxHeight: .infinity)
 
             Divider()
                 .padding(.horizontal, DesignToken.Spacing.lg)
@@ -100,14 +98,7 @@ struct AddChannelView: View {
                 applyTemplateSelection()
             }
         }
-        .sheet(isPresented: $showingModelEditor) {
-            if let index = editingModelIndex, index < models.count {
-                ModelMetadataEditorView(model: models[index]) { updated in
-                    models[index] = updated
-                    showingModelEditor = false
-                }
-            }
-        }
+
     }
 
     // MARK: - Header
@@ -341,24 +332,19 @@ struct AddChannelView: View {
 
             // Add model manually
             HStack(spacing: DesignToken.Spacing.sm) {
-                LabeledTextField(
-                    label: "",
+                ClearableTextField(
+                    L10n.AddChannel.modelNamePlaceholder,
                     text: $newModelName,
-                    placeholder: L10n.AddChannel.modelNamePlaceholder
+                    accessibilityID: "addChannel.manualModelField"
                 )
 
-                Button {
+                IconButton(
+                    icon: "plus",
+                    tooltip: "Add model",
+                    isDisabled: newModelName.isEmpty
+                ) {
                     addManualModel()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
-                        .background(DesignToken.Colors.accent.opacity(0.1))
-                        .foregroundColor(DesignToken.Colors.accent)
-                        .cornerRadius(DesignToken.Layout.buttonCornerRadius)
                 }
-                .buttonStyle(.plain)
-                .disabled(newModelName.isEmpty)
             }
         }
     }
@@ -387,29 +373,35 @@ struct AddChannelView: View {
                     .foregroundColor(DesignToken.Colors.accent)
             }
 
-            // Edit Button (Standard Button for reliable interaction)
-            Button {
+            // Edit Button
+            IconButton(
+                icon: "gearshape",
+                tooltip: L10n.ModelEditor.editModel(model.identifier)
+            ) {
                 Log.info("[AddChannelView] Edit button tapped for model at index \(index), model: \(model.identifier)")
-                editingModelIndex = index
-                showingModelEditor = true
-                Log.info("[AddChannelView] showingModelEditor set to true, editingModelIndex: \(index)")
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 12))
+                let capturedIndex = index
+                ModalPresenter.presentSheet(
+                    content: ModelMetadataEditorView(model: model,
+                        onSave: { updated in
+                            models[capturedIndex] = updated
+                            ModalPresenter.dismissSheet()
+                        },
+                        onCancel: {
+                            ModalPresenter.dismissSheet()
+                        }
+                    ),
+                    size: CGSize(width: 360, height: 320)
+                )
             }
-            .buttonStyle(.plain)
-            .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addChannel.modelRow.editButton")
 
-            // Delete Button (Standard Button for reliable interaction)
-            Button {
+            // Delete Button
+            IconButton(
+                icon: "xmark.circle.fill",
+                tooltip: "Remove model"
+            ) {
                 models.remove(at: index)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
             }
-            .buttonStyle(.plain)
-            .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addChannel.modelRow.deleteButton")
         }
         .padding(.horizontal, DesignToken.Spacing.sm)
@@ -494,7 +486,7 @@ struct AddChannelView: View {
     }
 
     private var isValid: Bool {
-        !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty
+        !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty && !models.isEmpty
     }
 
     // MARK: - Save
@@ -581,18 +573,18 @@ struct AddChannelView: View {
 // MARK: - ModelMetadataEditorView
 
 struct ModelMetadataEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-
     let model: ModelEntry
     let onSave: (ModelEntry) -> Void
+    let onCancel: () -> Void
 
     @State private var contextLength: String
     @State private var inputPrice: String
     @State private var outputPrice: String
 
-    init(model: ModelEntry, onSave: @escaping (ModelEntry) -> Void) {
+    init(model: ModelEntry, onSave: @escaping (ModelEntry) -> Void, onCancel: @escaping () -> Void) {
         self.model = model
         self.onSave = onSave
+        self.onCancel = onCancel
         _contextLength = State(initialValue: model.contextLength.map(String.init) ?? "")
         _inputPrice = State(initialValue: model.inputPricePer1M.map { String(format: "%.2f", $0) } ?? "")
         _outputPrice = State(initialValue: model.outputPricePer1M.map { String(format: "%.2f", $0) } ?? "")
@@ -605,7 +597,7 @@ struct ModelMetadataEditorView: View {
                     .font(DesignToken.Font.h3())
                 Spacer()
                 IconButton(icon: "xmark.circle.fill", tooltip: L10n.ModelEditor.close) {
-                    dismiss()
+                    onCancel()
                 }
             }
 
@@ -631,7 +623,7 @@ struct ModelMetadataEditorView: View {
 
             HStack {
                 SecondaryButton(L10n.ModelEditor.cancel) {
-                    dismiss()
+                    onCancel()
                 }
                 Spacer()
                 PrimaryButton(L10n.ModelEditor.save) {
