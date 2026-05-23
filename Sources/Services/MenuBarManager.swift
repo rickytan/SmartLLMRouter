@@ -38,9 +38,14 @@ final class MenuBarManager: NSObject {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            guard let button = statusItem.button else { return }
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            showPopover()
         }
+    }
+
+    /// Show the popover (programmatically)
+    func showPopover() {
+        guard let button = statusItem.button, !popover.isShown else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     /// Update the menu bar icon based on proxy status
