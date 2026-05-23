@@ -9,6 +9,7 @@ struct ModelEntry: Identifiable, Codable, Equatable {
     var inputPricePer1M: Double?
     var outputPricePer1M: Double?
     var isEnabled: Bool
+    var supportsVision: Bool = false
 
     init(
         id: String,
@@ -17,7 +18,8 @@ struct ModelEntry: Identifiable, Codable, Equatable {
         contextLength: Int? = nil,
         inputPricePer1M: Double? = nil,
         outputPricePer1M: Double? = nil,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        supportsVision: Bool = false
     ) {
         self.id = id
         self.identifier = identifier
