@@ -11,6 +11,7 @@ struct OnboardingView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var channelManager = ChannelManager.shared
     @ObservedObject private var shellConfig = ShellConfigManager.shared
+    @ObservedObject private var channelStore = ChannelStore.shared
 
     enum OnboardingStep: String, CaseIterable {
         case welcome
@@ -147,10 +148,9 @@ struct OnboardingView: View {
         VStack(spacing: DesignToken.Spacing.md) {
             // Header row: title + buttons
             HStack {
-                Text(L10n.Onboarding.addedChannelsCount(ChannelStore.shared.channels.count))
+                Text(L10n.Onboarding.addedChannelsCount(channelStore.channels.count))
                     .font(DesignToken.Font.h3())
                     .foregroundColor(DesignToken.Colors.textPrimary)
-                    .accessibilityIdentifier("onboarding.addChannels.title")
 
                 Spacer()
 
@@ -180,7 +180,7 @@ struct OnboardingView: View {
             // Scrollable content area
             ScrollView {
                 VStack(spacing: DesignToken.Spacing.md) {
-                    if ChannelStore.shared.channels.isEmpty {
+                    if channelStore.channels.isEmpty {
                         // Empty state
                         VStack(spacing: DesignToken.Spacing.sm) {
                             Image(systemName: "arrow.down.app")
@@ -208,7 +208,7 @@ struct OnboardingView: View {
 
     private var channelList: some View {
         VStack(spacing: DesignToken.Spacing.xs) {
-            ForEach(ChannelStore.shared.channels) { channel in
+            ForEach(channelStore.channels) { channel in
                 channelRow(channel: channel)
             }
         }
@@ -268,6 +268,7 @@ struct OnboardingView: View {
         .padding(.vertical, DesignToken.Spacing.xs)
     }
 
+    @MainActor
     private func removeChannel(_ channel: Channel) {
         ChannelStore.shared.removeChannel(id: channel.id)
     }

@@ -231,29 +231,27 @@ struct AddChannelView: View {
     // MARK: - Test Connection
 
     private var testConnectionSection: some View {
-        VStack(spacing: DesignToken.Spacing.sm) {
-            HStack {
-                HoverButton(
-                    title: isTesting ? L10n.Status.testing : L10n.Settings.channelsTestConnection,
-                    icon: isTesting ? "ellipsis.circle.fill" : "checkmark.circle"
-                ) {
-                    Task { await testConnection() }
-                }
-                .disabled(apiKey.isEmpty || baseURL.isEmpty || isTesting)
-                .accessibilityIdentifier("addChannel.testConnectionButton")
+        HStack {
+            HoverButton(
+                title: isTesting ? L10n.Status.testing : L10n.Settings.channelsTestConnection,
+                icon: isTesting ? "ellipsis.circle.fill" : "checkmark.circle"
+            ) {
+                Task { await testConnection() }
+            }
+            .disabled(apiKey.isEmpty || baseURL.isEmpty || isTesting)
+            .accessibilityIdentifier("addChannel.testConnectionButton")
 
-                Spacer()
+            Spacer()
 
-                if let result = testResult {
-                    if result.success {
-                        Label(L10n.Status.connected, systemImage: "checkmark.circle.fill")
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.statusOnline)
-                    } else {
-                        Label(result.errorMessage ?? "Unknown error", systemImage: "xmark.circle.fill")
-                            .font(DesignToken.Font.caption())
-                            .foregroundColor(DesignToken.Colors.statusOffline)
-                    }
+            if let result = testResult {
+                if result.success {
+                    Label(L10n.Status.connected, systemImage: "checkmark.circle.fill")
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusOnline)
+                } else {
+                    Label(result.errorMessage ?? "Unknown error", systemImage: "xmark.circle.fill")
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusOffline)
                 }
             }
         }
@@ -354,6 +352,7 @@ struct AddChannelView: View {
 
     private func modelRow(model: ModelEntry, index: Int) -> some View {
         HStack(spacing: DesignToken.Spacing.sm) {
+            // Model Name
             Text(model.identifier)
                 .font(DesignToken.Font.caption())
                 .lineLimit(1)
@@ -361,22 +360,40 @@ struct AddChannelView: View {
 
             Spacer()
 
+            // Context Length
             if let ctx = model.contextLength {
                 Text(formatContext(ctx))
                     .font(DesignToken.Font.monoMicro())
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            IconButton(icon: "gearshape", tooltip: L10n.ModelEditor.edit) {
+            // Vision / Multimodal Icon
+            if model.supportsVision {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(DesignToken.Colors.accent)
+            }
+
+            // Edit Button (Standard Button for reliable interaction)
+            Button {
                 editingModelIndex = index
                 showingModelEditor = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12))
             }
+            .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addChannel.modelRow.editButton")
 
-            IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.delete) {
+            // Delete Button (Standard Button for reliable interaction)
+            Button {
                 models.remove(at: index)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
             }
+            .buttonStyle(.plain)
             .foregroundColor(DesignToken.Colors.textSecondary)
             .accessibilityIdentifier("addChannel.modelRow.deleteButton")
         }
