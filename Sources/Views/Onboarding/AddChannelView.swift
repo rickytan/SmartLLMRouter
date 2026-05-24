@@ -98,6 +98,9 @@ struct AddChannelView: View {
                 selectedProviderId = channel.providerId
                 apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
                 isCustomProvider = (channel.providerId == nil || channel.providerId == "custom")
+                if isCustomProvider {
+                    customProviderName = channel.name
+                }
                 testResult = .success(models: channel.models)
             } else {
                 priority = channelStore.channels.count + 1
