@@ -37,7 +37,7 @@ final class OnboardingFlowUITests: UITestCase {
             .matching(identifier: UI.onboardingNextButton).firstMatch
         XCTAssertTrue(nextButton.waitForExistence(timeout: 3), "Next button should exist")
         nextButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// Add a channel through the AddChannelView sheet.
@@ -51,7 +51,7 @@ final class OnboardingFlowUITests: UITestCase {
             "Add Channel button should exist on addChannel step"
         )
         addButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // The AddChannelView sheet should appear.
         // Add a model manually using the manual model input field.
@@ -61,7 +61,7 @@ final class OnboardingFlowUITests: UITestCase {
             modelField.click()
             modelField.typeText("test-model")
             modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-            sleep(0.5)
+Thread.sleep(forTimeInterval: 0.3)
         }
 
         // Close the sheet via Cancel (we don't need to fully save for the onboarding flow test;
@@ -71,7 +71,7 @@ final class OnboardingFlowUITests: UITestCase {
             .matching(identifier: UI.addChannelCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 2) {
             cancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
     }
 
@@ -141,7 +141,7 @@ final class OnboardingFlowUITests: UITestCase {
 
         // Tap "Add Channel" to open the AddChannelView sheet
         addButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the AddChannelView sheet opened
         let providerPicker = app.descendants(matching: .any)
@@ -157,7 +157,7 @@ final class OnboardingFlowUITests: UITestCase {
         modelField.click()
         modelField.typeText("test-model-onboarding")
         modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        sleep(0.5)
+Thread.sleep(forTimeInterval: 0.3)
 
         // Verify the model was added (gear button should appear)
         let gearButton = app.descendants(matching: .any)
@@ -170,7 +170,7 @@ final class OnboardingFlowUITests: UITestCase {
             .matching(identifier: UI.addChannelCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 2) {
             cancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
 
         // Verify we're back on the onboarding addChannel step
@@ -191,14 +191,14 @@ final class OnboardingFlowUITests: UITestCase {
 
         // Step 1: Welcome → Add Channel
         tapNextButton()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Step 2: Add Channel → Shell Config (skip since no real channel)
         let skipButton = app.descendants(matching: .any)
             .matching(identifier: UI.onboardingSkipButton).firstMatch
         if skipButton.waitForExistence(timeout: 3) {
             skipButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
 
         // Step 3: Shell Config → Done (click Next/Finish)
@@ -206,7 +206,7 @@ final class OnboardingFlowUITests: UITestCase {
             .matching(identifier: UI.onboardingNextButton).firstMatch
         if nextButton.waitForExistence(timeout: 3) {
             nextButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
 
         // Step 4: Done step — verify the done screen elements
@@ -227,7 +227,7 @@ final class OnboardingFlowUITests: UITestCase {
         XCTAssertTrue(launchButton.waitForExistence(timeout: 3),
                       "Launch button should exist on the done step")
         launchButton.click()
-        sleep(2)
+Thread.sleep(forTimeInterval: 2.5)
 
         // Verify the onboarding window closed
         XCTAssertFalse(onboardingWindow.exists,
