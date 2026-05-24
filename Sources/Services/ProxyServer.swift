@@ -10,7 +10,15 @@ final class ProxyServer: ObservableObject {
     @Published var port: Int = 1897
     @Published var lastError: String?
 
-    private var requestCount: Int64 = 0
+    private var _requestCount: Int64 = 0
+    private let requestCountLock = NSLock()
+
+    private func nextRequestID() -> Int64 {
+        requestCountLock.lock()
+        defer { requestCountLock.unlock() }
+        _requestCount += 1
+        return _requestCount
+    }
 
     private init() {
         setupRoutes()
@@ -280,8 +288,7 @@ final class ProxyServer: ObservableObject {
         _ request: HttpRequest,
         targetProtocol: RequestForwarder.RequestProtocol
     ) -> HttpResponse {
-        requestCount += 1
-        let reqId = requestCount
+        let reqId = nextRequestID()
         let startTime = Date()
         let reqIdString = "req-\(reqId)"
 
@@ -1111,8 +1118,7 @@ final class ProxyServer: ObservableObject {
     /// Handles POST requests with JSON body that forward to upstream without protocol conversion.
     /// These are single-operation endpoints — no failover chain.
     private func handleAuxiliaryRequest(_ request: HttpRequest, targetPath: String) -> HttpResponse {
-        requestCount += 1
-        let reqId = requestCount
+        let reqId = nextRequestID()
         let startTime = Date()
         let reqIdString = "req-\(reqId)"
 
@@ -1221,12 +1227,11 @@ final class ProxyServer: ObservableObject {
     /// Handles POST requests with multipart/form-data body.
     /// Raw body bytes are forwarded directly without parsing.
     private func handleMultipartRequest(_ request: HttpRequest, targetPath: String) -> HttpResponse {
-        requestCount += 1
-        let reqId = requestCount
+        let reqId = nextRequestID()
         let startTime = Date()
         let reqIdString = "req-\(reqId)"
 
-        Log.info("[#\(reqId)] \(request.method) \(request.path) (multipart)")
+        Log.info("[#\(reqId)] \(request.method) \(request.path)")
 
         // Get the raw body bytes
         guard !request.body.isEmpty else {
@@ -1423,8 +1428,7 @@ final class ProxyServer: ObservableObject {
         method: String,
         isContent: Bool = false
     ) -> HttpResponse {
-        requestCount += 1
-        let reqId = requestCount
+        let reqId = nextRequestID()
         let startTime = Date()
         let reqIdString = "req-\(reqId)"
 
