@@ -9,6 +9,9 @@ struct MenuView: View {
     @ObservedObject private var usage = UsageTracker.shared
     @ObservedObject private var channelManager = ChannelManager.shared
     @ObservedObject private var modelSwitcher = ModelSwitcher.shared
+    // Timer to refresh relative timestamps ("X minutes ago")
+    @State private var now = Date()
+    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: .zero) {
@@ -76,6 +79,9 @@ struct MenuView: View {
                 .padding(.vertical, DesignToken.Spacing.sm)
         }
         .frame(width: DesignToken.Layout.menuWidth)
+        .onReceive(timer) { _ in
+            now = Date()
+        }
     }
 
     // MARK: - Status Header
@@ -266,7 +272,7 @@ struct MenuView: View {
     }
 
     private func timeAgo(from date: Date) -> String {
-        let seconds = Int(Date().timeIntervalSince(date))
+        let seconds = Int(now.timeIntervalSince(date))
         if seconds < 60 {
             return L10n.Menu.timeSeconds(seconds)
         } else if seconds < 3600 {

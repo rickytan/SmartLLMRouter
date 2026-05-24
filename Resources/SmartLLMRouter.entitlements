@@ -9,10 +9,7 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
-    <!-- Keychain access for API key storage -->
-    <key>keychain-access-groups</key>
-    <array>
-        <string>$(AppIdentifierPrefix)com.smartllmrouter</string>
-    </array>
+    <!-- Keychain access: no access-group restriction for Ad-Hoc signing -->
+    <!-- App uses Keychain directly without provisioning profile -->
 </dict>
 </plist>
