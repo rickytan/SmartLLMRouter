@@ -262,6 +262,20 @@ final class ProxyServer: ObservableObject {
         }
     }
 
+    private func upstreamProtocol(
+        for channel: Channel,
+        clientProtocol: RequestForwarder.RequestProtocol
+    ) -> RequestForwarder.RequestProtocol {
+        switch channel.protocol {
+        case .anthropic:
+            return .anthropic
+        case .openai:
+            return .openai
+        case .auto:
+            return clientProtocol == .unknown ? .openai : clientProtocol
+        }
+    }
+
     private func handleRequestSync(
         _ request: HttpRequest,
         targetProtocol: RequestForwarder.RequestProtocol
@@ -315,9 +329,11 @@ final class ProxyServer: ObservableObject {
             swappedBody = swapped
         }
 
+        let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
-        components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
+        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
         guard let upstreamURL = components?.url else {
             return errorResponse(500, "Invalid upstream URL")
         }
@@ -326,13 +342,13 @@ final class ProxyServer: ObservableObject {
         let forwardedBody: Data
         var convertedHeaders = request.headers
 
-        if incomingProtocol != targetProtocol {
+        if incomingProtocol != upstreamProtocol {
             do {
                 guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                     return errorResponse(400, "Invalid JSON body")
                 }
 
-                let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                 case (.anthropic, .openai):
                     try ProtocolConverter.anthropicToOpenAI(body: json)
                 case (.openai, .anthropic):
@@ -352,7 +368,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Add auth headers
-        switch targetProtocol {
+        switch upstreamProtocol {
         case .anthropic:
             convertedHeaders["x-api-key"] = apiKey
             convertedHeaders["anthropic-version"] = "2023-06-01"
@@ -436,16 +452,16 @@ final class ProxyServer: ObservableObject {
             }
 
             // Parse usage
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
 
             // Convert response if needed
             var responseBody: Data? = data
-            if incomingProtocol != targetProtocol {
+            if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
                 do {
                     guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                         throw NSError(domain: "ProxyServer", code: -1, userInfo: [:])
                     }
-                    let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                     case (.openai, .anthropic):
                         ProtocolConverter.anthropicToOpenAIResponse(body: json)
                     case (.anthropic, .openai):
@@ -560,9 +576,11 @@ final class ProxyServer: ObservableObject {
             swappedBody = swapped
         }
 
+        let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
+
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
-        components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
+        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
         guard let upstreamURL = components?.url else {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(500, "Invalid upstream URL")
@@ -572,14 +590,14 @@ final class ProxyServer: ObservableObject {
         let forwardedBody: Data
         var convertedHeaders = request.headers
 
-        if incomingProtocol != targetProtocol {
+        if incomingProtocol != upstreamProtocol {
             do {
                 guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                     routerCompleteRequest(requestID: reqIdString)
                     return errorResponse(400, "Invalid JSON body")
                 }
 
-                let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                 case (.anthropic, .openai):
                     try ProtocolConverter.anthropicToOpenAI(body: json)
                 case (.openai, .anthropic):
@@ -600,7 +618,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Add auth headers
-        switch targetProtocol {
+        switch upstreamProtocol {
         case .anthropic:
             convertedHeaders["x-api-key"] = apiKey
             convertedHeaders["anthropic-version"] = "2023-06-01"
@@ -649,13 +667,13 @@ final class ProxyServer: ObservableObject {
             let latency = Date().timeIntervalSince(startTime)
 
             // Parse usage
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
 
             // Convert response if needed
             var responseBody: Data? = data
-            if incomingProtocol != targetProtocol {
+            if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                     case (.openai, .anthropic):
                         ProtocolConverter.anthropicToOpenAIResponse(body: json)
                     case (.anthropic, .openai):
@@ -828,10 +846,11 @@ final class ProxyServer: ObservableObject {
         modelName: String?
     ) -> HttpResponse {
         let isStream = RequestForwarder.isStreamingRequest(modifiedBody)
+        let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
         var components = URLComponents(string: channel.baseURL)
-        components?.path = targetProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
+        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
         guard let upstreamURL = components?.url else {
             return errorResponse(500, "Invalid upstream URL")
         }
@@ -840,13 +859,13 @@ final class ProxyServer: ObservableObject {
         let forwardedBody: Data
         var convertedHeaders = request.headers
 
-        if incomingProtocol != targetProtocol {
+        if incomingProtocol != upstreamProtocol {
             do {
                 guard let json = try JSONSerialization.jsonObject(with: modifiedBody) as? [String: Any] else {
                     return errorResponse(400, "Invalid JSON body")
                 }
 
-                let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                 case (.anthropic, .openai):
                     try ProtocolConverter.anthropicToOpenAI(body: json)
                 case (.openai, .anthropic):
@@ -866,7 +885,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Add auth headers
-        switch targetProtocol {
+        switch upstreamProtocol {
         case .anthropic:
             convertedHeaders["x-api-key"] = apiKey
             convertedHeaders["anthropic-version"] = "2023-06-01"
@@ -914,12 +933,12 @@ final class ProxyServer: ObservableObject {
             }
 
             let latency = Date().timeIntervalSince(startTime)
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
 
             var responseBody: Data? = data
-            if incomingProtocol != targetProtocol {
+            if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let converted: [String: Any] = switch (incomingProtocol, targetProtocol) {
+                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
                     case (.openai, .anthropic):
                         ProtocolConverter.anthropicToOpenAIResponse(body: json)
                     case (.anthropic, .openai):
