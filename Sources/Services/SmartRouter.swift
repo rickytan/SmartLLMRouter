@@ -197,13 +197,25 @@ final class SmartRouter: ObservableObject {
 
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
-                channel.models.contains { $0.identifier == model || $0.displayName == model }
+                channel.models.contains { $0.isEnabled && ($0.identifier == model || $0.displayName == model) }
             }
         } else {
             availableChannels
         }
 
-        guard let selectedChannel = compatibleChannels.first else {
+        let selectedChannel: Channel?
+        if let model = modelName, compatibleChannels.isEmpty {
+            // Pass-through for models that are not in local metadata yet.
+            // This keeps the proxy usable when providers add new model IDs before providers.json is updated.
+            selectedChannel = availableChannels.first
+            if let selectedChannel {
+                Log.info("No exact channel match for model '\(model)'; pass-through via \(selectedChannel.name)")
+            }
+        } else {
+            selectedChannel = compatibleChannels.first
+        }
+
+        guard let selectedChannel else {
             Log.warn("No available channels for routing")
             return nil
         }
@@ -214,7 +226,9 @@ final class SmartRouter: ObservableObject {
             channel: selectedChannel,
             isRetry: false,
             previousChannelID: nil,
-            retryCount: 0
+            retryCount: 0,
+            originalModel: modelName,
+            effectiveModel: modelName
         )
     }
 

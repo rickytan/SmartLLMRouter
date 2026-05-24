@@ -82,6 +82,12 @@ struct AddChannelView: View {
                 .padding(DesignToken.Spacing.lg)
         }
         .frame(width: DesignToken.Layout.addChannelWidth, height: DesignToken.Layout.addChannelHeight)
+        .onChange(of: baseURL) { _ in
+            resetConnectionValidation()
+        }
+        .onChange(of: apiKey) { _ in
+            resetConnectionValidation()
+        }
         .onAppear {
             if let channel = editingChannel {
                 name = channel.name
@@ -92,6 +98,7 @@ struct AddChannelView: View {
                 selectedProviderId = channel.providerId
                 apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
                 isCustomProvider = (channel.providerId == nil || channel.providerId == "custom")
+                testResult = .success(models: channel.models)
             } else {
                 priority = channelStore.channels.count + 1
                 selectedProviderId = channelManager.providerTemplates.first?.id
@@ -188,7 +195,7 @@ struct AddChannelView: View {
                         baseURL = url
                     }
                 }
-                testResult = nil
+                resetConnectionValidation()
             }
         }
     }
@@ -288,7 +295,9 @@ struct AddChannelView: View {
                 fetchedModels: result.models,
                 template: template
             )
-            models = enrichedModels
+            if !enrichedModels.isEmpty {
+                models = enrichedModels
+            }
         } else {
             testResult = result
         }
@@ -322,12 +331,17 @@ struct AddChannelView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, DesignToken.Spacing.md)
             } else {
-                VStack(spacing: DesignToken.Spacing.xs) {
-                    ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
-                        modelRow(model: model, index: index)
+                ScrollView {
+                    VStack(spacing: DesignToken.Spacing.xs) {
+                        ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+                            modelRow(model: model, index: index)
+                        }
                     }
+                    .padding(.vertical, DesignToken.Spacing.xxs)
                 }
                 .frame(maxHeight: 180)
+                .background(DesignToken.Colors.bgSecondary)
+                .cornerRadius(DesignToken.Layout.rowCornerRadius)
             }
 
             // Add model manually
@@ -486,7 +500,7 @@ struct AddChannelView: View {
     }
 
     private var isValid: Bool {
-        !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty && !models.isEmpty
+        !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty && isTestSuccessful && !models.isEmpty
     }
 
     // MARK: - Save
@@ -567,6 +581,12 @@ struct AddChannelView: View {
         }
         models = template.defaultModels.map { providerModelToModelEntry($0) }
         isCustomProvider = false
+    }
+
+    private func resetConnectionValidation() {
+        if testResult != nil {
+            testResult = nil
+        }
     }
 }
 
