@@ -25,6 +25,9 @@ enum DesignToken {
         static let accent = Asset.accent.swiftUIColor
         static let accentHover = Asset.accentHover.swiftUIColor
 
+        // Destructive action color (delete, remove)
+        static let destructive = statusOffline
+
         // Reference colors (adapt to Light/Dark automatically)
         static let bgPrimary = Asset.bgPrimary.swiftUIColor
         static let bgSecondary = Asset.bgSecondary.swiftUIColor

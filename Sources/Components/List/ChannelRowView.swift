@@ -10,6 +10,7 @@ struct ChannelRowView: View {
     @ObservedObject private var channelManager = ChannelManager.shared
     @State private var isHovered = false
     @State private var isTesting = false
+    @State private var showingEditSheet = false
 
     var body: some View {
         HStack(spacing: DesignToken.Spacing.sm) {
@@ -80,13 +81,14 @@ struct ChannelRowView: View {
                     icon: "pencil",
                     tooltip: L10n.Settings.channelsEdit
                 ) {
-                    // Edit channel
+                    showingEditSheet = true
                 }
                 .accessibilityIdentifier("settings.channels.row.editButton")
 
                 IconButton(
                     icon: "trash",
-                    tooltip: L10n.Settings.channelsDelete
+                    tooltip: L10n.Settings.channelsDelete,
+                    color: DesignToken.Colors.destructive
                 ) {
                     ChannelStore.shared.removeChannel(id: channel.id)
                 }
@@ -101,6 +103,9 @@ struct ChannelRowView: View {
             withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            AddChannelView(editingChannel: channel)
         }
         .accessibilityIdentifier("channel.row.\(index)")
     }
@@ -130,5 +135,6 @@ struct ChannelRowView: View {
             .frame(width: 400)
         }
     }
+
     return Preview()
 }
