@@ -1335,6 +1335,173 @@ struct ModelEntry: Identifiable, Codable {
 }
 ```
 
+### 3.25 模块二十五：Channel 拖拽排序 **[新增]**
+
+**需求来源**: commit `0b1b036` — 用户反馈 Channel 顺序影响路由优先级，需要直观调整。
+
+**功能描述**:
+- Channel 列表支持拖拽排序，拖拽手柄（`line.3.horizontal` 图标）显示在每行最左侧
+- 拖拽时鼠标变为 openHand 光标，提供操作暗示
+- 排序后自动更新所有 Channel 的 `priority` 字段（从 1 开始递增）
+- 排序结果持久化存储
+
+**验收标准**:
+- [ ] 拖拽手柄在 hover 时显示抓手光标
+- [ ] 拖拽后 Channel 顺序立即更新
+- [ ] 重启 App 后顺序保持
+- [ ] priority 字段与列表顺序一致
+
+---
+
+### 3.26 模块二十六：并发安全加固 **[新增]**
+
+**需求来源**: commit `59e0b0c` — 多线程并发访问共享状态导致数据竞争。
+
+**功能描述**:
+- `ProxyServer.requestCount` 使用 `NSLock` + `nextRequestID()` 方法保证原子递增
+- `UsageTracker` 使用专用串行队列 `cn.rickytan.smartLLMRouter.usage-tracker` 保护读写
+- `@Published` 属性更新必须切回主线程（`DispatchQueue.main.async`）
+
+**技术约束**:
+- Swifter 在后台线程池处理请求，所有 `@Published` 更新必须切主线程
+- `UsageTracker` 不使用 `@MainActor`（避免阻塞代理请求处理线程）
+- `ChannelStore` 的 `channels` 数组是 `@Published`，读写需注意线程安全
+
+**验收标准**:
+- [ ] Thread Sanitizer 无数据竞争警告
+- [ ] 高并发请求下 `requestCount` 不丢失
+- [ ] 用量统计数据在 popover 中实时更新
+
+---
+
+### 3.27 模块二十七：401 错误智能 Fallback **[新增]**
+
+**需求来源**: commit `a9c7153` — DeepSeek 返回 401（不支持的模型）时不会自动 fallback 到其他供应商。
+
+**功能描述**:
+- 401 错误不再硬编码为"不 fallback"，而是允许尝试下一个 Channel
+- 403 错误仍保持硬拦截（权限问题，切换模型无法解决）
+- 通过 `maxRetries` 限制重试次数，避免所有 Channel 都返回 401 时无限循环
+
+**路由策略**:
+```
+401 → try next channel (可能是模型不支持，而非 key 错误)
+403 → hard stop (权限问题，failover 无意义)
+其他错误 → 按 shouldFailover 规则处理
+```
+
+**验收标准**:
+- [ ] Channel A 返回 401 时自动切换到 Channel B
+- [ ] 所有 Channel 都返回 401 时正确终止并返回错误
+- [ ] 403 错误不触发 fallback
+- [ ] 日志记录 fallback 决策过程
+
+---
+
+### 3.28 模块二十八：Popover 时间自动刷新 **[新增]**
+
+**需求来源**: commit `a9c7153` — "最近请求"区域的"X 分钟前"时间戳不会自动更新。
+
+**功能描述**:
+- MenuView 使用 `Timer.publish(every: 30, on: .main, in: .common)` 定时器
+- 每 30 秒更新 `now` 状态，触发 `timeAgo()` 重算
+- 仅在 popover 可见时消耗资源（SwiftUI 自动管理）
+
+**验收标准**:
+- [ ] popover 打开状态下，"X 分钟前"每 30 秒自动更新
+- [ ] 不造成明显的 CPU/内存开销
+
+---
+
+### 3.29 模块二十九：Channel 行实时数据绑定 **[新增]**
+
+**需求来源**: commit `42cc4d3` — 测速完成后 Channel 行不更新延迟显示。
+
+**功能描述**:
+- `ChannelRowView` 改为接收 `channelID: String` 而非 `channel: Channel` 值拷贝
+- 通过 `@ObservedObject channelStore` 实时读取最新 Channel 数据
+- 任何 `ChannelStore` 更新（测速结果、状态变化）立即反映到 UI
+
+**技术约束**:
+- SwiftUI 的 `ForEach` diff 机制基于 `id`，Channel 的 `id` 不变时不会重建 View
+- 使用值拷贝会导致 View 显示旧数据，必须改为引用绑定
+
+**验收标准**:
+- [ ] 测速完成后延迟数值立即更新
+- [ ] Channel 状态变化实时反映
+- [ ] 删除 Channel 后列表正确刷新
+
+---
+
+### 3.30 模块三十：Claude Code 一键接管 **[新增]**
+
+**需求来源**: commit `b4893a3` — 用户需要将 Claude Code 的 API 请求自动路由到 SmartLLM Router。
+
+**功能描述**:
+- `ClaudeCodeConfigManager` 管理 `~/.claude/settings.json` 配置
+- Settings → General 页面新增 "Claude Code Integration" 区域
+- 一键开启/关闭：将 `settings.json` 中的 `url` 字段设为 `http://127.0.0.1:1897`
+- 自动备份原配置（`.bak` → `.bak.1` → `.bak.2` 递增）
+- 显示当前接管状态（激活/未激活/配置不存在）
+
+**验收标准**:
+- [ ] 开启接管后 Claude Code 请求自动走代理
+- [ ] 关闭接管后恢复原始 URL
+- [ ] 配置文件备份不丢失历史版本
+- [ ] Settings UI 实时显示接管状态
+
+---
+
+### 3.31 模块三十一：嵌套 Sheet 兼容方案 **[新增]**
+
+**需求来源**: commit `7a72c7e` — macOS SwiftUI 不支持在已有的 `.sheet` 中再弹 `.sheet`。
+
+**功能描述**:
+- `ModalPresenter` 工具类封装 `NSPanel.beginSheet` 能力
+- 用于 Onboarding → AddChannelView（模型元数据编辑器）等嵌套弹窗场景
+- 通过 `NSWindowDelegate.windowWillClose` 检测关闭事件，防止内存泄漏
+- 弹窗关闭通过 `onCancel` 回调而非 `@Environment(\.dismiss)`
+
+**技术约束**:
+- SwiftUI `.sheet` 在 macOS 上嵌套时内层不生效
+- `NSPanel` 需要持有强引用（`_activePanel`），关闭后置 nil
+- `NSHostingController` 包装 SwiftUI View
+
+**验收标准**:
+- [ ] Onboarding 中点击 "Add Channel" 正确弹出 AddChannelView
+- [ ] AddChannelView 中点击齿轮按钮正确弹出 ModelMetadataEditor
+- [ ] 关闭弹窗后内存正确释放
+- [ ] ESC 键和关闭按钮都能正确关闭弹窗
+
+---
+
+### 3.32 模块三十二：UI 测试基础设施 **[新增]**
+
+**需求来源**: commit `b4893a3`, `cb4985c` — 需要自动化验证 UI 交互。
+
+**功能描述**:
+- `UITestCase` 基类封装 App 启动、通用断言、Accessibility ID 常量
+- 9 个 UI 测试文件覆盖：MenuView、SettingsView、SettingsTab、Onboarding、AddChannel、ChannelCRUD、AccessibilityCoverage
+- 62 个测试用例覆盖关键交互路径
+- 所有可交互元素设置 `accessibilityIdentifier`
+
+**测试分类**:
+| 文件 | 测试数 | 覆盖范围 |
+|------|:---:|------|
+| MenuViewUITests | 9 | 状态显示、快捷操作、按钮存在性 |
+| SettingsViewUITests | 8 | 窗口开关、Tab 内容、端口编辑 |
+| SettingsTabUITests | 3 | Tab 切换、Channel 列表 |
+| OnboardingFlowUITests | 3 | 引导流程、添加 Channel、完成 |
+| AddChannelUITests | 22 | Cancel、齿轮按钮、模型编辑、ESC |
+| AddChannelCRUDUITests | 4 | 表单校验、手动模型、编辑器、Cancel |
+| ChannelCRUDUITests | 7 | 列表渲染、操作按钮、批量测速 |
+| AccessibilityCoverageTests | 6 | 标识符覆盖率、按钮可交互性 |
+
+**验收标准**:
+- [ ] 所有 UI 测试编译通过
+- [ ] 在有 GUI 的环境中全部通过
+- [ ] Accessibility ID 覆盖率 > 90%
+
 ---
 
 ## 5. 非功能性需求
