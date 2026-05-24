@@ -9,9 +9,9 @@ final class AddChannelUITests: UITestCase {
     /// 打开设置窗口并切换到 Channels Tab
     private func openSettingsChannelsTab() {
         tapElement(UI.menuSettingsButton)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         tapElement(UI.settingsChannelsTab)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// 点击添加按钮打开 AddChannelView
@@ -19,7 +19,7 @@ final class AddChannelUITests: UITestCase {
         let addButton = app.descendants(matching: .any).matching(identifier: UI.settingsAddChannelButton).firstMatch
         XCTAssertTrue(addButton.waitForExistence(timeout: 3), "添加频道按钮应存在")
         addButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// 添加一个手动模型（用于测试齿轮按钮）
@@ -28,12 +28,12 @@ final class AddChannelUITests: UITestCase {
         if modelField.waitForExistence(timeout: 2) {
             modelField.click()
             modelField.typeText(name)
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
 
             // 查找添加模型的 plus 按钮（在手动模型输入框旁边）
             // 使用 keyboard Enter 来添加
             modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -61,7 +61,7 @@ final class AddChannelUITests: UITestCase {
         let cancelButton = app.descendants(matching: .any).matching(identifier: UI.addChannelCancelButton).firstMatch
         XCTAssertTrue(cancelButton.exists, "Cancel 按钮应存在")
         cancelButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 验证对话框已关闭
         XCTAssertFalse(providerPicker.exists, "点击 Cancel 后 AddChannelView 应关闭")
@@ -80,7 +80,7 @@ final class AddChannelUITests: UITestCase {
         let headerCloseButton = app.descendants(matching: .any).matching(identifier: UI.addChannelHeaderClose).firstMatch
         if headerCloseButton.waitForExistence(timeout: 2) {
             headerCloseButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证对话框已关闭
             XCTAssertFalse(providerPicker.exists, "点击头部 X 按钮后 AddChannelView 应关闭")
@@ -96,7 +96,7 @@ final class AddChannelUITests: UITestCase {
 
         // 先添加一个手动模型
         addManualModel(name: "test-model-for-gear")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找齿轮按钮
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
@@ -120,13 +120,13 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-metadata")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 点击齿轮按钮
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3), "齿轮按钮应存在")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 验证模型元数据编辑器已打开
         let saveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -143,19 +143,19 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-cancel")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 点击齿轮按钮打开编辑器
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3), "齿轮按钮应存在")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找编辑器的 Cancel 按钮
         let cancelButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
             cancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证编辑器已关闭
             let saveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -170,13 +170,13 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-save")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 点击齿轮按钮打开编辑器
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3), "齿轮按钮应存在")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找编辑器的 Save 按钮
         let saveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -187,12 +187,12 @@ final class AddChannelUITests: UITestCase {
                 contextField.click()
                 contextField.typeKey("a", modifierFlags: .command)
                 contextField.typeText("128000")
-                sleep(0.3)
+                Thread.sleep(forTimeInterval: 0.3)
             }
 
             // 点击 Save
             saveButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证编辑器已关闭
             let cancelButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorCancelButton).firstMatch
@@ -207,19 +207,19 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-close")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 点击齿轮按钮打开编辑器
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3), "齿轮按钮应存在")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找编辑器的 Close 按钮
         let closeButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorCloseButton).firstMatch
         if closeButton.waitForExistence(timeout: 3) {
             closeButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证编辑器已关闭
             let saveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -236,7 +236,7 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-delete")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找删除按钮
         let deleteButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelDeleteButton).firstMatch
@@ -250,7 +250,7 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-to-delete")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 记录初始模型数量
         let initialModelRows = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).count
@@ -259,7 +259,7 @@ final class AddChannelUITests: UITestCase {
         let deleteButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelDeleteButton).firstMatch
         if deleteButton.waitForExistence(timeout: 3) {
             deleteButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证模型数量减少
             let currentModelRows = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).count
@@ -298,13 +298,13 @@ final class AddChannelUITests: UITestCase {
         let providerPicker = app.descendants(matching: .any).matching(identifier: UI.addChannelProviderPicker).firstMatch
         if providerPicker.waitForExistence(timeout: 2) {
             providerPicker.click()
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
 
             // 查找 Custom 选项
             let customOption = app.menuItems.matching(NSPredicate(format: "label CONTAINS %@", "Custom")).firstMatch
             if customOption.exists {
                 customOption.click()
-                sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
                 // 验证切换到自定义模式
                 let customNameField = app.descendants(matching: .any).matching(identifier: UI.addChannelCustomNameField).firstMatch
@@ -359,7 +359,7 @@ final class AddChannelUITests: UITestCase {
 
         // 2. 添加一个手动模型
         addManualModel(name: "flow-test-model")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 3. 验证齿轮按钮出现
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
@@ -367,7 +367,7 @@ final class AddChannelUITests: UITestCase {
 
         // 4. 点击齿轮按钮打开编辑器
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 5. 验证编辑器打开
         let editorSaveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -378,7 +378,7 @@ final class AddChannelUITests: UITestCase {
         // 6. 点击 Cancel 关闭编辑器
         if editorCancelButton.exists {
             editorCancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
 
         // 7. 验证编辑器关闭
@@ -388,7 +388,7 @@ final class AddChannelUITests: UITestCase {
         let cancelButton = app.descendants(matching: .any).matching(identifier: UI.addChannelCancelButton).firstMatch
         XCTAssertTrue(cancelButton.exists, "Cancel 按钮应存在")
         cancelButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 9. 验证 AddChannelView 关闭
         let providerPicker = app.descendants(matching: .any).matching(identifier: UI.addChannelProviderPicker).firstMatch
@@ -406,7 +406,7 @@ final class AddChannelUITests: UITestCase {
 
         // 按 ESC 键
         app.typeKey(XCUIKeyboardKey.escape, modifierFlags: [])
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 验证对话框已关闭
         XCTAssertFalse(providerPicker.exists, "按 ESC 后 AddChannelView 应关闭")
@@ -421,17 +421,17 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "rapid-click-model")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 快速连续点击齿轮按钮
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         if gearButton.waitForExistence(timeout: 3) {
             gearButton.click()
-            sleep(0.3)
+            Thread.sleep(forTimeInterval: 0.3)
             gearButton.click()
-            sleep(0.3)
+            Thread.sleep(forTimeInterval: 0.3)
             gearButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证只有一个编辑器打开
             let editorSaveButtons = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton)
@@ -450,13 +450,13 @@ final class AddChannelUITests: UITestCase {
 
         // 添加一个手动模型
         addManualModel(name: "test-model-fields")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 点击齿轮按钮打开编辑器
         let gearButton = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton).firstMatch
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3), "齿轮按钮应存在")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 验证编辑器字段存在且可编辑
         let contextField = app.descendants(matching: .any).matching(identifier: UI.modelEditorContextLengthField).firstMatch
@@ -471,7 +471,7 @@ final class AddChannelUITests: UITestCase {
         contextField.click()
         contextField.typeKey("a", modifierFlags: .command)
         contextField.typeText("256000")
-        sleep(0.3)
+        Thread.sleep(forTimeInterval: 0.3)
 
         // 验证输入成功
         XCTAssertEqual(contextField.value as? String, "256000", "Context Length 应显示新值")
@@ -480,7 +480,7 @@ final class AddChannelUITests: UITestCase {
         let cancelButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorCancelButton).firstMatch
         if cancelButton.exists {
             cancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
     }
 
@@ -491,9 +491,9 @@ final class AddChannelUITests: UITestCase {
 
         // 添加两个手动模型
         addManualModel(name: "model-one")
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
         addManualModel(name: "model-two")
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 查找所有齿轮按钮
         let gearButtons = app.descendants(matching: .any).matching(identifier: UI.addChannelModelEditButton)
@@ -501,7 +501,7 @@ final class AddChannelUITests: UITestCase {
 
         // 点击第一个齿轮按钮
         gearButtons.firstMatch.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // 验证编辑器打开
         let editorSaveButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorSaveButton).firstMatch
@@ -511,13 +511,13 @@ final class AddChannelUITests: UITestCase {
         let cancelButton = app.descendants(matching: .any).matching(identifier: UI.modelEditorCancelButton).firstMatch
         if cancelButton.exists {
             cancelButton.click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         }
 
         // 点击第二个齿轮按钮
         if gearButtons.count >= 2 {
             gearButtons.element(boundBy: 1).click()
-            sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
             // 验证编辑器再次打开
             XCTAssertTrue(editorSaveButton.waitForExistence(timeout: 3), "第二个齿轮按钮应打开编辑器")
@@ -525,7 +525,7 @@ final class AddChannelUITests: UITestCase {
             // 关闭编辑器
             if cancelButton.exists {
                 cancelButton.click()
-                sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
             }
         }
     }

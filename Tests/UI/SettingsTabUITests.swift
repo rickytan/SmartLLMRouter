@@ -18,7 +18,7 @@ final class SettingsTabUITests: UITestCase {
     /// Open the Settings window via the menu bar.
     private func openSettings() {
         tapElement(UI.menuSettingsButton)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// Close the Settings window.
@@ -26,7 +26,7 @@ final class SettingsTabUITests: UITestCase {
         let settingsWindow = app.windows.firstMatch
         if settingsWindow.exists {
             settingsWindow.buttons[UI.closeButton].click()
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -72,7 +72,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- General Tab (index 0) ---
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // General tab should show the port field
         let portField = app.descendants(matching: .any)
@@ -89,7 +89,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- Channels Tab (index 1) ---
         tapElement(UI.settingsChannelsTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Channels tab should show the add button and channel list
         let addChannelButton = app.descendants(matching: .any)
@@ -108,7 +108,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- Advanced Tab (index 2) ---
         tapElement(UI.settingsAdvancedTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Advanced tab should show the failover toggle
         let failoverToggle = app.descendants(matching: .any)
@@ -122,7 +122,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- Usage Tab (index 3) ---
         tapElement(UI.settingsUsageTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Usage tab should show at least one usage metric
         let totalRequests = app.descendants(matching: .any)
@@ -144,7 +144,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- About Tab (index 4) ---
         tapElement(UI.settingsAboutTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // About tab should show the version label
         let versionLabel = app.descendants(matching: .any)
@@ -164,7 +164,7 @@ final class SettingsTabUITests: UITestCase {
 
         // --- Switch back to General to verify round-trip ---
         tapElement(UI.settingsGeneralTab)
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         XCTAssertTrue(portField.waitForExistence(timeout: 3),
                       "Port field should reappear after switching back to General tab")
@@ -183,7 +183,7 @@ final class SettingsTabUITests: UITestCase {
 
         // Navigate to Channels tab
         tapElement(UI.settingsChannelsTab)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the channel list exists
         let channelList = app.descendants(matching: .any)
@@ -197,7 +197,7 @@ final class SettingsTabUITests: UITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 3),
                       "Add channel button should exist")
         addButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the AddChannelView sheet opened
         let providerPicker = app.descendants(matching: .any)
@@ -212,7 +212,7 @@ final class SettingsTabUITests: UITestCase {
                       "Base URL field should exist")
         baseUrlField.click()
         baseUrlField.typeText("https://api.example.com/v1")
-        sleep(0.3)
+        Thread.sleep(forTimeInterval: 0.3)
 
         let apiKeyField = app.descendants(matching: .any)
             .matching(identifier: UI.addChannelApiKeyField).firstMatch
@@ -220,7 +220,7 @@ final class SettingsTabUITests: UITestCase {
                       "API Key field should exist")
         apiKeyField.click()
         apiKeyField.typeText("sk-test-key-12345")
-        sleep(0.3)
+        Thread.sleep(forTimeInterval: 0.3)
 
         // Add a manual model
         let modelField = app.descendants(matching: .any)
@@ -230,7 +230,7 @@ final class SettingsTabUITests: UITestCase {
         modelField.click()
         modelField.typeText("test-model-settings")
         modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Verify the model was added (gear button appears)
         let gearButton = app.descendants(matching: .any)
@@ -253,7 +253,7 @@ final class SettingsTabUITests: UITestCase {
             .matching(identifier: UI.addChannelSaveButton).firstMatch
         XCTAssertTrue(saveButton.waitForExistence(timeout: 2),
                       "Save button should exist")
-        XCTAssertTrue(saveButton.isDisabled || !saveButton.isEnabled,
+        XCTAssertTrue(!saveButton.isEnabled,
                       "Save button should be disabled (connection test not passed)")
 
         // Cancel the form
@@ -262,7 +262,7 @@ final class SettingsTabUITests: UITestCase {
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 2),
                       "Cancel button should exist")
         cancelButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify we're back on the Channels tab
         XCTAssertTrue(channelList.waitForExistence(timeout: 3),
