@@ -289,7 +289,7 @@ struct ChannelsTab: View {
             } else {
                 List {
                     ForEach(channelStore.channels) { channel in
-                        ChannelRowView(channel: channel, index: channelStore.channels.firstIndex(of: channel) ?? 0)
+                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
                     }
                     .onMove(perform: channelStore.moveChannel)
                 }
