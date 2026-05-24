@@ -1714,4 +1714,13 @@ final class ChannelStore: ObservableObject {
         activeChannelID = id
         saveChannels()
     }
+
+    func moveChannel(from source: IndexSet, to destination: Int) {
+        channels.move(fromOffsets: source, toOffset: destination)
+        // Update priority based on new order
+        for (index, channel) in channels.enumerated() {
+            channels[index].priority = index + 1
+        }
+        saveChannels()
+    }
 }
