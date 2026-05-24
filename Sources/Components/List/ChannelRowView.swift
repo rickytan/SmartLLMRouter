@@ -13,6 +13,19 @@ struct ChannelRowView: View {
 
     var body: some View {
         HStack(spacing: DesignToken.Spacing.sm) {
+            // Drag Handle
+            Image(systemName: "line.3.horizontal")
+                .font(DesignToken.Font.system(size: 12, weight: .medium))
+                .foregroundColor(DesignToken.Colors.textTertiary)
+                .onHover { isHovering in
+                    if isHovering {
+                        NSCursor.openHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .accessibilityIdentifier("channel.dragHandle.\(index)")
+
             // Status Indicator
             StatusIndicatorView(
                 isRunning: !channel.isCoolingDown,

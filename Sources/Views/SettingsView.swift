@@ -221,9 +221,10 @@ struct ChannelsTab: View {
                 EmptyChannelView()
             } else {
                 List {
-                    ForEach(Array(channelStore.channels.enumerated()), id: \.element.id) { index, channel in
-                        ChannelRowView(channel: channel, index: index)
+                    ForEach(channelStore.channels) { channel in
+                        ChannelRowView(channel: channel, index: channelStore.channels.firstIndex(of: channel) ?? 0)
                     }
+                    .onMove(perform: channelStore.moveChannel)
                 }
                 .listStyle(.bordered(alternatesRowBackgrounds: false))
                 .accessibilityIdentifier("settings.channels.list")
