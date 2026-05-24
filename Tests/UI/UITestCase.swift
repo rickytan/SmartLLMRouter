@@ -83,6 +83,31 @@ class UITestCase: XCTestCase {
         static let saveButton = "button.save"
         static let cancelButton = "button.cancel"
         static let deleteButton = "button.delete"
+        
+        // AddChannel
+        static let addChannelHeaderClose = "addChannel.headerCloseButton"
+        static let addChannelProviderPicker = "addChannel.providerPicker"
+        static let addChannelProtocolPicker = "addChannel.protocolPicker"
+        static let addChannelCustomNameField = "addChannel.customNameField"
+        static let addChannelBaseUrlField = "addChannel.baseUrlField"
+        static let addChannelApiKeyField = "addChannel.apiKeyField"
+        static let addChannelPriorityField = "addChannel.priorityField"
+        static let addChannelTestConnectionButton = "addChannel.testConnectionButton"
+        static let addChannelFetchModelsButton = "addChannel.fetchModelsButton"
+        static let addChannelManualModelField = "addChannel.manualModelField"
+        static let addChannelModelEditButton = "addChannel.modelRow.editButton"
+        static let addChannelModelDeleteButton = "addChannel.modelRow.deleteButton"
+        static let addChannelSaveButton = "addChannel.saveButton"
+        static let addChannelCancelButton = "addChannel.cancelButton"
+        
+        // ModelEditor
+        static let modelEditorSaveButton = "modelEditor.saveButton"
+        static let modelEditorCancelButton = "modelEditor.cancelButton"
+        static let modelEditorCloseButton = "modelEditor.closeButton"
+        static let modelEditorContextLengthField = "modelEditor.contextLengthField"
+        static let modelEditorInputPriceField = "modelEditor.inputPriceField"
+        static let modelEditorOutputPriceField = "modelEditor.outputPriceField"
+        static let modelEditorVisionToggle = "modelEditor.visionToggle"
     }
     
     // MARK: - 辅助方法

@@ -120,6 +120,7 @@ struct AddChannelView: View {
             IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.cancel) {
                 dismiss()
             }
+            .accessibilityIdentifier("addChannel.headerCloseButton")
         }
     }
 
@@ -619,6 +620,7 @@ struct ModelMetadataEditorView: View {
                 IconButton(icon: "xmark.circle.fill", tooltip: L10n.ModelEditor.close) {
                     onCancel()
                 }
+                .accessibilityIdentifier("modelEditor.closeButton")
             }
 
             Divider()
@@ -626,17 +628,20 @@ struct ModelMetadataEditorView: View {
             LabeledTextField(
                 label: L10n.ModelEditor.contextLengthLabel,
                 text: $contextLength,
-                placeholder: L10n.ModelEditor.contextLengthPlaceholder
+                placeholder: L10n.ModelEditor.contextLengthPlaceholder,
+                accessibilityID: "modelEditor.contextLengthField"
             )
             LabeledTextField(
                 label: L10n.ModelEditor.inputPriceLabel,
                 text: $inputPrice,
-                placeholder: L10n.ModelEditor.inputPricePlaceholder
+                placeholder: L10n.ModelEditor.inputPricePlaceholder,
+                accessibilityID: "modelEditor.inputPriceField"
             )
             LabeledTextField(
                 label: L10n.ModelEditor.outputPriceLabel,
                 text: $outputPrice,
-                placeholder: L10n.ModelEditor.outputPricePlaceholder
+                placeholder: L10n.ModelEditor.outputPricePlaceholder,
+                accessibilityID: "modelEditor.outputPriceField"
             )
 
             Divider()
@@ -645,6 +650,7 @@ struct ModelMetadataEditorView: View {
                 SecondaryButton(L10n.ModelEditor.cancel) {
                     onCancel()
                 }
+                .accessibilityIdentifier("modelEditor.cancelButton")
                 Spacer()
                 PrimaryButton(L10n.ModelEditor.save) {
                     var updated = model
@@ -653,6 +659,7 @@ struct ModelMetadataEditorView: View {
                     updated.outputPricePer1M = Double(outputPrice)
                     onSave(updated)
                 }
+                .accessibilityIdentifier("modelEditor.saveButton")
             }
         }
         .padding(DesignToken.Spacing.lg)
