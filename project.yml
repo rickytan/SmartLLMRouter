@@ -15,7 +15,7 @@ settings:
     INFOPLIST_KEY_NSHumanReadableCopyright: "SmartLLMRouter"
     # Sparkle auto-update feed URL
     SUFeedURL: "https://smartllmrouter.github.io/appcast.xml"
-    SUPublicEDKey: "change_me"
+    SUPublicEDKey: "1nIh5ueJSj1TV+vOrR27J6eBKmPyUssmNvPcTG9/Eko="
     # Global Ad-Hoc signing (no paid certificate needed)
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: YES
