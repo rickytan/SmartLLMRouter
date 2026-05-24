@@ -58,6 +58,7 @@ struct GeneralSettingsTab: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var proxy = ProxyServer.shared
     @ObservedObject private var shellConfig = ShellConfigManager.shared
+    @ObservedObject private var claudeCode = ClaudeCodeConfigManager.shared
 
     var body: some View {
         ScrollView {
@@ -70,8 +71,17 @@ struct GeneralSettingsTab: View {
 
                 // Shell Environment Section
                 shellSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Claude Code Integration Section
+                claudeCodeSection
             }
             .padding(DesignToken.Layout.cardPadding)
+        }
+        .onAppear {
+            claudeCode.refresh()
         }
     }
 
@@ -163,6 +173,63 @@ struct GeneralSettingsTab: View {
                 }
             }
             .accessibilityIdentifier("settings.general.shellStatus")
+        }
+    }
+
+    // MARK: - Claude Code Section
+
+    private var claudeCodeSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.ClaudeCode.sectionTitle)
+                .font(DesignToken.Font.h2())
+                .accessibilityIdentifier("settings.general.claudeCodeHeader")
+
+            // Current URL status
+            HStack(spacing: DesignToken.Spacing.xs) {
+                if claudeCode.configExists {
+                    Image(systemName: claudeCode.isActive ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(claudeCode.isActive
+                            ? DesignToken.Colors.statusOnline
+                            : DesignToken.Colors.textSecondary)
+                    Text(claudeCode.currentURL.isEmpty
+                         ? L10n.ClaudeCode.currentUrlNotSet
+                         : L10n.ClaudeCode.currentUrl(claudeCode.currentURL))
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                    Text(L10n.ClaudeCode.configNotFound)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+            }
+            .accessibilityIdentifier("settings.general.claudeCodeStatus")
+
+            // Toggle
+            ToggleRow(
+                L10n.ClaudeCode.takeoverToggle,
+                subtitle: L10n.ClaudeCode.takeoverDescription,
+                isOn: Binding(
+                    get: { claudeCode.isActive },
+                    set: { claudeCode.toggleTakeover(enable: $0) }
+                )
+            )
+            .accessibilityIdentifier("settings.general.claudeCodeToggle")
+
+            // Error message
+            if let error = claudeCode.lastError {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                    Text(error)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                }
+                .accessibilityIdentifier("settings.general.claudeCodeError")
+            }
         }
     }
 }

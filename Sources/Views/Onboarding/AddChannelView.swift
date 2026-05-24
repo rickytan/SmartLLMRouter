@@ -133,10 +133,10 @@ struct AddChannelView: View {
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
             if isCustomProvider {
-                LabeledTextField(
-                    label: "",
+                ClearableTextField(
+                    L10n.AddChannel.providerNamePlaceholder,
                     text: $customProviderName,
-                    placeholder: L10n.AddChannel.providerNamePlaceholder,
+                    showClearButton: false,
                     accessibilityID: "addChannel.customNameField"
                 )
                 .onChange(of: customProviderName) { newName in
@@ -205,10 +205,11 @@ struct AddChannelView: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            LabeledTextField(
-                label: L10n.Settings.channelsBaseUrl,
+            ClearableTextField(
+                L10n.AddChannel.baseUrlPlaceholder,
                 text: $baseURL,
-                placeholder: L10n.AddChannel.baseUrlPlaceholder,
+                label: L10n.Settings.channelsBaseUrl,
+                showClearButton: false,
                 accessibilityID: "addChannel.baseUrlField"
             )
 
@@ -355,7 +356,7 @@ struct AddChannelView: View {
 
                 IconButton(
                     icon: "plus",
-                    tooltip: "Add model",
+                    tooltip: L10n.AddChannel.addModel,
                     isDisabled: newModelName.isEmpty
                 ) {
                     addManualModel()
@@ -413,7 +414,7 @@ struct AddChannelView: View {
             // Delete Button
             IconButton(
                 icon: "xmark.circle.fill",
-                tooltip: "Remove model"
+                tooltip: L10n.AddChannel.removeModel
             ) {
                 models.remove(at: index)
             }
@@ -625,22 +626,25 @@ struct ModelMetadataEditorView: View {
 
             Divider()
 
-            LabeledTextField(
-                label: L10n.ModelEditor.contextLengthLabel,
+            ClearableTextField(
+                L10n.ModelEditor.contextLengthPlaceholder,
                 text: $contextLength,
-                placeholder: L10n.ModelEditor.contextLengthPlaceholder,
+                label: L10n.ModelEditor.contextLengthLabel,
+                showClearButton: false,
                 accessibilityID: "modelEditor.contextLengthField"
             )
-            LabeledTextField(
-                label: L10n.ModelEditor.inputPriceLabel,
+            ClearableTextField(
+                L10n.ModelEditor.inputPricePlaceholder,
                 text: $inputPrice,
-                placeholder: L10n.ModelEditor.inputPricePlaceholder,
+                label: L10n.ModelEditor.inputPriceLabel,
+                showClearButton: false,
                 accessibilityID: "modelEditor.inputPriceField"
             )
-            LabeledTextField(
-                label: L10n.ModelEditor.outputPriceLabel,
+            ClearableTextField(
+                L10n.ModelEditor.outputPricePlaceholder,
                 text: $outputPrice,
-                placeholder: L10n.ModelEditor.outputPricePlaceholder,
+                label: L10n.ModelEditor.outputPriceLabel,
+                showClearButton: false,
                 accessibilityID: "modelEditor.outputPriceField"
             )
 

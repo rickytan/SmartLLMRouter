@@ -516,6 +516,12 @@ internal enum L10n {
     internal static var modelNamePlaceholder: String {
       NSLocalizedString("addchannel.modelNamePlaceholder", comment: "")
     }
+    internal static var addModel: String {
+      NSLocalizedString("addchannel.addModel", comment: "")
+    }
+    internal static var removeModel: String {
+      NSLocalizedString("addchannel.removeModel", comment: "")
+    }
     internal static var search: String {
       NSLocalizedString("addchannel.search", comment: "")
     }
@@ -698,6 +704,33 @@ internal enum L10n {
     }
     internal static var streamErrorBuffering: String {
       NSLocalizedString("rectifier.streamErrorBuffering", comment: "")
+    }
+  }
+
+  internal enum ClaudeCode {
+    internal static var sectionTitle: String {
+      NSLocalizedString("claudecode.sectionTitle", comment: "")
+    }
+    internal static var takeoverToggle: String {
+      NSLocalizedString("claudecode.takeoverToggle", comment: "")
+    }
+    internal static var takeoverDescription: String {
+      NSLocalizedString("claudecode.takeoverDescription", comment: "")
+    }
+    internal static func currentUrl(_ p1: String) -> String {
+      String(format: NSLocalizedString("claudecode.currentUrl", comment: ""), p1)
+    }
+    internal static var currentUrlNotSet: String {
+      NSLocalizedString("claudecode.currentUrlNotSet", comment: "")
+    }
+    internal static var configNotFound: String {
+      NSLocalizedString("claudecode.configNotFound", comment: "")
+    }
+    internal static var backupCreated: String {
+      NSLocalizedString("claudecode.backupCreated", comment: "")
+    }
+    internal static var restored: String {
+      NSLocalizedString("claudecode.restored", comment: "")
     }
   }
 }
