@@ -1,6 +1,6 @@
 name: SmartLLMRouter
 options:
-  bundleIdPrefix: com.smartllmrouter
+  bundleIdPrefix: cn.rickytan.smartLLMRouter
   deploymentTarget:
     macOS: "13.0"
   createIntermediateGroups: true
@@ -65,7 +65,7 @@ targets:
       - path: Tests/Unit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.smartllmrouter.tests
+        PRODUCT_BUNDLE_IDENTIFIER: cn.rickytan.smartLLMRouter.tests
         PRODUCT_MODULE_NAME: SmartLLMRouterTests
         GENERATE_INFOPLIST_FILE: YES
         ONLY_ACTIVE_ARCH: YES
@@ -87,7 +87,7 @@ targets:
       - path: Tests/UI
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.smartllmrouter.ui-tests
+        PRODUCT_BUNDLE_IDENTIFIER: cn.rickytan.smartLLMRouter.ui-tests
         PRODUCT_MODULE_NAME: SmartLLMRouterUITests
         GENERATE_INFOPLIST_FILE: YES
         ONLY_ACTIVE_ARCH: YES

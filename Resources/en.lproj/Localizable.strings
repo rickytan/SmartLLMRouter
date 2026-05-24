@@ -211,6 +211,8 @@
 "addchannel.update" = "Update";
 "addchannel.addChannel" = "Add Channel";
 "addchannel.modelNamePlaceholder" = "e.g. gpt-4, llama3";
+"addchannel.addModel" = "Add Model";
+"addchannel.removeModel" = "Remove Model";
 "addchannel.search" = "Search...";
 "addchannel.providerName" = "Provider Name";
 "addchannel.providerNamePlaceholder" = "e.g. Local Ollama";
@@ -271,3 +273,13 @@
 "rectifier.thinkingBudget.title" = "Thinking Budget Adjusted";
 "rectifier.thinkingBudget.reduced" = "Budget reduced to %@ tokens";
 "rectifier.streamErrorBuffering" = "Stream error: buffering response";
+
+// Claude Code Integration
+"claudecode.sectionTitle" = "Claude Code Integration";
+"claudecode.takeoverToggle" = "Take over Claude Code config";
+"claudecode.takeoverDescription" = "Redirect Claude Code API requests through SmartLLM Router by modifying ~/.claude/settings.json. A backup is created automatically before any change.";
+"claudecode.currentUrl" = "Current URL: %@";
+"claudecode.currentUrlNotSet" = "URL: not set";
+"claudecode.configNotFound" = "Config file not found at ~/.claude/settings.json";
+"claudecode.backupCreated" = "Backup created";
+"claudecode.restored" = "Config restored from backup";

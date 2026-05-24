@@ -108,6 +108,25 @@ class UITestCase: XCTestCase {
         static let modelEditorInputPriceField = "modelEditor.inputPriceField"
         static let modelEditorOutputPriceField = "modelEditor.outputPriceField"
         static let modelEditorVisionToggle = "modelEditor.visionToggle"
+
+        // Onboarding
+        static let onboardingTitle = "onboarding.welcome.title"
+        static let onboardingWelcomeIcon = "onboarding.welcome.icon"
+        static let onboardingWelcomeSubtitle = "onboarding.welcome.subtitle"
+        static let onboardingSkipButton = "onboarding.skip"
+        static let onboardingNextButton = "onboarding.welcome.nextButton"
+        static let onboardingBackButton = "onboarding.back"
+        static let onboardingAddChannelButton = "onboarding.addChannels.addButton"
+        static let onboardingImportButton = "onboarding.addChannels.importButton"
+        static let onboardingLaunchButton = "onboarding.done.launchButton"
+        static let onboardingDoneTitle = "onboarding.done.title"
+        static let onboardingDoneDescription = "onboarding.done.description"
+        static let onboardingChannelDeleteButton = "onboarding.addChannels.channelRow.deleteButton"
+        static let onboardingProgressWelcome = "onboarding.progress.welcome"
+        static let onboardingProgressAddChannel = "onboarding.progress.addChannel"
+        static let onboardingProgressShellConfig = "onboarding.progress.shellConfig"
+        static let onboardingProgressDone = "onboarding.progress.done"
+        static let onboardingWindowId = "onboarding"
     }
     
     // MARK: - 辅助方法
