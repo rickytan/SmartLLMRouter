@@ -36,7 +36,7 @@ struct LabeledNumberField: View {
 
     private var numberFormatter: NumberFormatter {
         let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
+        formatter.numberStyle = .none
         formatter.minimum = 0
         formatter.maximum = 65535
         return formatter
