@@ -16,6 +16,11 @@ settings:
     # Sparkle auto-update feed URL
     SUFeedURL: "https://smartllmrouter.github.io/appcast.xml"
     SUPublicEDKey: "change_me"
+    # Global Ad-Hoc signing (no paid certificate needed)
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: YES
+    CODE_SIGNING_ALLOWED: YES
+    ENABLE_CODE_SIGNING: YES
 
 targets:
   SmartLLMRouter:
@@ -36,9 +41,11 @@ targets:
         ONLY_ACTIVE_ARCH: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_TESTABILITY: YES
+        # Ad-Hoc signing: signs the binary without a paid certificate
+        # Binary runs on this Mac without Gatekeeper; other Macs need xattr -cr
         CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGNING_ALLOWED: YES
         CODE_SIGN_ENTITLEMENTS: Resources/SmartLLMRouter.entitlements
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1

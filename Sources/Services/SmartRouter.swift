@@ -243,11 +243,13 @@ final class SmartRouter: ObservableObject {
             return nil
         }
 
-        // For 401/403: no fallback — credential issue, changing model won't help
-        if errorType == .authError401 || errorType == .forbidden403 {
+        // 403: hard block — permission issue, failover won't help
+        if errorType == .forbidden403 {
             Log.info("Error type \(errorType) does not trigger failover")
             return nil
         }
+        // 401: may be credential issue OR model-not-supported.
+        // Try next channel; if all fail, maxRetries will stop the loop.
 
         if !errorType.shouldFailover {
             Log.info("Error type \(errorType) does not trigger failover")
