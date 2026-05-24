@@ -120,6 +120,7 @@ struct AddChannelView: View {
             IconButton(icon: "xmark.circle.fill", tooltip: L10n.AddChannel.cancel) {
                 dismiss()
             }
+            .accessibilityIdentifier("addChannel.headerCloseButton")
         }
     }
 
