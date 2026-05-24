@@ -47,10 +47,8 @@ final class ModelSwitcher: ObservableObject {
         guard let id = selectedModelID else {
             return L10n.Model.defaultPassthrough
         }
-        // Look up the display name from active channel models
-        if let channel = ChannelStore.shared.activeChannel,
-           let model = channel.models.first(where: { $0.identifier == id })
-        {
+        // Look up across all channels (model may live on any channel)
+        if let model = Self.anyModelMatches(modelID: id, in: allAvailableModels) {
             return model.displayName
         }
         // Fallback: return the ID
@@ -80,22 +78,11 @@ final class ModelSwitcher: ObservableObject {
         return result
     }
 
-    /// Models compatible with the current client protocol context.
-    /// For Phase 5, since the proxy handles protocol conversion between
-    /// Anthropic and OpenAI, all models on the active channel are compatible.
+    /// Models available for the model selector dropdown.
+    /// Aggregates models from ALL channels (deduped by identifier, sorted by channel priority).
+    /// SmartRouter handles routing to the right channel automatically.
     var compatibleModels: [ModelEntry] {
-        guard let channel = ChannelStore.shared.activeChannel else {
-            return []
-        }
-
-        // If channel protocol is auto, all models are available
-        if channel.protocol == .auto {
-            return availableModels
-        }
-
-        // Otherwise, filter to models compatible with the channel's protocol
-        // Since proxy handles conversion, all channel models are compatible
-        return availableModels
+        allAvailableModels
     }
 
     private init() {
@@ -104,11 +91,12 @@ final class ModelSwitcher: ObservableObject {
             selectedModelID = nil
         }
 
-        // Validate that the stored model still exists on the active channel
+        // Validate that the stored model still exists on any channel
         if let modelID = selectedModelID {
-            let exists = ChannelStore.shared.activeChannel?.models.contains { $0.identifier == modelID } ?? false
+            let exists = ChannelStore.shared.channels.contains { channel in
+                channel.models.contains { Self.modelMatches(requested: modelID, stored: $0.identifier) }
+            }
             if !exists {
-                // Model no longer available, reset to default
                 selectedModelID = nil
             }
         }
@@ -134,21 +122,37 @@ final class ModelSwitcher: ObservableObject {
         }
     }
 
+    // MARK: - Model Name Matching
+
+    /// Flexible model name matching that handles aggregated provider prefixes.
+    /// e.g. "z-ai/glm-5.1" matches "glm-5.1" and vice versa.
+    static func modelMatches(requested: String, stored: String) -> Bool {
+        // Exact match
+        if requested == stored { return true }
+
+        // Strip prefix: "z-ai/glm-5.1" → "glm-5.1"
+        let requestedBase = requested.contains("/") ? String(requested.split(separator: "/").last!) : requested
+        let storedBase = stored.contains("/") ? String(stored.split(separator: "/").last!) : stored
+
+        return requestedBase == storedBase
+    }
+
+    /// Check if a model identifier matches any model in the collection
+    static func anyModelMatches(modelID: String, in models: [ModelEntry]) -> ModelEntry? {
+        models.first { modelMatches(requested: modelID, stored: $0.identifier) }
+    }
+
     // MARK: - Protocol Validation
 
     /// Validate if a model can be used with the current routing context
     /// Returns true if the model is compatible with the active channel
     func isModelCompatible(_ modelID: String, with channel: Channel) -> Bool {
-        // Check if model exists on the channel
-        guard channel.models.contains(where: { $0.identifier == modelID }) else {
-            return false
-        }
-        return true
+        channel.models.contains { Self.modelMatches(requested: modelID, stored: $0.identifier) }
     }
 
     /// Get the protocol required for a given model on a channel
     func getProtocolForModel(_ modelID: String, on channel: Channel) -> APIProtocol? {
-        guard channel.models.contains(where: { $0.identifier == modelID }) else {
+        guard channel.models.contains(where: { Self.modelMatches(requested: modelID, stored: $0.identifier) }) else {
             return nil
         }
         return channel.protocol
