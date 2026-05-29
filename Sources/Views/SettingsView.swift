@@ -18,35 +18,35 @@ struct SettingsView: View {
                     Label(L10n.Settings.general, systemImage: "gearshape")
                 }
                 .tag(0)
-                .accessibilityIdentifier("settings.tab.general")
+                .accessibilityIdentifier("settings.tabGeneral")
 
             ChannelsTab()
                 .tabItem {
                     Label(L10n.Settings.channels, systemImage: "server.rack")
                 }
                 .tag(1)
-                .accessibilityIdentifier("settings.tab.channels")
+                .accessibilityIdentifier("settings.tabChannels")
 
             AdvancedTab()
                 .tabItem {
                     Label(L10n.Settings.advanced, systemImage: "slider.horizontal.3")
                 }
                 .tag(2)
-                .accessibilityIdentifier("settings.tab.advanced")
+                .accessibilityIdentifier("settings.tabAdvanced")
 
             UsageTab()
                 .tabItem {
                     Label(L10n.Settings.usage, systemImage: "chart.bar.fill")
                 }
                 .tag(3)
-                .accessibilityIdentifier("settings.tab.usage")
+                .accessibilityIdentifier("settings.tabUsage")
 
             AboutTab()
                 .tabItem {
                     Label(L10n.Settings.about, systemImage: "info.circle")
                 }
                 .tag(4)
-                .accessibilityIdentifier("settings.tab.about")
+                .accessibilityIdentifier("settings.tabAbout")
         }
         .frame(width: DesignToken.Layout.settingsFrameWidth, height: DesignToken.Layout.settingsFrameHeight)
     }
@@ -58,6 +58,7 @@ struct GeneralSettingsTab: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var proxy = ProxyServer.shared
     @ObservedObject private var shellConfig = ShellConfigManager.shared
+    @ObservedObject private var claudeCode = ClaudeCodeConfigManager.shared
 
     var body: some View {
         ScrollView {
@@ -70,8 +71,17 @@ struct GeneralSettingsTab: View {
 
                 // Shell Environment Section
                 shellSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Claude Code Integration Section
+                claudeCodeSection
             }
             .padding(DesignToken.Layout.cardPadding)
+        }
+        .onAppear {
+            claudeCode.refresh()
         }
     }
 
@@ -96,7 +106,7 @@ struct GeneralSettingsTab: View {
                     }
                 }
             }
-            .accessibilityIdentifier(proxy.isRunning ? "settings.general.stop" : "settings.general.start")
+            .accessibilityIdentifier("settings.general.startStopButton")
 
             // Status Line
             HStack(spacing: DesignToken.Spacing.xs) {
@@ -118,7 +128,7 @@ struct GeneralSettingsTab: View {
                 L10n.Settings.generalPort,
                 placeholder: L10n.Settings.generalPortPlaceholder,
                 value: $appState.port,
-                accessibilityID: "settings.general.port"
+                accessibilityID: "settings.general.portField"
             )
 
             // Launch at Login Toggle
@@ -126,7 +136,7 @@ struct GeneralSettingsTab: View {
                 L10n.Settings.generalAutoStart,
                 isOn: $appState.launchAtLogin
             )
-            .accessibilityIdentifier("settings.general.launchAtLogin")
+            .accessibilityIdentifier("settings.general.autoStartToggle")
         }
     }
 
@@ -165,6 +175,63 @@ struct GeneralSettingsTab: View {
             .accessibilityIdentifier("settings.general.shellStatus")
         }
     }
+
+    // MARK: - Claude Code Section
+
+    private var claudeCodeSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.ClaudeCode.sectionTitle)
+                .font(DesignToken.Font.h2())
+                .accessibilityIdentifier("settings.general.claudeCodeHeader")
+
+            // Current URL status
+            HStack(spacing: DesignToken.Spacing.xs) {
+                if claudeCode.configExists {
+                    Image(systemName: claudeCode.isActive ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(claudeCode.isActive
+                            ? DesignToken.Colors.statusOnline
+                            : DesignToken.Colors.textSecondary)
+                    Text(claudeCode.currentURL.isEmpty
+                         ? L10n.ClaudeCode.currentUrlNotSet
+                         : L10n.ClaudeCode.currentUrl(claudeCode.currentURL))
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                    Text(L10n.ClaudeCode.configNotFound)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+            }
+            .accessibilityIdentifier("settings.general.claudeCodeStatus")
+
+            // Toggle
+            ToggleRow(
+                L10n.ClaudeCode.takeoverToggle,
+                subtitle: L10n.ClaudeCode.takeoverDescription,
+                isOn: Binding(
+                    get: { claudeCode.isActive },
+                    set: { claudeCode.toggleTakeover(enable: $0) }
+                )
+            )
+            .accessibilityIdentifier("settings.general.claudeCodeToggle")
+
+            // Error message
+            if let error = claudeCode.lastError {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                    Text(error)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusWarning)
+                }
+                .accessibilityIdentifier("settings.general.claudeCodeError")
+            }
+        }
+    }
 }
 
 // MARK: - Channels Tab
@@ -178,8 +245,8 @@ struct ChannelsTab: View {
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
-            // Toolbar
-            HStack {
+            // Toolbar - Top: Main actions
+            HStack(spacing: DesignToken.Spacing.sm) {
                 HoverButton(
                     title: isTestingAll ? L10n.Settings.channelsTesting : L10n.Settings.channelsTestAll,
                     icon: isTestingAll ? "ellipsis.circle.fill" : "bolt.fill"
@@ -193,9 +260,6 @@ struct ChannelsTab: View {
                 .disabled(isTestingAll)
                 .accessibilityIdentifier("settings.channels.testAll")
 
-                Spacer()
-
-                // Import Config button
                 HoverButton(
                     title: L10n.ConfigImporter.title,
                     icon: "square.and.arrow.down.on.square"
@@ -204,13 +268,15 @@ struct ChannelsTab: View {
                 }
                 .accessibilityIdentifier("settings.channels.importConfig")
 
+                Spacer()
+
                 HoverButton(
                     title: L10n.Settings.channelsAdd,
                     icon: "plus"
                 ) {
                     showingAddChannel = true
                 }
-                .accessibilityIdentifier("settings.channels.add")
+                .accessibilityIdentifier("settings.channels.addButton")
             }
             .padding(.horizontal, DesignToken.Layout.cardPadding)
 
@@ -221,19 +287,44 @@ struct ChannelsTab: View {
                 EmptyChannelView()
             } else {
                 List {
-                    ForEach(Array(channelStore.channels.enumerated()), id: \.element.id) { index, channel in
-                        ChannelRowView(channel: channel, index: index)
+                    ForEach(channelStore.channels) { channel in
+                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
                     }
+                    .onMove(perform: channelStore.moveChannel)
                 }
                 .listStyle(.bordered(alternatesRowBackgrounds: false))
                 .accessibilityIdentifier("settings.channels.list")
             }
 
-            // Hint
-            Text(L10n.Settings.channelsReorderHint)
-                .font(DesignToken.Font.micro())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .padding(.bottom, DesignToken.Spacing.xs)
+            // Footer - Fixed at bottom
+            HStack(spacing: DesignToken.Spacing.xs) {
+                IconButton(
+                    icon: "square.and.arrow.up",
+                    tooltip: L10n.ChannelExport.exportChannels,
+                    isDisabled: channelStore.channels.isEmpty
+                ) {
+                    ChannelExportService.shared.showExportOptions(channels: channelStore.channels)
+                }
+                .help(L10n.ChannelExport.exportChannels)
+                .accessibilityIdentifier("settings.channels.exportChannels")
+
+                IconButton(
+                    icon: "square.and.arrow.down",
+                    tooltip: L10n.ChannelExport.importChannels
+                ) {
+                    ChannelExportService.shared.importChannelsWithPanel()
+                }
+                .help(L10n.ChannelExport.importChannels)
+                .accessibilityIdentifier("settings.channels.importChannels")
+
+                Spacer()
+
+                Text(L10n.Settings.channelsReorderHint)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+            }
+            .padding(.horizontal, DesignToken.Layout.cardPadding)
+            .padding(.bottom, DesignToken.Spacing.xs)
         }
         .padding(DesignToken.Layout.cardPadding)
         .sheet(isPresented: $showingAddChannel) {
@@ -265,7 +356,7 @@ struct AdvancedTab: View {
                         L10n.Settings.advancedFailover,
                         isOn: $appState.autoFailover
                     )
-                    .accessibilityIdentifier("settings.advanced.failover")
+                    .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
                 }
 
                 Divider()
@@ -811,7 +902,7 @@ struct AboutTab: View {
                 ) {
                     updaterDelegate.checkForUpdates()
                 }
-                .accessibilityIdentifier("about.checkForUpdates")
+                .accessibilityIdentifier("settings.about.checkUpdateButton")
 
                 HoverButton(
                     title: L10n.Settings.aboutGithub,

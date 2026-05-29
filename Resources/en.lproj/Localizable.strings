@@ -43,13 +43,13 @@
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
 "settings.general.service" = "Service";
-"settings.general.startService" = "▶️ Start Service";
-"settings.general.stopService" = "⏹️ Stop Service";
+"settings.general.startService" = "Start Service";
+"settings.general.stopService" = "Stop Service";
 "settings.general.runningOnPort" = "Running on port %d";
 "settings.general.serviceStopped" = "Service stopped";
 "settings.general.shellEnv" = "Shell Environment";
-"settings.general.updateShellConfig" = "✅ Update Shell Config";
-"settings.general.setupShellEnv" = "⚙️ Setup Shell Environment";
+"settings.general.updateShellConfig" = "Update Shell Config";
+"settings.general.setupShellEnv" = "Setup Shell Environment";
 "settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
 
@@ -65,7 +65,7 @@
 "settings.channels.priority" = "Priority";
 "settings.channels.protocol" = "Protocol";
 "settings.channels.test_connection" = "Test Connection";
-"settings.channels.testAll" = "⚡ Test All";
+"settings.channels.testAll" = "Test All";
 "settings.channels.testing" = "Testing...";
 "settings.channels.reorderHint" = "Reorder: drag using ⠿ handle on left";
 "settings.channels.emptyTitle" = "No channels configured";
@@ -211,6 +211,8 @@
 "addchannel.update" = "Update";
 "addchannel.addChannel" = "Add Channel";
 "addchannel.modelNamePlaceholder" = "e.g. gpt-4, llama3";
+"addchannel.addModel" = "Add Model";
+"addchannel.removeModel" = "Remove Model";
 "addchannel.search" = "Search...";
 "addchannel.providerName" = "Provider Name";
 "addchannel.providerNamePlaceholder" = "e.g. Local Ollama";
@@ -238,3 +240,74 @@
 
 // Add Channel
 "addchannel.delete" = "Delete";
+
+// Circuit Breaker
+"circuitbreaker.title" = "Circuit Breaker";
+"circuitbreaker.description" = "Automatically disable channels after consecutive failures";
+"circuitbreaker.enabled" = "Enabled";
+"circuitbreaker.consecutiveFailures" = "Consecutive Failures";
+"circuitbreaker.failureRate" = "Failure Rate";
+"circuitbreaker.recoveryTimeout" = "Recovery Timeout";
+"circuitbreaker.remainingTime" = "Remaining: %@";
+"circuitbreaker.resetAll" = "Reset All";
+"circuitbreaker.state.closed" = "Closed";
+"circuitbreaker.state.open" = "Open";
+"circuitbreaker.state.halfOpen" = "Half-Open";
+
+// Config Importer
+"configimporter.title" = "Import API Providers";
+"configimporter.subtitle" = "Scan for existing provider configurations";
+"configimporter.scan" = "Scan";
+"configimporter.scanning" = "Scanning...";
+"configimporter.foundChannels" = "Found %d providers";
+"configimporter.noResults" = "No providers found";
+"configimporter.noResultsDescription" = "Try adding providers manually or check your configuration files";
+"configimporter.selectAll" = "Select All";
+"configimporter.deselectAll" = "Deselect All";
+"configimporter.importSelected" = "Import Selected";
+"configimporter.importSuccess" = "Successfully imported %d providers";
+"configimporter.importComplete" = "Import Complete";
+"configimporter.ok" = "OK";
+
+// Thinking Rectifier
+"rectifier.thinkingBudget.title" = "Thinking Budget Adjusted";
+"rectifier.thinkingBudget.reduced" = "Budget reduced to %@ tokens";
+"rectifier.streamErrorBuffering" = "Stream error: buffering response";
+
+// Claude Code Integration
+"claudecode.sectionTitle" = "Claude Code Integration";
+"claudecode.takeoverToggle" = "Take over Claude Code config";
+"claudecode.takeoverDescription" = "Redirect Claude Code API requests through SmartLLM Router by modifying ~/.claude/settings.json. A backup is created automatically before any change.";
+"claudecode.currentUrl" = "Current URL: %@";
+"claudecode.currentUrlNotSet" = "URL: not set";
+"claudecode.configNotFound" = "Config file not found at ~/.claude/settings.json";
+"claudecode.backupCreated" = "Backup created";
+"claudecode.restored" = "Config restored from backup";
+
+// Channel Export/Import
+"channelExport.exportChannels" = "Export Channels";
+"channelExport.importChannels" = "Import Channels";
+"channelExport.exportDescription" = "Export channel configurations and API keys to share with others";
+"channelExport.importDescription" = "Import channel configurations from a .slmr.json file";
+"channelExport.saveMessage" = "Choose where to save the exported channels file";
+"channelExport.openMessage" = "Select a .slmr.json file to import";
+"channelExport.exportSuccess" = "Export Successful";
+"channelExport.exportSuccessDetail" = "Successfully exported %d channels";
+"channelExport.exportFailed" = "Export Failed";
+"channelExport.importSuccess" = "Import Successful";
+"channelExport.importSuccessDetail" = "Successfully imported %d channels";
+"channelExport.importFailed" = "Import Failed";
+"channelExport.importPreview" = "Import Preview";
+"channelExport.importPreviewDetail" = "Found %d channels in the file. Review the details below:";
+"channelExport.importAll" = "Import All";
+"channelExport.invalidFormat" = "Invalid file format. Expected a SmartLLMRouter channels file.";
+"channelExport.unsupportedVersion" = "Unsupported file version: %d. Please update SmartLLMRouter.";
+"channelExport.securityWarning" = "Security Warning";
+"channelExport.securityWarningDetail" = "The exported file contains API keys in plain text. Please handle with care and share only with trusted parties.";
+"channelExport.encryptOption" = "Encrypt API Keys";
+"channelExport.encryptOptionDetail" = "Protect exported API keys with a password";
+"channelExport.passwordPrompt" = "Enter encryption password";
+"channelExport.passwordPlaceholder" = "Password (leave empty for no encryption)";
+"channelExport.passwordMismatch" = "Passwords do not match";
+"channelExport.decryptPrompt" = "This file contains encrypted API keys. Enter password to decrypt.";
+"channelExport.decryptFailed" = "Failed to decrypt. Wrong password?";

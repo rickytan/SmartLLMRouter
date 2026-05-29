@@ -3,16 +3,37 @@ import SwiftUI
 // MARK: - ChannelRowView
 
 /// A row displaying a channel with status, info, and action buttons.
-/// Extracted from SettingsView.swift.
+/// Reads live channel data from ChannelStore by ID to ensure UI stays in sync.
 struct ChannelRowView: View {
-    let channel: Channel
+    let channelID: String
     let index: Int
+    @ObservedObject private var channelStore = ChannelStore.shared
     @ObservedObject private var channelManager = ChannelManager.shared
     @State private var isHovered = false
     @State private var isTesting = false
+    @State private var showingEditSheet = false
+
+    /// Live channel data from store (always up-to-date)
+    private var channel: Channel {
+        channelStore.channels.first(where: { $0.id == channelID })
+            ?? Channel(id: channelID, name: "", providerId: "", baseURL: "", protocol: .openai, models: [])
+    }
 
     var body: some View {
         HStack(spacing: DesignToken.Spacing.sm) {
+            // Drag Handle
+            Image(systemName: "line.3.horizontal")
+                .font(DesignToken.Font.system(size: 12, weight: .medium))
+                .foregroundColor(DesignToken.Colors.textTertiary)
+                .onHover { isHovering in
+                    if isHovering {
+                        NSCursor.openHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .accessibilityIdentifier("channel.dragHandle.\(index)")
+
             // Status Indicator
             StatusIndicatorView(
                 isRunning: !channel.isCoolingDown,
@@ -67,17 +88,18 @@ struct ChannelRowView: View {
                     icon: "pencil",
                     tooltip: L10n.Settings.channelsEdit
                 ) {
-                    // Edit channel
+                    showingEditSheet = true
                 }
-                .accessibilityIdentifier("channel.edit.\(index)")
+                .accessibilityIdentifier("settings.channels.row.editButton")
 
                 IconButton(
                     icon: "trash",
-                    tooltip: L10n.Settings.channelsDelete
+                    tooltip: L10n.Settings.channelsDelete,
+                    color: DesignToken.Colors.destructive
                 ) {
-                    ChannelStore.shared.removeChannel(id: channel.id)
+                    ChannelStore.shared.removeChannel(id: channelID)
                 }
-                .accessibilityIdentifier("channel.delete.\(index)")
+                .accessibilityIdentifier("settings.channels.row.deleteButton")
             }
         }
         .padding(.vertical, DesignToken.Spacing.sm)
@@ -88,6 +110,9 @@ struct ChannelRowView: View {
             withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
             }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            AddChannelView(editingChannel: channel)
         }
         .accessibilityIdentifier("channel.row.\(index)")
     }
@@ -111,11 +136,12 @@ struct ChannelRowView: View {
             )
 
             return VStack(spacing: 0) {
-                ChannelRowView(channel: sampleChannel, index: 0)
+                ChannelRowView(channelID: sampleChannel.id, index: 0)
             }
             .padding()
             .frame(width: 400)
         }
     }
+
     return Preview()
 }

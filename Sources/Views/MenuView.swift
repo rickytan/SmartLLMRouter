@@ -9,8 +9,9 @@ struct MenuView: View {
     @ObservedObject private var usage = UsageTracker.shared
     @ObservedObject private var channelManager = ChannelManager.shared
     @ObservedObject private var modelSwitcher = ModelSwitcher.shared
-
-    @State private var showingModelPicker = false
+    // Timer to refresh relative timestamps ("X minutes ago")
+    @State private var now = Date()
+    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: .zero) {
@@ -78,6 +79,9 @@ struct MenuView: View {
                 .padding(.vertical, DesignToken.Spacing.sm)
         }
         .frame(width: DesignToken.Layout.menuWidth)
+        .onReceive(timer) { _ in
+            now = Date()
+        }
     }
 
     // MARK: - Status Header
@@ -106,6 +110,7 @@ struct MenuView: View {
             .font(DesignToken.Font.caption())
             .foregroundColor(DesignToken.Colors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityIdentifier("menu.statsLabel")
     }
 
     // MARK: - Failover Toggle
@@ -125,7 +130,6 @@ struct MenuView: View {
 
     private var modelSelector: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            // Header row with label and current selection
             HStack {
                 Text(L10n.Model.selectorLabel)
                     .font(DesignToken.Font.system(size: 11, weight: .medium))
@@ -133,56 +137,66 @@ struct MenuView: View {
 
                 Spacer()
 
-                // Current model display
-                Text(modelSwitcher.displayName)
-                    .font(DesignToken.Font.system(size: 11, weight: .semibold))
-                    .foregroundColor(modelSwitcher.hasOverride ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
                 Image(systemName: modelSwitcher.hasOverride ? "checkmark.circle.fill" : "circle")
                     .font(DesignToken.Font.system(size: 10))
                     .foregroundColor(modelSwitcher.hasOverride ? DesignToken.Colors.accent : DesignToken.Colors.textTertiary)
             }
 
-            // Model list (inline, no popover needed for menu bar)
             if modelSwitcher.compatibleModels.isEmpty {
                 Text(L10n.Model.noModelsAvailable)
                     .font(DesignToken.Font.micro())
                     .foregroundColor(DesignToken.Colors.textTertiary)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DesignToken.Spacing.xs) {
-                        // Default option
-                        modelOptionButton(
-                            modelID: nil,
-                            displayName: L10n.Model.defaultPassthrough,
-                            isSelected: !modelSwitcher.hasOverride
+                Menu {
+                    Button {
+                        modelSwitcher.resetToDefault()
+                    } label: {
+                        Label(
+                            L10n.Model.defaultPassthrough,
+                            systemImage: !modelSwitcher.hasOverride ? "checkmark" : "circle"
                         )
+                    }
 
-                        ForEach(modelSwitcher.compatibleModels, id: \.identifier) { model in
-                            modelOptionButton(
-                                modelID: model.identifier,
-                                displayName: model.displayName,
-                                isSelected: modelSwitcher.selectedModelID == model.identifier
+                    Divider()
+
+                    ForEach(modelSwitcher.compatibleModels, id: \.identifier) { model in
+                        Button {
+                            modelSwitcher.selectModel(model.identifier)
+                        } label: {
+                            Label(
+                                model.displayName,
+                                systemImage: modelSwitcher.selectedModelID == model.identifier ? "checkmark" : "circle"
                             )
                         }
                     }
+                } label: {
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+
+                        Text(modelSwitcher.displayName)
+                            .font(DesignToken.Font.system(size: 12, weight: .medium))
+                            .foregroundColor(modelSwitcher.hasOverride ? DesignToken.Colors.accent : DesignToken.Colors.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.down")
+                            .font(DesignToken.Font.system(size: 10, weight: .semibold))
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+                    }
+                    .padding(.horizontal, DesignToken.Spacing.sm)
+                    .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
+                    .background(DesignToken.Colors.hoverFill)
+                    .cornerRadius(DesignToken.Layout.buttonCornerRadius)
                 }
+                .menuStyle(.borderlessButton)
+                .accessibilityIdentifier("menu.model.submenu")
             }
         }
         .accessibilityIdentifier("menu.model.selector")
-    }
-
-    /// Individual model selection button
-    private func modelOptionButton(modelID: String?, displayName: String, isSelected: Bool) -> some View {
-        HoverButton(
-            title: displayName,
-            icon: isSelected ? "checkmark" : "circle"
-        ) {
-            modelSwitcher.selectModel(modelID)
-        }
-        .accessibilityIdentifier("menu.model.\(modelID ?? "default")")
     }
 
     // MARK: - Active Channel Info
@@ -254,11 +268,11 @@ struct MenuView: View {
                 }
             }
         }
-        .accessibilityIdentifier("menu.recent.requests")
+            .accessibilityIdentifier("menu.recentRequestsList")
     }
 
     private func timeAgo(from date: Date) -> String {
-        let seconds = Int(Date().timeIntervalSince(date))
+        let seconds = Int(now.timeIntervalSince(date))
         if seconds < 60 {
             return L10n.Menu.timeSeconds(seconds)
         } else if seconds < 3600 {
@@ -281,7 +295,7 @@ struct MenuView: View {
                     forType: .string
                 )
             }
-            .accessibilityIdentifier("menu.copy环境变量")
+            .accessibilityIdentifier("menu.copyEnvButton")
 
             HoverButton(
                 title: isTestingKey ? L10n.Status.testing : L10n.Menu.testKey,
@@ -296,7 +310,7 @@ struct MenuView: View {
                 }
             }
             .disabled(channelStore.activeChannel == nil || isTestingKey)
-            .accessibilityIdentifier("menu测试密钥")
+            .accessibilityIdentifier("menu.testKeyButton")
         }
         .font(DesignToken.Font.system(size: 12))
     }
@@ -305,19 +319,41 @@ struct MenuView: View {
 
     private var footerButtons: some View {
         HStack(spacing: DesignToken.Spacing.lg) {
-            HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            }
-            .accessibilityIdentifier("menu.settings")
+            settingsButton
 
             Spacer()
 
             HoverButton(title: L10n.Menu.quit, icon: "power") {
                 NSApp.terminate(nil)
             }
-            .accessibilityIdentifier("menu.quit")
+            .accessibilityIdentifier("menu.quitButton")
         }
         .font(DesignToken.Font.system(size: 12))
+    }
+
+    @ViewBuilder
+    private var settingsButton: some View {
+        if #available(macOS 14.0, *) {
+            SettingsLink {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Image(systemName: "gearshape")
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+
+                    Text(L10n.Menu.settings)
+                        .font(DesignToken.Font.system(size: 12, weight: .medium))
+                }
+                .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
+                .foregroundColor(DesignToken.Colors.textPrimary)
+                .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("menu.settingsButton")
+        } else {
+            HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
+            .accessibilityIdentifier("menu.settingsButton")
+        }
     }
 }
 

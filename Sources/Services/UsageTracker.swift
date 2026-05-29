@@ -1,4 +1,7 @@
 import Foundation
+import Combine
+
+// MARK: - UsageRecord
 
 /// Tracks token usage and estimated costs per channel
 struct UsageRecord: Codable {
@@ -15,6 +18,8 @@ struct UsageRecord: Codable {
     let isError: Bool
 }
 
+// MARK: - UsageStats
+
 /// Aggregated usage statistics
 struct UsageStats {
     let totalRequests: Int
@@ -26,7 +31,10 @@ struct UsageStats {
     let errorRate: Double
 }
 
-@MainActor
+// MARK: - UsageTracker
+
+/// Tracks API usage records with thread-safe access.
+/// All @Published updates are dispatched to main thread to avoid background-publish warnings.
 final class UsageTracker: ObservableObject {
     static let shared = UsageTracker()
 
@@ -37,11 +45,14 @@ final class UsageTracker: ObservableObject {
 
     private let userDefaultsKey = "smartllm_router_usage_records"
     private let maxRecordsCount = 10000
+    /// Serial queue for thread-safe record mutations
+    private let queue = DispatchQueue(label: "cn.rickytan.smartLLMRouter.usage-tracker", qos: .utility)
 
     private init() {
         loadRecords()
-        computeStats()
     }
+
+    // MARK: - Public API (thread-safe, can be called from any thread)
 
     func recordUsage(
         channelID: String,
@@ -68,40 +79,69 @@ final class UsageTracker: ObservableObject {
             isError: isError
         )
 
-        records.append(record)
+        queue.async { [weak self] in
+            guard let self else { return }
+            // Work with local copy inside the queue — never touch @Published from background
+            var localRecords = self.records
+            localRecords.append(record)
 
-        // Trim old records
-        if records.count > maxRecordsCount {
-            records.removeFirst(records.count - maxRecordsCount)
+            // Trim old records
+            if localRecords.count > self.maxRecordsCount {
+                localRecords.removeFirst(localRecords.count - self.maxRecordsCount)
+            }
+
+            self.saveRecords(Array(localRecords))
+            let stats = self.computeStats(from: localRecords)
+
+            DispatchQueue.main.async {
+                self.records = localRecords
+                self.todayStats = stats.today
+                self.weekStats = stats.week
+                self.monthStats = stats.month
+            }
         }
-
-        saveRecords()
-        computeStats()
     }
 
     func clearHistory() {
-        records.removeAll()
-        saveRecords()
-        computeStats()
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.saveRecords([])
+
+            DispatchQueue.main.async {
+                self.records = []
+                self.todayStats = .zero
+                self.weekStats = .zero
+                self.monthStats = .zero
+            }
+        }
     }
 
     // MARK: - Private
 
     private func loadRecords() {
-        do {
-            guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
-                records = []
-                return
+        queue.async { [weak self] in
+            guard let self else { return }
+            do {
+                guard let data = UserDefaults.standard.data(forKey: self.userDefaultsKey) else {
+                    return
+                }
+                let decoded = try JSONDecoder().decode([UsageRecord].self, from: data)
+                let stats = self.computeStats(from: decoded)
+
+                DispatchQueue.main.async {
+                    self.records = decoded
+                    self.todayStats = stats.today
+                    self.weekStats = stats.week
+                    self.monthStats = stats.month
+                }
+                Log.debug("Loaded \(decoded.count) usage records")
+            } catch {
+                Log.error("Failed to load usage records: \(error.localizedDescription)")
             }
-            records = try JSONDecoder().decode([UsageRecord].self, from: data)
-            Log.debug("Loaded \(records.count) usage records")
-        } catch {
-            Log.error("Failed to load usage records: \(error.localizedDescription)")
-            records = []
         }
     }
 
-    private func saveRecords() {
+    private func saveRecords(_ records: [UsageRecord]) {
         do {
             let encoded = try JSONEncoder().encode(records)
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
@@ -110,7 +150,7 @@ final class UsageTracker: ObservableObject {
         }
     }
 
-    private func computeStats() {
+    private func computeStats(from allRecords: [UsageRecord]) -> (today: UsageStats, week: UsageStats, month: UsageStats) {
         let calendar = Calendar.current
         let now = Date()
 
@@ -118,9 +158,11 @@ final class UsageTracker: ObservableObject {
         let weekStart = calendar.date(byAdding: .day, value: -7, to: now)!
         let monthStart = calendar.date(byAdding: .month, value: -1, to: now)!
 
-        todayStats = computeStats(for: records.filter { $0.timestamp >= todayStart })
-        weekStats = computeStats(for: records.filter { $0.timestamp >= weekStart })
-        monthStats = computeStats(for: records.filter { $0.timestamp >= monthStart })
+        return (
+            today: computeStats(for: allRecords.filter { $0.timestamp >= todayStart }),
+            week: computeStats(for: allRecords.filter { $0.timestamp >= weekStart }),
+            month: computeStats(for: allRecords.filter { $0.timestamp >= monthStart })
+        )
     }
 
     private func computeStats(for subset: [UsageRecord]) -> UsageStats {

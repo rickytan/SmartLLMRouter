@@ -6,6 +6,7 @@ struct IconButton: View {
     let icon: String
     let tooltip: String
     let isDisabled: Bool
+    let color: Color?
     let action: () -> Void
 
     @State private var isHovered: Bool = false
@@ -15,11 +16,13 @@ struct IconButton: View {
         icon: String,
         tooltip: String,
         isDisabled: Bool = false,
+        color: Color? = nil,
         action: @escaping () -> Void
     ) {
         self.icon = icon
         self.tooltip = tooltip
         self.isDisabled = isDisabled
+        self.color = color
         self.action = action
     }
 
@@ -29,7 +32,7 @@ struct IconButton: View {
                 .font(DesignToken.Font.system(size: 12, weight: .medium))
                 .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
                 .background(isHovered ? DesignToken.Colors.hoverFill : Color.clear)
-                .foregroundColor(isDisabled ? DesignToken.Colors.textTertiary : DesignToken.Colors.textSecondary)
+                .foregroundColor(resolvedColor)
                 .cornerRadius(DesignToken.Layout.badgeCornerRadius)
                 .scaleEffect(isPressed ? DesignToken.Animation.pressScale : 1.0)
         }
@@ -60,6 +63,13 @@ struct IconButton: View {
         .accessibilityLabel(tooltip)
         .accessibilityIdentifier("icon.button.\(icon)")
     }
+
+    private var resolvedColor: Color {
+        if isDisabled {
+            return DesignToken.Colors.textTertiary
+        }
+        return color ?? DesignToken.Colors.textSecondary
+    }
 }
 
 // MARK: - Preview
@@ -68,7 +78,7 @@ struct IconButton: View {
     HStack(spacing: 12) {
         IconButton(icon: "bolt.fill", tooltip: "Speed Test") {}
         IconButton(icon: "pencil", tooltip: "Edit") {}
-        IconButton(icon: "trash", tooltip: "Delete") {}
+        IconButton(icon: "trash", tooltip: "Delete", color: .red) {}
         IconButton(icon: "gearshape", tooltip: "Settings", isDisabled: true) {}
     }
     .padding()

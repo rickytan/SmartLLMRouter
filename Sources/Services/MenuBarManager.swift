@@ -19,7 +19,7 @@ final class MenuBarManager: NSObject {
 
     private func setup() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "network.slash", accessibilityDescription: "SmartLLMRouter")
+        statusItem.button?.image = statusBarImage(isRunning: false)
         statusItem.button?.action = #selector(togglePopover)
         statusItem.button?.target = self
 
@@ -38,15 +38,19 @@ final class MenuBarManager: NSObject {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            guard let button = statusItem.button else { return }
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            showPopover()
         }
+    }
+
+    /// Show the popover (programmatically)
+    func showPopover() {
+        guard let button = statusItem.button, !popover.isShown else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     /// Update the menu bar icon based on proxy status
     func updateIcon(isRunning: Bool) {
-        let imageName = isRunning ? "network" : "network.slash"
-        statusItem.button?.image = NSImage(systemSymbolName: imageName, accessibilityDescription: "SmartLLMRouter")
+        statusItem.button?.image = statusBarImage(isRunning: isRunning)
     }
 
     /// Refresh the popover content (called when state changes)
@@ -59,5 +63,18 @@ final class MenuBarManager: NSObject {
     func buildMenu(isRunning: Bool, port: Int) {
         updateIcon(isRunning: isRunning)
         refreshPopoverContent()
+    }
+
+    private func statusBarImage(isRunning: Bool) -> NSImage? {
+        let symbolCandidates = isRunning
+            ? ["point.3.connected.trianglepath.dotted", "arrow.triangle.branch", "arrow.triangle.2.circlepath"]
+            : ["point.3.filled.connected.trianglepath.dotted", "arrow.triangle.branch", "arrow.triangle.2.circlepath"]
+
+        let image = symbolCandidates
+            .compactMap { NSImage(systemSymbolName: $0, accessibilityDescription: "SmartLLMRouter") }
+            .first
+
+        image?.isTemplate = true
+        return image
     }
 }

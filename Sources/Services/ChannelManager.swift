@@ -49,6 +49,7 @@ struct ProviderModel: Codable {
     let contextLength: Int
     let inputPrice: Double
     let outputPrice: Double
+    let inputTypes: [String]?
 
     enum CodingKeys: String, CodingKey {
         case model
@@ -56,6 +57,7 @@ struct ProviderModel: Codable {
         case contextLength = "context_length"
         case inputPrice = "input_price"
         case outputPrice = "output_price"
+        case inputTypes = "input_types"
     }
 }
 
@@ -136,7 +138,8 @@ final class ChannelManager: ObservableObject {
                     contextLength: pm.contextLength,
                     inputPricePer1M: pm.inputPrice,
                     outputPricePer1M: pm.outputPrice,
-                    isEnabled: true
+                    isEnabled: true,
+                    inputTypes: pm.inputTypes ?? ["text"]
                 )
             }
 
@@ -224,6 +227,11 @@ final class ChannelManager: ObservableObject {
 
     /// Parse OpenAI-style models response
     private func parseModelsResponse(data: Data, channel _: Channel) -> [ModelEntry] {
+        // Log raw JSON for debugging
+        if let jsonString = String(data: data, encoding: .utf8) {
+            Log.info("[ChannelManager] Raw /v1/models response: \(jsonString.prefix(2000))")
+        }
+
         do {
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let modelList = json["data"] as? [[String: Any]]

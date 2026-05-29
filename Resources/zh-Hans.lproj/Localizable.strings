@@ -43,13 +43,13 @@
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
 "settings.general.service" = "服务";
-"settings.general.startService" = "▶️ 启动服务";
-"settings.general.stopService" = "⏹️ 停止服务";
+"settings.general.startService" = "启动服务";
+"settings.general.stopService" = "停止服务";
 "settings.general.runningOnPort" = "运行于端口 %d";
 "settings.general.serviceStopped" = "服务已停止";
 "settings.general.shellEnv" = "Shell 环境";
-"settings.general.updateShellConfig" = "✅ 更新 Shell 配置";
-"settings.general.setupShellEnv" = "⚙️ 配置 Shell 环境";
+"settings.general.updateShellConfig" = "更新 Shell 配置";
+"settings.general.setupShellEnv" = "配置 Shell 环境";
 "settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
 "settings.general.notConfigured" = "未配置";
 
@@ -65,7 +65,7 @@
 "settings.channels.priority" = "优先级";
 "settings.channels.protocol" = "协议";
 "settings.channels.test_connection" = "测试连接";
-"settings.channels.testAll" = "⚡ 全部测速";
+"settings.channels.testAll" = "全部测速";
 "settings.channels.testing" = "测试中...";
 "settings.channels.reorderHint" = "调整顺序：拖动左侧 ⠿ 手柄";
 "settings.channels.emptyTitle" = "未配置通道";
@@ -209,6 +209,8 @@
 "addchannel.update" = "更新";
 "addchannel.addChannel" = "添加通道";
 "addchannel.modelNamePlaceholder" = "例如 gpt-4, llama3";
+"addchannel.addModel" = "添加模型";
+"addchannel.removeModel" = "移除模型";
 "addchannel.search" = "搜索...";
 "addchannel.providerName" = "厂商名称";
 "addchannel.providerNamePlaceholder" = "例如 Local Ollama";
@@ -233,3 +235,78 @@
 // Protocol names (used in ProtocolSelector)
 "settings.general.protocol.openai" = "OpenAI";
 "settings.general.protocol.anthropic" = "Anthropic";
+
+// Circuit Breaker
+"circuitbreaker.title" = "熔断器";
+"circuitbreaker.description" = "连续失败后自动禁用通道";
+"circuitbreaker.enabled" = "已启用";
+"circuitbreaker.consecutiveFailures" = "连续失败次数";
+"circuitbreaker.failureRate" = "失败率";
+"circuitbreaker.recoveryTimeout" = "恢复超时";
+"circuitbreaker.remainingTime" = "剩余: %@";
+"circuitbreaker.resetAll" = "重置全部";
+"circuitbreaker.state.closed" = "已关闭";
+"circuitbreaker.state.open" = "已打开";
+"circuitbreaker.state.halfOpen" = "半开";
+
+// Config Importer
+"configimporter.title" = "导入 API 供应商";
+"configimporter.subtitle" = "扫描现有供应商配置";
+"configimporter.scan" = "扫描";
+"configimporter.scanning" = "扫描中...";
+"configimporter.foundChannels" = "找到 %d 个供应商";
+"configimporter.noResults" = "未找到供应商";
+"configimporter.noResultsDescription" = "尝试手动添加供应商或检查配置文件";
+"configimporter.selectAll" = "全选";
+"configimporter.deselectAll" = "取消全选";
+"configimporter.importSelected" = "导入选中项";
+"configimporter.importSuccess" = "成功导入 %d 个供应商";
+"configimporter.importComplete" = "导入完成";
+"configimporter.ok" = "确定";
+
+// Thinking Rectifier
+"rectifier.thinkingBudget.title" = "思考预算已调整";
+"rectifier.thinkingBudget.reduced" = "预算已减少到 %@ tokens";
+"rectifier.streamErrorBuffering" = "流错误：缓冲响应";
+
+// Onboarding shell (missing in zh)
+"onboarding.shell_config_target_file" = "目标文件：";
+"onboarding.shell_config_will_add" = "将添加：";
+
+// Claude Code 集成
+"claudecode.sectionTitle" = "Claude Code 集成";
+"claudecode.takeoverToggle" = "接管 Claude Code 配置";
+"claudecode.takeoverDescription" = "通过修改 ~/.claude/settings.json，将 Claude Code 的 API 请求重定向到 SmartLLM Router。修改前会自动创建备份。";
+"claudecode.currentUrl" = "当前 URL: %@";
+"claudecode.currentUrlNotSet" = "URL: 未设置";
+"claudecode.configNotFound" = "未找到配置文件 ~/.claude/settings.json";
+"claudecode.backupCreated" = "备份已创建";
+"claudecode.restored" = "配置已从备份恢复";
+
+// 通道导入导出
+"channelExport.exportChannels" = "导出通道";
+"channelExport.importChannels" = "导入通道";
+"channelExport.exportDescription" = "将通道配置和 API Key 导出为文件，方便分享给他人";
+"channelExport.importDescription" = "从 .slmr.json 文件导入通道配置";
+"channelExport.saveMessage" = "选择导出文件的保存位置";
+"channelExport.openMessage" = "选择要导入的 .slmr.json 文件";
+"channelExport.exportSuccess" = "导出成功";
+"channelExport.exportSuccessDetail" = "成功导出 %d 个通道";
+"channelExport.exportFailed" = "导出失败";
+"channelExport.importSuccess" = "导入成功";
+"channelExport.importSuccessDetail" = "成功导入 %d 个通道";
+"channelExport.importFailed" = "导入失败";
+"channelExport.importPreview" = "导入预览";
+"channelExport.importPreviewDetail" = "在文件中发现 %d 个通道，请查看详情：";
+"channelExport.importAll" = "全部导入";
+"channelExport.invalidFormat" = "文件格式无效，请选择 SmartLLMRouter 通道文件";
+"channelExport.unsupportedVersion" = "不支持的文件版本：%d，请更新 SmartLLMRouter";
+"channelExport.securityWarning" = "安全警告";
+"channelExport.securityWarningDetail" = "导出的文件包含明文 API Key，请妥善保管，仅分享给信任的人";
+"channelExport.encryptOption" = "加密 API Key";
+"channelExport.encryptOptionDetail" = "使用密码保护导出的 API Key";
+"channelExport.passwordPrompt" = "请输入加密密码";
+"channelExport.passwordPlaceholder" = "密码（留空则不加密）";
+"channelExport.passwordMismatch" = "两次输入的密码不一致";
+"channelExport.decryptPrompt" = "此文件包含加密的 API Key，请输入密码解密";
+"channelExport.decryptFailed" = "解密失败，密码可能不正确";

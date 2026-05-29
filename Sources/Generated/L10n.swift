@@ -141,6 +141,9 @@ internal enum L10n {
     internal static var generalProtocolAnthropic: String {
       NSLocalizedString("settings.general.protocol.anthropic", comment: "")
     }
+    internal static var generalProtocolAuto: String {
+      NSLocalizedString("settings.general.protocol.auto", comment: "")
+    }
     internal static var channelsAdd: String {
       NSLocalizedString("settings.channels.add", comment: "")
     }
@@ -513,6 +516,12 @@ internal enum L10n {
     internal static var modelNamePlaceholder: String {
       NSLocalizedString("addchannel.modelNamePlaceholder", comment: "")
     }
+    internal static var addModel: String {
+      NSLocalizedString("addchannel.addModel", comment: "")
+    }
+    internal static var removeModel: String {
+      NSLocalizedString("addchannel.removeModel", comment: "")
+    }
     internal static var search: String {
       NSLocalizedString("addchannel.search", comment: "")
     }
@@ -678,6 +687,12 @@ internal enum L10n {
     internal static var deselectAll: String {
       NSLocalizedString("configimporter.deselectAll", comment: "")
     }
+    internal static var importComplete: String {
+      NSLocalizedString("configimporter.importComplete", comment: "")
+    }
+    internal static var ok: String {
+      NSLocalizedString("configimporter.ok", comment: "")
+    }
   }
 
   internal enum Rectifier {
@@ -689,6 +704,114 @@ internal enum L10n {
     }
     internal static var streamErrorBuffering: String {
       NSLocalizedString("rectifier.streamErrorBuffering", comment: "")
+    }
+  }
+
+  internal enum ClaudeCode {
+    internal static var sectionTitle: String {
+      NSLocalizedString("claudecode.sectionTitle", comment: "")
+    }
+    internal static var takeoverToggle: String {
+      NSLocalizedString("claudecode.takeoverToggle", comment: "")
+    }
+    internal static var takeoverDescription: String {
+      NSLocalizedString("claudecode.takeoverDescription", comment: "")
+    }
+    internal static func currentUrl(_ p1: String) -> String {
+      String(format: NSLocalizedString("claudecode.currentUrl", comment: ""), p1)
+    }
+    internal static var currentUrlNotSet: String {
+      NSLocalizedString("claudecode.currentUrlNotSet", comment: "")
+    }
+    internal static var configNotFound: String {
+      NSLocalizedString("claudecode.configNotFound", comment: "")
+    }
+    internal static var backupCreated: String {
+      NSLocalizedString("claudecode.backupCreated", comment: "")
+    }
+    internal static var restored: String {
+      NSLocalizedString("claudecode.restored", comment: "")
+    }
+  }
+
+  internal enum ChannelExport {
+    internal static var exportChannels: String {
+      NSLocalizedString("channelExport.exportChannels", comment: "")
+    }
+    internal static var importChannels: String {
+      NSLocalizedString("channelExport.importChannels", comment: "")
+    }
+    internal static var exportDescription: String {
+      NSLocalizedString("channelExport.exportDescription", comment: "")
+    }
+    internal static var importDescription: String {
+      NSLocalizedString("channelExport.importDescription", comment: "")
+    }
+    internal static var saveMessage: String {
+      NSLocalizedString("channelExport.saveMessage", comment: "")
+    }
+    internal static var openMessage: String {
+      NSLocalizedString("channelExport.openMessage", comment: "")
+    }
+    internal static var exportSuccess: String {
+      NSLocalizedString("channelExport.exportSuccess", comment: "")
+    }
+    internal static func exportSuccessDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.exportSuccessDetail", comment: ""), p1)
+    }
+    internal static var exportFailed: String {
+      NSLocalizedString("channelExport.exportFailed", comment: "")
+    }
+    internal static var importSuccess: String {
+      NSLocalizedString("channelExport.importSuccess", comment: "")
+    }
+    internal static func importSuccessDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.importSuccessDetail", comment: ""), p1)
+    }
+    internal static var importFailed: String {
+      NSLocalizedString("channelExport.importFailed", comment: "")
+    }
+    internal static var importPreview: String {
+      NSLocalizedString("channelExport.importPreview", comment: "")
+    }
+    internal static func importPreviewDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.importPreviewDetail", comment: ""), p1)
+    }
+    internal static var importAll: String {
+      NSLocalizedString("channelExport.importAll", comment: "")
+    }
+    internal static var invalidFormat: String {
+      NSLocalizedString("channelExport.invalidFormat", comment: "")
+    }
+    internal static func unsupportedVersion(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.unsupportedVersion", comment: ""), p1)
+    }
+    internal static var securityWarning: String {
+      NSLocalizedString("channelExport.securityWarning", comment: "")
+    }
+    internal static var securityWarningDetail: String {
+      NSLocalizedString("channelExport.securityWarningDetail", comment: "")
+    }
+    internal static var encryptOption: String {
+      NSLocalizedString("channelExport.encryptOption", comment: "")
+    }
+    internal static var encryptOptionDetail: String {
+      NSLocalizedString("channelExport.encryptOptionDetail", comment: "")
+    }
+    internal static var passwordPrompt: String {
+      NSLocalizedString("channelExport.passwordPrompt", comment: "")
+    }
+    internal static var passwordPlaceholder: String {
+      NSLocalizedString("channelExport.passwordPlaceholder", comment: "")
+    }
+    internal static var passwordMismatch: String {
+      NSLocalizedString("channelExport.passwordMismatch", comment: "")
+    }
+    internal static var decryptPrompt: String {
+      NSLocalizedString("channelExport.decryptPrompt", comment: "")
+    }
+    internal static var decryptFailed: String {
+      NSLocalizedString("channelExport.decryptFailed", comment: "")
     }
   }
 }

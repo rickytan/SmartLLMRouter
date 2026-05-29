@@ -197,13 +197,25 @@ final class SmartRouter: ObservableObject {
 
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
-                channel.models.contains { $0.identifier == model || $0.displayName == model }
+                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
             }
         } else {
             availableChannels
         }
 
-        guard let selectedChannel = compatibleChannels.first else {
+        let selectedChannel: Channel?
+        if let model = modelName, compatibleChannels.isEmpty {
+            // Pass-through for models that are not in local metadata yet.
+            // This keeps the proxy usable when providers add new model IDs before providers.json is updated.
+            selectedChannel = availableChannels.first
+            if let selectedChannel {
+                Log.info("No exact channel match for model '\(model)'; pass-through via \(selectedChannel.name)")
+            }
+        } else {
+            selectedChannel = compatibleChannels.first
+        }
+
+        guard let selectedChannel else {
             Log.warn("No available channels for routing")
             return nil
         }
@@ -214,7 +226,9 @@ final class SmartRouter: ObservableObject {
             channel: selectedChannel,
             isRetry: false,
             previousChannelID: nil,
-            retryCount: 0
+            retryCount: 0,
+            originalModel: modelName,
+            effectiveModel: modelName
         )
     }
 
@@ -229,11 +243,13 @@ final class SmartRouter: ObservableObject {
             return nil
         }
 
-        // For 401/403: no fallback — credential issue, changing model won't help
-        if errorType == .authError401 || errorType == .forbidden403 {
+        // 403: hard block — permission issue, failover won't help
+        if errorType == .forbidden403 {
             Log.info("Error type \(errorType) does not trigger failover")
             return nil
         }
+        // 401: may be credential issue OR model-not-supported.
+        // Try next channel; if all fail, maxRetries will stop the loop.
 
         if !errorType.shouldFailover {
             Log.info("Error type \(errorType) does not trigger failover")
@@ -268,46 +284,66 @@ final class SmartRouter: ObservableObject {
 
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
-                channel.models.contains { $0.identifier == model || $0.displayName == model }
+                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
             }
         } else {
             availableChannels
         }
 
-        // For context_length_exceeded: direct fallback (skip same-model search)
-        if errorType == .contextLengthExceeded, smartFallbackEnabled {
-            let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-            let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
+        // For context_length_exceeded: first try same-model channel downgrade, then smart fallback
+        if errorType == .contextLengthExceeded {
+            // Step 1: Try standard downgrade — find same model on another available channel
+            if let nextChannel = compatibleChannels.first {
+                requestToChannel[requestID] = nextChannel.id
 
-            if let fallback = selectFallbackModel(
-                requestID: requestID,
-                originalModel: modelName ?? "unknown",
-                actualTokensUsed: actualTokensUsed,
-                errorType: errorType,
-                apiProtocol: protocolType,
-                excludedChannelID: previousChannelID
-            ) {
-                Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
-                Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                requestToChannel[requestID] = fallback.channel.id
+                Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
 
                 return RoutingDecision(
-                    channel: fallback.channel,
+                    channel: nextChannel,
                     isRetry: true,
                     previousChannelID: previousChannelID,
                     retryCount: currentRetryCount + 1,
-                    originalModel: fallback.originalModel,
-                    effectiveModel: fallback.fallbackModel
+                    originalModel: modelName,
+                    effectiveModel: modelName
                 )
-            } else {
-                Log.warn("No suitable fallback model found for request \(requestID)")
-                return nil
             }
+
+            // Step 2: No same-model channel — try smart fallback (only if enabled)
+            if smartFallbackEnabled {
+                let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
+                let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
+
+                if let fallback = selectFallbackModel(
+                    requestID: requestID,
+                    originalModel: modelName ?? "unknown",
+                    actualTokensUsed: actualTokensUsed,
+                    errorType: errorType,
+                    apiProtocol: protocolType,
+                    excludedChannelID: previousChannelID
+                ) {
+                    Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
+                    Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
+                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
+                    Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
+                    Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
+                    Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
+
+                    requestToChannel[requestID] = fallback.channel.id
+
+                    return RoutingDecision(
+                        channel: fallback.channel,
+                        isRetry: true,
+                        previousChannelID: previousChannelID,
+                        retryCount: currentRetryCount + 1,
+                        originalModel: fallback.originalModel,
+                        effectiveModel: fallback.fallbackModel
+                    )
+                }
+            }
+
+            // Step 3: Both standard downgrade and smart fallback failed
+            Log.warn("No suitable channel or fallback for context_length_exceeded on request \(requestID)")
+            return nil
         }
 
         // For 429/5xx: first try same-model channel, then fallback
@@ -492,7 +528,7 @@ final class SmartRouter: ObservableObject {
         guard let modelName else { return nil }
         let channels = ChannelStore.shared.channels
         for channel in channels {
-            for model in channel.models where model.identifier == modelName || model.displayName == modelName {
+            for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
                 if let contextLength = model.contextLength {
                     // Use 80% of context as estimate
                     return Int(Double(contextLength) * 0.8)
