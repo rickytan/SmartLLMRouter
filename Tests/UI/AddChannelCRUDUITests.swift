@@ -22,9 +22,9 @@ final class AddChannelCRUDUITests: UITestCase {
     /// Navigate to Settings → Channels tab.
     private func openSettingsChannelsTab() {
         tapElement(UI.menuSettingsButton)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
         tapElement(UI.settingsChannelsTab)
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// Open the AddChannelView sheet via the "+" button.
@@ -34,7 +34,7 @@ final class AddChannelCRUDUITests: UITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 3),
                       "Settings channels add button should exist")
         addButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
     }
 
     /// Add a manual model via the text field and Return key.
@@ -45,7 +45,7 @@ final class AddChannelCRUDUITests: UITestCase {
             modelField.click()
             modelField.typeText(name)
             modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -70,7 +70,7 @@ final class AddChannelCRUDUITests: UITestCase {
         // - apiKey is empty
         // - testResult is nil (not successful)
         // - models is empty
-        XCTAssertTrue(saveButton.isDisabled || !saveButton.isEnabled,
+        XCTAssertTrue(!saveButton.isEnabled,
                       "Save button should be disabled when form fields are empty and no models added")
 
         // Verify essential form fields are present but empty
@@ -91,7 +91,7 @@ final class AddChannelCRUDUITests: UITestCase {
             .matching(identifier: UI.addChannelTestConnectionButton).firstMatch
         XCTAssertTrue(testButton.waitForExistence(timeout: 2),
                       "Test Connection button should exist")
-        XCTAssertTrue(testButton.isDisabled || !testButton.isEnabled,
+        XCTAssertTrue(!testButton.isEnabled,
                       "Test Connection button should be disabled when apiKey and baseURL are empty")
 
         // Fetch Models button should be disabled (requires successful test)
@@ -99,7 +99,7 @@ final class AddChannelCRUDUITests: UITestCase {
             .matching(identifier: UI.addChannelFetchModelsButton).firstMatch
         XCTAssertTrue(fetchButton.waitForExistence(timeout: 2),
                       "Fetch Models button should exist")
-        XCTAssertTrue(fetchButton.isDisabled || !fetchButton.isEnabled,
+        XCTAssertTrue(!fetchButton.isEnabled,
                       "Fetch Models button should be disabled without a successful connection test")
 
         // Cancel to clean up
@@ -107,7 +107,7 @@ final class AddChannelCRUDUITests: UITestCase {
             .matching(identifier: UI.addChannelCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 2) {
             cancelButton.click()
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -131,11 +131,11 @@ final class AddChannelCRUDUITests: UITestCase {
                       "Manual model input field should exist")
         modelField.click()
         modelField.typeText("gpt-4-test-model")
-        sleep(0.3)
+        Thread.sleep(forTimeInterval: 0.3)
 
         // Press Return to add the model
         modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Verify the model appeared — the gear button (edit) should now exist
         let gearButton = app.descendants(matching: .any)
@@ -153,7 +153,7 @@ final class AddChannelCRUDUITests: UITestCase {
         modelField.click()
         modelField.typeText("gpt-3.5-turbo-test")
         modelField.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         let gearButtonsAfter = app.descendants(matching: .any)
             .matching(identifier: UI.addChannelModelEditButton)
@@ -162,7 +162,7 @@ final class AddChannelCRUDUITests: UITestCase {
 
         // Delete the first model
         deleteButton.click()
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         let gearButtonsAfterDelete = app.descendants(matching: .any)
             .matching(identifier: UI.addChannelModelEditButton)
@@ -174,7 +174,7 @@ final class AddChannelCRUDUITests: UITestCase {
             .matching(identifier: UI.addChannelCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 2) {
             cancelButton.click()
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -188,7 +188,7 @@ final class AddChannelCRUDUITests: UITestCase {
 
         // Add a model first
         addManualModel(named: "editor-test-model")
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Click the gear (edit) button on the model row
         let gearButton = app.descendants(matching: .any)
@@ -196,7 +196,7 @@ final class AddChannelCRUDUITests: UITestCase {
         XCTAssertTrue(gearButton.waitForExistence(timeout: 3),
                       "Gear button should exist after adding a model")
         gearButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the ModelMetadataEditorView opened
         let editorSaveButton = app.descendants(matching: .any)
@@ -218,7 +218,7 @@ final class AddChannelCRUDUITests: UITestCase {
         contextField.click()
         contextField.typeKey("a", modifierFlags: .command)
         contextField.typeText("128000")
-        sleep(0.3)
+        Thread.sleep(forTimeInterval: 0.3)
 
         XCTAssertEqual(contextField.value as? String, "128000",
                        "Context length field should show the new value after editing")
@@ -238,7 +238,7 @@ final class AddChannelCRUDUITests: UITestCase {
         XCTAssertTrue(editorSaveButton.waitForExistence(timeout: 2),
                       "Save button should exist in the model editor")
         editorSaveButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the editor closed — the Cancel button inside the editor should no longer exist
         let editorCancelAfterSave = app.descendants(matching: .any)
@@ -255,7 +255,7 @@ final class AddChannelCRUDUITests: UITestCase {
             .matching(identifier: UI.addChannelCancelButton).firstMatch
         if cancelButton.waitForExistence(timeout: 2) {
             cancelButton.click()
-            sleep(0.5)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -285,12 +285,12 @@ final class AddChannelCRUDUITests: UITestCase {
         if baseUrlField.waitForExistence(timeout: 2) {
             baseUrlField.click()
             baseUrlField.typeText("https://api.example.com/v1")
-            sleep(0.3)
+            Thread.sleep(forTimeInterval: 0.3)
         }
 
         // Add a model manually
         addManualModel(named: "model-to-discard")
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Verify the model was added (gear button exists)
         let gearButton = app.descendants(matching: .any)
@@ -304,7 +304,7 @@ final class AddChannelCRUDUITests: UITestCase {
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 2),
                       "Cancel button should exist at the bottom of the AddChannel form")
         cancelButton.click()
-        sleep(1)
+Thread.sleep(forTimeInterval: 1.5)
 
         // Verify the sheet closed (provider picker should no longer exist)
         XCTAssertFalse(providerPicker.exists,
@@ -330,7 +330,7 @@ final class AddChannelCRUDUITests: UITestCase {
 
         // Close via ESC key instead of Cancel button
         app.typeKey(XCUIKeyboardKey.escape, modifierFlags: [])
-        sleep(0.5)
+        Thread.sleep(forTimeInterval: 0.5)
 
         // Verify it closed
         XCTAssertFalse(providerPicker.exists,

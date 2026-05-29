@@ -98,6 +98,9 @@ struct AddChannelView: View {
                 selectedProviderId = channel.providerId
                 apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
                 isCustomProvider = (channel.providerId == nil || channel.providerId == "custom")
+                if isCustomProvider {
+                    customProviderName = channel.name
+                }
                 testResult = .success(models: channel.models)
             } else {
                 priority = channelStore.channels.count + 1
@@ -382,11 +385,17 @@ struct AddChannelView: View {
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
 
-            // Vision / Multimodal Icon
-            if model.supportsVision {
-                Image(systemName: "photo.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignToken.Colors.accent)
+            // Input Types Badges
+            HStack(spacing: 2) {
+                ForEach(model.inputTypes, id: \.self) { type in
+                    Text(type.uppercased())
+                        .font(DesignToken.Font.system(size: 8, weight: .medium))
+                        .foregroundColor(inputTypeColor(type))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(inputTypeColor(type).opacity(0.15))
+                        .cornerRadius(3)
+                }
             }
 
             // Edit Button
@@ -433,6 +442,21 @@ struct AddChannelView: View {
             return String(format: "%.0fK", Double(length) / 1000)
         }
         return "\(length)"
+    }
+
+    private func inputTypeColor(_ type: String) -> Color {
+        switch type {
+        case "text":
+            return DesignToken.Colors.textSecondary
+        case "image":
+            return DesignToken.Colors.accent
+        case "video":
+            return Color.purple
+        case "audio":
+            return Color.orange
+        default:
+            return DesignToken.Colors.textTertiary
+        }
     }
 
     private func fetchModels() async {
@@ -566,7 +590,8 @@ struct AddChannelView: View {
             contextLength: pm.contextLength,
             inputPricePer1M: pm.inputPrice,
             outputPricePer1M: pm.outputPrice,
-            isEnabled: true
+            isEnabled: true,
+            inputTypes: pm.inputTypes ?? ["text"]
         )
     }
 

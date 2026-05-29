@@ -497,7 +497,16 @@
           "protocol": "openai",
           "context_length": 32768,
           "input_price": 0.0,
-          "output_price": 0.0
+          "output_price": 0.0,
+          "input_types": ["text"]
+        },
+        {
+          "model": "mimo-v2-tts",
+          "protocol": "openai",
+          "context_length": 32768,
+          "input_price": 0.0,
+          "output_price": 0.0,
+          "input_types": ["text", "audio"]
         }
       ],
       "base_urls": {

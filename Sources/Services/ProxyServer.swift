@@ -1066,12 +1066,12 @@ final class ProxyServer: ObservableObject {
 
         if ModelAggregator.shared.hasCachedModels() {
             let models = ModelAggregator.shared.allModels()
-            foundModel = models.first { $0.identifier == modelId }
+            foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
             if foundModel != nil {
                 // Find which channel owns this model
                 DispatchQueue.main.sync {
                     for channel in ChannelStore.shared.channels {
-                        if channel.models.contains(where: { $0.identifier == modelId }) {
+                        if channel.models.contains(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                             foundChannelName = channel.name
                             break
                         }
@@ -1092,7 +1092,7 @@ final class ProxyServer: ObservableObject {
         // Fallback: check ChannelStore directly
         DispatchQueue.main.sync {
             for channel in ChannelStore.shared.channels {
-                if let model = channel.models.first(where: { $0.identifier == modelId }) {
+                if let model = channel.models.first(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                     foundModel = model
                     foundChannelName = channel.name
                     break

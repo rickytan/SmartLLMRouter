@@ -197,7 +197,7 @@ final class SmartRouter: ObservableObject {
 
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
-                channel.models.contains { $0.isEnabled && ($0.identifier == model || $0.displayName == model) }
+                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
             }
         } else {
             availableChannels
@@ -284,7 +284,7 @@ final class SmartRouter: ObservableObject {
 
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
-                channel.models.contains { $0.identifier == model || $0.displayName == model }
+                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
             }
         } else {
             availableChannels
@@ -528,7 +528,7 @@ final class SmartRouter: ObservableObject {
         guard let modelName else { return nil }
         let channels = ChannelStore.shared.channels
         for channel in channels {
-            for model in channel.models where model.identifier == modelName || model.displayName == modelName {
+            for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
                 if let contextLength = model.contextLength {
                     // Use 80% of context as estimate
                     return Int(Double(contextLength) * 0.8)

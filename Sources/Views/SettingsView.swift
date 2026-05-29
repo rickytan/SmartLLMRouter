@@ -245,8 +245,8 @@ struct ChannelsTab: View {
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
-            // Toolbar
-            HStack {
+            // Toolbar - Top: Main actions
+            HStack(spacing: DesignToken.Spacing.sm) {
                 HoverButton(
                     title: isTestingAll ? L10n.Settings.channelsTesting : L10n.Settings.channelsTestAll,
                     icon: isTestingAll ? "ellipsis.circle.fill" : "bolt.fill"
@@ -260,9 +260,6 @@ struct ChannelsTab: View {
                 .disabled(isTestingAll)
                 .accessibilityIdentifier("settings.channels.testAll")
 
-                Spacer()
-
-                // Import Config button
                 HoverButton(
                     title: L10n.ConfigImporter.title,
                     icon: "square.and.arrow.down.on.square"
@@ -270,6 +267,8 @@ struct ChannelsTab: View {
                     showingConfigImporter = true
                 }
                 .accessibilityIdentifier("settings.channels.importConfig")
+
+                Spacer()
 
                 HoverButton(
                     title: L10n.Settings.channelsAdd,
@@ -297,11 +296,35 @@ struct ChannelsTab: View {
                 .accessibilityIdentifier("settings.channels.list")
             }
 
-            // Hint
-            Text(L10n.Settings.channelsReorderHint)
-                .font(DesignToken.Font.micro())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .padding(.bottom, DesignToken.Spacing.xs)
+            // Footer - Fixed at bottom
+            HStack(spacing: DesignToken.Spacing.xs) {
+                IconButton(
+                    icon: "square.and.arrow.up",
+                    tooltip: L10n.ChannelExport.exportChannels,
+                    isDisabled: channelStore.channels.isEmpty
+                ) {
+                    ChannelExportService.shared.showExportOptions(channels: channelStore.channels)
+                }
+                .help(L10n.ChannelExport.exportChannels)
+                .accessibilityIdentifier("settings.channels.exportChannels")
+
+                IconButton(
+                    icon: "square.and.arrow.down",
+                    tooltip: L10n.ChannelExport.importChannels
+                ) {
+                    ChannelExportService.shared.importChannelsWithPanel()
+                }
+                .help(L10n.ChannelExport.importChannels)
+                .accessibilityIdentifier("settings.channels.importChannels")
+
+                Spacer()
+
+                Text(L10n.Settings.channelsReorderHint)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+            }
+            .padding(.horizontal, DesignToken.Layout.cardPadding)
+            .padding(.bottom, DesignToken.Spacing.xs)
         }
         .padding(DesignToken.Layout.cardPadding)
         .sheet(isPresented: $showingAddChannel) {
