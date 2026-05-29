@@ -283,3 +283,31 @@
 "claudecode.configNotFound" = "Config file not found at ~/.claude/settings.json";
 "claudecode.backupCreated" = "Backup created";
 "claudecode.restored" = "Config restored from backup";
+
+// Channel Export/Import
+"channelExport.exportChannels" = "Export Channels";
+"channelExport.importChannels" = "Import Channels";
+"channelExport.exportDescription" = "Export channel configurations and API keys to share with others";
+"channelExport.importDescription" = "Import channel configurations from a .slmr.json file";
+"channelExport.saveMessage" = "Choose where to save the exported channels file";
+"channelExport.openMessage" = "Select a .slmr.json file to import";
+"channelExport.exportSuccess" = "Export Successful";
+"channelExport.exportSuccessDetail" = "Successfully exported %d channels";
+"channelExport.exportFailed" = "Export Failed";
+"channelExport.importSuccess" = "Import Successful";
+"channelExport.importSuccessDetail" = "Successfully imported %d channels";
+"channelExport.importFailed" = "Import Failed";
+"channelExport.importPreview" = "Import Preview";
+"channelExport.importPreviewDetail" = "Found %d channels in the file. Review the details below:";
+"channelExport.importAll" = "Import All";
+"channelExport.invalidFormat" = "Invalid file format. Expected a SmartLLMRouter channels file.";
+"channelExport.unsupportedVersion" = "Unsupported file version: %d. Please update SmartLLMRouter.";
+"channelExport.securityWarning" = "Security Warning";
+"channelExport.securityWarningDetail" = "The exported file contains API keys in plain text. Please handle with care and share only with trusted parties.";
+"channelExport.encryptOption" = "Encrypt API Keys";
+"channelExport.encryptOptionDetail" = "Protect exported API keys with a password";
+"channelExport.passwordPrompt" = "Enter encryption password";
+"channelExport.passwordPlaceholder" = "Password (leave empty for no encryption)";
+"channelExport.passwordMismatch" = "Passwords do not match";
+"channelExport.decryptPrompt" = "This file contains encrypted API keys. Enter password to decrypt.";
+"channelExport.decryptFailed" = "Failed to decrypt. Wrong password?";
