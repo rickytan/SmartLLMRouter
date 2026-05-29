@@ -243,20 +243,82 @@ final class ChannelManager: ObservableObject {
             return modelList.compactMap { modelDict -> ModelEntry? in
                 guard let modelId = modelDict["id"] as? String else { return nil }
 
-                return ModelEntry(
+                // Extract context_length
+                let contextLength = modelDict["context_length"] as? Int
+
+                // Extract pricing
+                let pricing = modelDict["pricing"] as? [String: Any]
+                let inputPrice = Self.parsePricingValue(pricing?["prompt"])
+                let outputPrice = Self.parsePricingValue(pricing?["completion"])
+
+                // Extract input_modalities → inputTypes
+                // Check both top-level and architecture.input_modalities (OpenRouter format)
+                let inputTypes: [String]
+                if let topLevelModalities = modelDict["input_modalities"] {
+                    inputTypes = Self.parseInputTypes(from: topLevelModalities)
+                } else if let architecture = modelDict["architecture"] as? [String: Any],
+                          let archModalities = architecture["input_modalities"] {
+                    inputTypes = Self.parseInputTypes(from: archModalities)
+                } else {
+                    inputTypes = ["text"]
+                }
+
+                let entry = ModelEntry(
                     id: UUID().uuidString,
                     identifier: modelId,
-                    displayName: modelId,
-                    contextLength: nil,
-                    inputPricePer1M: nil,
-                    outputPricePer1M: nil,
-                    isEnabled: true
+                    displayName: modelDict["name"] as? String ?? modelId,
+                    contextLength: contextLength,
+                    inputPricePer1M: inputPrice,
+                    outputPricePer1M: outputPrice,
+                    isEnabled: true,
+                    inputTypes: inputTypes
                 )
+
+                if !inputTypes.isEmpty && inputTypes != ["text"] {
+                    Log.info("[ChannelManager] Model \(modelId): inputTypes=\(inputTypes), ctx=\(contextLength.map { String($0) } ?? "nil")")
+                }
+
+                return entry
             }
         } catch {
             Log.error("Failed to parse models response: \(error.localizedDescription)")
             return []
         }
+    }
+
+    /// Parse input_modalities array from API response into inputTypes
+    /// Maps API values: "text"→"text", "image"→"image", "audio"→"audio", "video"→"video"
+    static func parseInputTypes(from value: Any?) -> [String] {
+        guard let modalities = value as? [String] else {
+            return ["text"] // Default
+        }
+
+        let validTypes = modalities.compactMap { modality -> String? in
+            switch modality {
+            case "text", "image", "video", "audio":
+                return modality
+            default:
+                // Unknown modality - log but skip
+                Log.warn("[ChannelManager] Unknown input modality: \(modality)")
+                return nil
+            }
+        }
+
+        return validTypes.isEmpty ? ["text"] : validTypes
+    }
+
+    /// Parse pricing value (string or number) to Double
+    static func parsePricingValue(_ value: Any?) -> Double? {
+        if let str = value as? String {
+            return Double(str)
+        }
+        if let num = value as? Double {
+            return num
+        }
+        if let num = value as? Int {
+            return Double(num)
+        }
+        return nil
     }
 
     // MARK: - Test Connection
