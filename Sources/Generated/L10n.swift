@@ -733,4 +733,85 @@ internal enum L10n {
       NSLocalizedString("claudecode.restored", comment: "")
     }
   }
+
+  internal enum ChannelExport {
+    internal static var exportChannels: String {
+      NSLocalizedString("channelExport.exportChannels", comment: "")
+    }
+    internal static var importChannels: String {
+      NSLocalizedString("channelExport.importChannels", comment: "")
+    }
+    internal static var exportDescription: String {
+      NSLocalizedString("channelExport.exportDescription", comment: "")
+    }
+    internal static var importDescription: String {
+      NSLocalizedString("channelExport.importDescription", comment: "")
+    }
+    internal static var saveMessage: String {
+      NSLocalizedString("channelExport.saveMessage", comment: "")
+    }
+    internal static var openMessage: String {
+      NSLocalizedString("channelExport.openMessage", comment: "")
+    }
+    internal static var exportSuccess: String {
+      NSLocalizedString("channelExport.exportSuccess", comment: "")
+    }
+    internal static func exportSuccessDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.exportSuccessDetail", comment: ""), p1)
+    }
+    internal static var exportFailed: String {
+      NSLocalizedString("channelExport.exportFailed", comment: "")
+    }
+    internal static var importSuccess: String {
+      NSLocalizedString("channelExport.importSuccess", comment: "")
+    }
+    internal static func importSuccessDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.importSuccessDetail", comment: ""), p1)
+    }
+    internal static var importFailed: String {
+      NSLocalizedString("channelExport.importFailed", comment: "")
+    }
+    internal static var importPreview: String {
+      NSLocalizedString("channelExport.importPreview", comment: "")
+    }
+    internal static func importPreviewDetail(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.importPreviewDetail", comment: ""), p1)
+    }
+    internal static var importAll: String {
+      NSLocalizedString("channelExport.importAll", comment: "")
+    }
+    internal static var invalidFormat: String {
+      NSLocalizedString("channelExport.invalidFormat", comment: "")
+    }
+    internal static func unsupportedVersion(_ p1: Int) -> String {
+      String(format: NSLocalizedString("channelExport.unsupportedVersion", comment: ""), p1)
+    }
+    internal static var securityWarning: String {
+      NSLocalizedString("channelExport.securityWarning", comment: "")
+    }
+    internal static var securityWarningDetail: String {
+      NSLocalizedString("channelExport.securityWarningDetail", comment: "")
+    }
+    internal static var encryptOption: String {
+      NSLocalizedString("channelExport.encryptOption", comment: "")
+    }
+    internal static var encryptOptionDetail: String {
+      NSLocalizedString("channelExport.encryptOptionDetail", comment: "")
+    }
+    internal static var passwordPrompt: String {
+      NSLocalizedString("channelExport.passwordPrompt", comment: "")
+    }
+    internal static var passwordPlaceholder: String {
+      NSLocalizedString("channelExport.passwordPlaceholder", comment: "")
+    }
+    internal static var passwordMismatch: String {
+      NSLocalizedString("channelExport.passwordMismatch", comment: "")
+    }
+    internal static var decryptPrompt: String {
+      NSLocalizedString("channelExport.decryptPrompt", comment: "")
+    }
+    internal static var decryptFailed: String {
+      NSLocalizedString("channelExport.decryptFailed", comment: "")
+    }
+  }
 }
