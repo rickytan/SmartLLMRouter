@@ -348,8 +348,14 @@ struct MenuView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("menu.settingsButton")
+            .onTapGesture {
+                // Activate app to bring settings window to front
+                NSApp.activate(ignoringOtherApps: true)
+            }
         } else {
             HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
+                // Activate app first, then show settings
+                NSApp.activate(ignoringOtherApps: true)
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
             .accessibilityIdentifier("menu.settingsButton")

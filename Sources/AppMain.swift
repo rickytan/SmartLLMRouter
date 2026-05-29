@@ -62,8 +62,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !AppState.shared.onboardingCompleted {
             Task {
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                // Activate app first to bring window to front
+                NSApp.activate(ignoringOtherApps: true)
                 if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "onboarding" }) {
                     window.makeKeyAndOrderFront(nil)
+                    window.center()  // Center on screen
                 }
             }
         }
