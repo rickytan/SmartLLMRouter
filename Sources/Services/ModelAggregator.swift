@@ -243,19 +243,72 @@ final class ModelAggregator {
                 let modelId = (modelDict["id"] as? String) ?? (modelDict["name"] as? String)
                 guard let id = modelId else { return nil }
 
+                // Extract context_length
+                let contextLength = modelDict["context_length"] as? Int
+
+                // Extract pricing
+                let pricing = modelDict["pricing"] as? [String: Any]
+                let inputPrice = Self.parsePricingValue(pricing?["prompt"])
+                let outputPrice = Self.parsePricingValue(pricing?["completion"])
+
+                // Extract input_modalities → inputTypes
+                // Check both top-level and architecture.input_modalities (OpenRouter format)
+                let inputTypes: [String]
+                if let topLevelModalities = modelDict["input_modalities"] {
+                    inputTypes = Self.parseInputTypes(from: topLevelModalities)
+                } else if let architecture = modelDict["architecture"] as? [String: Any],
+                          let archModalities = architecture["input_modalities"] {
+                    inputTypes = Self.parseInputTypes(from: archModalities)
+                } else {
+                    inputTypes = ["text"]
+                }
+
                 return ModelEntry(
                     id: UUID().uuidString,
                     identifier: id,
-                    displayName: id,
-                    contextLength: nil,
-                    inputPricePer1M: nil,
-                    outputPricePer1M: nil,
-                    isEnabled: true
+                    displayName: modelDict["name"] as? String ?? id,
+                    contextLength: contextLength,
+                    inputPricePer1M: inputPrice,
+                    outputPricePer1M: outputPrice,
+                    isEnabled: true,
+                    inputTypes: inputTypes
                 )
             }
         } catch {
             Log.warn("[ModelAggregator] Failed to parse models response: \(error.localizedDescription)")
             return []
         }
+    }
+
+    /// Parse input_modalities array from API response into inputTypes
+    private static func parseInputTypes(from value: Any?) -> [String] {
+        guard let modalities = value as? [String] else {
+            return ["text"]
+        }
+
+        let validTypes = modalities.compactMap { modality -> String? in
+            switch modality {
+            case "text", "image", "video", "audio":
+                return modality
+            default:
+                return nil
+            }
+        }
+
+        return validTypes.isEmpty ? ["text"] : validTypes
+    }
+
+    /// Parse pricing value (string or number) to Double
+    private static func parsePricingValue(_ value: Any?) -> Double? {
+        if let str = value as? String {
+            return Double(str)
+        }
+        if let num = value as? Double {
+            return num
+        }
+        if let num = value as? Int {
+            return Double(num)
+        }
+        return nil
     }
 }
