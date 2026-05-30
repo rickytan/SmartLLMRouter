@@ -73,6 +73,54 @@ final class ChannelExportService {
         let outputPricePer1M: Double?
         let isEnabled: Bool
         let inputTypes: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case identifier, displayName, contextLength
+            case inputPricePer1M, outputPricePer1M, isEnabled
+            case inputTypes, supportsVision
+        }
+
+        init(identifier: String, displayName: String, contextLength: Int? = nil,
+             inputPricePer1M: Double? = nil, outputPricePer1M: Double? = nil,
+             isEnabled: Bool = true, inputTypes: [String] = ["text"]) {
+            self.identifier = identifier
+            self.displayName = displayName
+            self.contextLength = contextLength
+            self.inputPricePer1M = inputPricePer1M
+            self.outputPricePer1M = outputPricePer1M
+            self.isEnabled = isEnabled
+            self.inputTypes = inputTypes
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            identifier = try container.decode(String.self, forKey: .identifier)
+            displayName = try container.decode(String.self, forKey: .displayName)
+            contextLength = try container.decodeIfPresent(Int.self, forKey: .contextLength)
+            inputPricePer1M = try container.decodeIfPresent(Double.self, forKey: .inputPricePer1M)
+            outputPricePer1M = try container.decodeIfPresent(Double.self, forKey: .outputPricePer1M)
+            isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+
+            // Try new format first, fall back to old supportsVision
+            if let types = try container.decodeIfPresent([String].self, forKey: .inputTypes) {
+                inputTypes = types
+            } else if let supportsVision = try container.decodeIfPresent(Bool.self, forKey: .supportsVision) {
+                inputTypes = supportsVision ? ["text", "image"] : ["text"]
+            } else {
+                inputTypes = ["text"]
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(identifier, forKey: .identifier)
+            try container.encode(displayName, forKey: .displayName)
+            try container.encodeIfPresent(contextLength, forKey: .contextLength)
+            try container.encodeIfPresent(inputPricePer1M, forKey: .inputPricePer1M)
+            try container.encodeIfPresent(outputPricePer1M, forKey: .outputPricePer1M)
+            try container.encode(isEnabled, forKey: .isEnabled)
+            try container.encode(inputTypes, forKey: .inputTypes)
+        }
     }
 
     // MARK: - Export
