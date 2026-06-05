@@ -4,11 +4,11 @@
 | :--- | :--- |
 | **版本** | v2.0.0 (需求讨论阶段) |
 | **状态** | Phase 1-6 已执行，**本 PRD 用于回溯补充遗漏需求** |
-| **最近更新** | 补充 10 个关键遗漏模块 (3.8-3.17) |
+| **最近更新** | 补充配置导入导出、模型匹配、模型能力解析、拖拽排序、完整端点代理与质量门禁需求 |
 | **目标平台** | macOS 13.0+ (Ventura) |
 | **技术栈** | Swift 5.9+, SwiftUI, XcodeGen, SwiftGen, CocoaPods (Swifter, Alamofire, KeychainAccess, Sparkle, CocoaLumberjack) |
 
-> **⚠️ 重要说明**: 本文档在 Phase 1-6 执行后进行了回溯性补充。原始 PRD 遗漏了大量关键需求，导致执行阶段频繁遇到问题。以下新增模块 (3.8-3.17) 是基于实际执行中发现的坑点和遗漏整理而成。**未来新项目应在需求阶段就考虑这些点。**
+> **⚠️ 重要说明**: 本文档在 Phase 1-6 执行后进行了回溯性补充。原始 PRD 遗漏了大量关键需求，导致执行阶段频繁遇到问题。以下新增模块是基于实际执行中发现的坑点和遗漏整理而成，并以“需求讨论阶段”的口径描述，便于未来从零实现时直接参考。**未来新项目应在需求阶段就考虑这些点。**
 
 ---
 
@@ -1303,7 +1303,234 @@ func estimatedFallbackCost(inputTokens: Int, outputTokensEstimate: Int, pricePer
 
 ---
 
-### 4. 数据模型定义
+
+### 3.25 模块二十五：Channel 配置导入导出
+
+#### 背景问题
+用户通常会配置多个 Provider / Channel，并为每个 Channel 维护 Base URL、协议、模型列表、模型元数据、优先级与 API Key。更换设备、重装应用、备份配置或在多台 Mac 间迁移时，如果只能手动重新录入，会造成较高迁移成本。
+
+#### 需求定义
+1. **导出范围**：用户可以从 Settings → Channels 导出所有 Channel 配置。
+2. **导出内容**必须包含：
+   - Channel 名称、Provider ID、自定义 Provider 名称
+   - Base URL、协议类型、优先级、启用状态
+   - 模型列表、显示名称、上下文长度、输入/输出价格
+   - 模型输入能力（text / image / audio / video）
+   - 与路由相关的必要元数据
+3. **API Key 处理**：
+   - 默认导出时不得明文泄露 API Key。
+   - 用户选择加密导出时，允许将 API Key 一并导出，但必须使用用户输入的密码加密。
+   - 未加密导出时，API Key 应为空、脱敏或明确排除。
+4. **导入行为**：
+   - 支持导入 SmartLLM Router 自己导出的配置文件。
+   - 导入前展示预览：将导入多少个 Channel、多少个模型、是否包含加密凭证。
+   - 支持合并到现有配置，遇到重复 Channel 时应有明确策略（跳过 / 覆盖 / 生成副本）。
+5. **加密导入**：
+   - 加密文件导入时必须要求用户输入密码。
+   - 密码错误、文件损坏、版本不兼容时应给出明确错误提示。
+6. **版本兼容**：导出文件应包含 schema version，未来字段变更时可以做兼容迁移。
+
+#### 验收标准
+- [ ] 可以导出未加密配置文件，文件中不包含明文 API Key。
+- [ ] 可以导出加密配置文件，API Key 经加密保护。
+- [ ] 可以导入未加密配置并恢复 Channel、模型、价格、上下文长度、输入能力与优先级。
+- [ ] 可以导入加密配置，密码错误时不会写入任何部分配置。
+- [ ] 导入重复 Channel 时行为可预期且不会破坏现有配置。
+- [ ] 导入非法 JSON、损坏文件、版本不兼容文件时应用不崩溃。
+
+---
+
+### 3.26 模块二十六：聚合 Provider 模型匹配与跨 Channel 模型选择
+
+#### 背景问题
+聚合类 Provider（如 OpenRouter、Nvidia、各类转发服务）经常使用带命名空间的模型 ID，例如 `z-ai/glm-5.1`。但客户端或用户可能只填写基础模型名 `glm-5.1`。如果系统只做完全相等匹配，会出现“模型实际存在但路由失败”的问题。
+
+#### 需求定义
+1. **统一匹配入口**：路由器、代理转发、模型选择器必须复用同一套模型匹配函数，禁止在多个文件里散落 `==` 判断。
+2. **匹配规则**：
+   - 完整 ID 相同：匹配成功。
+   - 去除 `/` 前缀后的基础模型名相同：匹配成功。
+   - 不同版本、不同基础模型名不得误匹配。
+3. **双向匹配**：
+   - 请求 `glm-5.1` 可匹配已存模型 `z-ai/glm-5.1`。
+   - 请求 `z-ai/glm-5.1` 可匹配已存模型 `glm-5.1`。
+4. **跨 Channel 模型选择**：模型选择器应展示所有可用 Channel 的模型聚合结果，而不是只展示当前活跃 Channel 的模型。
+5. **去重策略**：展示层可按模型标识去重；路由层仍需保留对应 Channel 信息，以便按优先级选择实际上游。
+6. **协议隔离**：跨 Channel 聚合不得破坏 OpenAI / Anthropic 协议隔离规则。
+
+#### 验收标准
+- [ ] `z-ai/glm-5.1` 与 `glm-5.1` 可以互相匹配。
+- [ ] `glm-5.1` 不会匹配 `glm-5.2`。
+- [ ] SmartRouter、ProxyServer、ModelSwitcher 的匹配行为一致。
+- [ ] 模型选择器可以看到所有 Channel 聚合后的可用模型。
+- [ ] 用户选择模型后，路由器能找到支持该模型的最高优先级健康 Channel。
+- [ ] Anthropic 请求不会被展示或路由到只支持 OpenAI 且无法转换的模型。
+
+---
+
+### 3.27 模块二十七：`/v1/models` 模型能力元数据解析
+
+#### 背景问题
+不同 Provider 的 `/v1/models` 返回结构并不一致。标准 OpenAI 通常只返回基础字段，而 OpenRouter、SenseNova 等 Provider 会返回额外的模型能力、上下文长度与价格信息。系统需要利用这些元数据自动识别模型是否支持图像、音频、视频等输入类型。
+
+#### 需求定义
+1. **输入能力字段解析**：模型拉取逻辑必须支持以下两种位置：
+   - 顶层字段：`input_modalities`
+   - OpenRouter 风格：`architecture.input_modalities`
+2. **默认值**：当 API 不返回能力字段时，模型默认支持 `text` 输入。
+3. **能力枚举**：系统至少支持 `text`、`image`、`audio`、`video` 四类输入能力。
+4. **其他元数据**：如接口返回 `context_length`、`pricing.prompt`、`pricing.completion`、`name` 等字段，应尽量解析并填充到 `ModelEntry`。
+5. **模板合并**：当 API 返回信息不完整时，允许从 `providers.json` 的默认模型模板补齐上下文长度、价格与输入能力。
+6. **持久化与迁移**：模型输入能力必须随 Channel 存储、导入导出和 Codable 迁移一起保留。旧字段（如布尔型 vision 能力）应能迁移到新的输入能力数组。
+7. **UI 展示**：模型列表应以标签形式展示输入能力，但 UI 文案必须通过 L10n 管理，不能硬编码。
+
+#### 验收标准
+- [ ] 可正确解析顶层 `input_modalities`。
+- [ ] 可正确解析 `architecture.input_modalities`。
+- [ ] 未返回能力字段时默认为 `["text"]`。
+- [ ] 支持图像输入的模型在 UI 中显示 IMAGE 能力标签。
+- [ ] 支持音频输入的模型在 UI 中显示 AUDIO 能力标签。
+- [ ] 导入导出后模型能力信息不丢失。
+- [ ] 旧配置数据可以兼容迁移到新的输入能力结构。
+
+---
+
+### 3.28 模块二十八：Channel 拖拽排序与路由优先级
+
+#### 背景问题
+Channel 顺序代表用户对 Provider 的优先级偏好。用户可能希望将更稳定、更便宜或更快的 Provider 放在前面，让正常路由和 failover 都优先使用这些 Channel。
+
+#### 需求定义
+1. **列表交互**：Settings → Channels 列表支持拖拽排序。
+2. **优先级同步**：拖拽完成后，系统应自动按列表顺序更新所有 Channel 的 `priority` 字段，从 1 开始递增。
+3. **持久化**：排序结果必须持久化，应用重启后保持一致。
+4. **路由影响**：SmartRouter 在选择 Channel、同模型冗余、failover 时都必须遵守新的排序结果。
+5. **视觉提示**：行内应提供拖拽手柄或等效视觉提示，让用户知道可以调整顺序。
+6. **安全性**：拖拽排序不得影响 API Key、模型列表、测速结果、冷却状态等其他 Channel 数据。
+
+#### 验收标准
+- [ ] 用户可以通过拖拽调整 Channel 顺序。
+- [ ] 拖拽后 UI 立即反映新顺序。
+- [ ] 重启应用后顺序保持不变。
+- [ ] Channel 的 `priority` 与列表顺序一致。
+- [ ] 路由与 failover 按新顺序选择候选 Channel。
+- [ ] 拖拽过程中不会丢失 Channel 配置或 Keychain 凭证关联。
+
+---
+
+### 3.29 模块二十九：完整 OpenAI / Anthropic API 端点代理
+
+#### 背景问题
+SmartLLM Router 的定位是本地 API Gateway，而不仅是聊天接口转发器。OpenAI SDK、Anthropic SDK、Claude Code 及周边工具可能访问 `/v1/models`、文件、批处理、消息、聊天补全等多个端点。代理层需要尽量兼容官方 API 的常用路径。
+
+#### 需求定义
+1. **端点覆盖**：代理应支持 OpenAI 与 Anthropic 官方 API 的常用端点，不应只支持 chat/messages。
+2. **透明代理**：无需协议转换的端点应尽量透明转发，包括 method、path、query、headers、body。
+3. **协议转换边界**：只有明确需要转换的聊天/消息类请求才进入协议转换逻辑；其他端点不得误套聊天转换。
+4. **认证头替换**：转发上游时必须使用 Channel 中存储的 API Key，不能把客户端传入的本地占位 Key 原样传给上游。
+5. **响应协议一致性**：OpenAI 客户端应收到 OpenAI 格式响应，Anthropic 客户端应收到 Anthropic 格式响应。
+6. **错误处理**：上游错误应保留必要状态码和错误信息，同时避免泄露敏感认证信息。
+
+#### 验收标准
+- [ ] `/v1/chat/completions` 可以正常代理或转换。
+- [ ] `/v1/messages` 可以正常代理或转换。
+- [ ] `/v1/models` 可以正常代理、聚合或按协议返回。
+- [ ] 非聊天端点不会被错误地构造成 chat 请求。
+- [ ] 上游认证头来自 Keychain 中的 Channel API Key。
+- [ ] 客户端协议预期不被破坏。
+
+---
+
+### 3.30 模块三十：自动 Failover 与 401/403 语义
+
+#### 背景问题
+部分 Provider 会用 401 表示模型不可用、认证上下文不匹配或聚合服务转发失败，而不一定总是 API Key 无效。如果系统把所有 401 都视为硬失败，会错过可用的备用 Channel。但 403 通常代表权限不足或账号级限制，盲目重试意义较低。
+
+#### 需求定义
+1. **可重试错误**：429、5xx、网络超时、连接失败等应触发 failover。
+2. **401 策略**：401 默认允许尝试下一个支持同模型/同协议的 Channel，但必须受最大重试次数限制。
+3. **403 策略**：403 默认视为硬阻断，不做无意义的跨 Channel 重试，除非未来引入用户显式配置。
+4. **重试边界**：所有 failover 都必须遵守 `maxRetries`，防止循环重试。
+5. **冷却机制**：触发失败的 Channel 应按错误类型进入对应冷却期，避免短时间内反复命中同一故障 Channel。
+6. **日志记录**：每次 failover 决策必须记录请求 ID、原 Channel、错误类型、目标 Channel、重试次数。
+
+#### 验收标准
+- [ ] Channel A 返回 429 时自动尝试 Channel B。
+- [ ] Channel A 返回 5xx 或网络超时时自动尝试 Channel B。
+- [ ] Channel A 返回 401 时，在重试次数允许范围内尝试下一个候选 Channel。
+- [ ] 所有候选 Channel 都返回 401 时能正确终止并返回清晰错误。
+- [ ] 403 默认不触发 failover。
+- [ ] 日志能还原完整路由和 failover 决策链路。
+
+---
+
+### 3.31 模块三十一：Channel 行实时数据绑定与并发安全
+
+#### 背景问题
+测速、冷却状态、用量统计和代理请求计数都可能由异步任务或 Swifter 后台线程更新。如果 UI 行持有旧的 Channel 值拷贝，或 ObservableObject 在后台线程直接发布更新，会导致 UI 不刷新、数据竞争或 SwiftUI 运行时警告。
+
+#### 需求定义
+1. **实时绑定**：列表行展示动态数据时，应通过 Channel ID 从 Store 读取最新数据，而不是长期持有值拷贝。
+2. **Store 观察**：SwiftUI View 应通过 `@ObservedObject` 或等效机制观察 Store，确保测速结果、冷却状态实时更新。
+3. **请求计数原子性**：代理请求 ID / request count 必须线程安全递增。
+4. **用量统计线程安全**：UsageTracker 等后台可调用服务应使用串行队列或等效机制保护内部状态。
+5. **主线程发布**：所有 `@Published` 更新必须切回主线程发布。
+6. **Swifter 线程模型**：所有从请求处理线程调用的服务都必须考虑后台线程访问场景。
+
+#### 验收标准
+- [ ] 测速完成后 Channel 行延迟数值立即刷新。
+- [ ] Channel 冷却/恢复状态能实时反映在 UI。
+- [ ] 高并发请求下 request ID 不重复、不跳乱。
+- [ ] Thread Sanitizer 不报告相关数据竞争。
+- [ ] 不出现 “Publishing changes from background threads” 警告。
+
+---
+
+### 3.32 模块三十二：窗口激活、嵌套 Sheet 与 macOS UI 兼容
+
+#### 背景问题
+菜单栏应用通常以 accessory 模式运行，没有 Dock 图标。macOS 下 `window.makeKeyAndOrderFront` 不一定能把窗口带到前台；SwiftUI `.sheet` 在已由 sheet 呈现的视图中继续嵌套也可能失效。需求阶段必须明确这些平台约束，避免实现阶段出现窗口不可见或弹窗无响应。
+
+#### 需求定义
+1. **窗口前置**：从菜单栏、Onboarding 或 Settings 打开窗口前，应显式激活应用。
+2. **Accessory App 行为**：应用作为菜单栏工具运行时，不应因为关闭窗口而退出。
+3. **嵌套弹窗策略**：需要在 sheet 内再展示编辑器时，应使用 AppKit `NSPanel.beginSheet` 或等效原生方案，不能依赖 SwiftUI 嵌套 `.sheet`。
+4. **弹窗生命周期**：AppKit 弹窗必须有明确的关闭回调、代理释放和内存清理策略。
+5. **Dismiss 机制**：由 AppKit 管理的弹窗内，SwiftUI View 不应依赖 `@Environment(\.dismiss)`，应通过 `onCancel` / `onSave` 回调关闭。
+
+#### 验收标准
+- [ ] Onboarding 和 Settings 从菜单栏打开时出现在前台。
+- [ ] 关闭最后一个窗口后菜单栏应用仍继续运行。
+- [ ] Add Channel 内的模型元数据编辑器可以稳定打开。
+- [ ] ESC、关闭按钮、Cancel、Save 都能正确关闭弹窗。
+- [ ] 反复打开关闭弹窗无明显内存泄漏。
+
+---
+
+### 3.33 模块三十三：UI 自动化测试与质量门禁
+
+#### 背景问题
+项目存在多步 Onboarding、Settings Tab、Add/Edit Channel、模型元数据编辑、导入导出、拖拽排序等复杂交互。没有 UI 测试时，SwiftUI 重构、组件替换、窗口行为修复很容易引入回归。
+
+#### 需求定义
+1. **UI Test 基类**：提供统一的 App 启动参数、通用等待、窗口打开、断言工具和 Accessibility ID 常量。
+2. **覆盖范围**：至少覆盖 MenuView、SettingsView、Settings Tab、Onboarding、Add Channel、Channel CRUD、模型元数据编辑器、导入导出入口。
+3. **Accessibility ID**：所有可交互元素必须有稳定的 `accessibilityIdentifier`。
+4. **ModalPresenter 测试**：AppKit sheet / NSPanel 弹窗应能被 UI Test 定位和关闭。
+5. **编译门禁**：UI Test 代码必须保持可编译，避免使用不存在的 API 或错误的 sleep 类型。
+6. **执行策略**：UI 测试作为 Hermes 质量门禁的一部分；业务实现由 Claude Code 完成后，Hermes 负责补充/运行测试和审查。
+
+#### 验收标准
+- [ ] 所有 UI Test 文件可以编译通过。
+- [ ] Add Channel 关键路径可自动化验证。
+- [ ] 模型元数据编辑弹窗可自动化验证打开、保存、取消和关闭。
+- [ ] Settings Tab 切换可自动化验证。
+- [ ] Onboarding 关键流程可自动化验证。
+- [ ] Accessibility ID 覆盖关键交互元素。
+
+---
+
+## 4. 数据模型定义
 
 ### 4.1 Channel 结构体
 ```swift
@@ -1334,175 +1561,6 @@ struct ModelEntry: Identifiable, Codable {
     var outputPricePerM: Double = 0.0        // 输出价格 ($/1M tokens)
 }
 ```
-
-### 3.25 模块二十五：Channel 拖拽排序 **[新增]**
-
-**需求来源**: commit `0b1b036` — 用户反馈 Channel 顺序影响路由优先级，需要直观调整。
-
-**功能描述**:
-- Channel 列表支持拖拽排序，拖拽手柄（`line.3.horizontal` 图标）显示在每行最左侧
-- 拖拽时鼠标变为 openHand 光标，提供操作暗示
-- 排序后自动更新所有 Channel 的 `priority` 字段（从 1 开始递增）
-- 排序结果持久化存储
-
-**验收标准**:
-- [ ] 拖拽手柄在 hover 时显示抓手光标
-- [ ] 拖拽后 Channel 顺序立即更新
-- [ ] 重启 App 后顺序保持
-- [ ] priority 字段与列表顺序一致
-
----
-
-### 3.26 模块二十六：并发安全加固 **[新增]**
-
-**需求来源**: commit `59e0b0c` — 多线程并发访问共享状态导致数据竞争。
-
-**功能描述**:
-- `ProxyServer.requestCount` 使用 `NSLock` + `nextRequestID()` 方法保证原子递增
-- `UsageTracker` 使用专用串行队列 `cn.rickytan.smartLLMRouter.usage-tracker` 保护读写
-- `@Published` 属性更新必须切回主线程（`DispatchQueue.main.async`）
-
-**技术约束**:
-- Swifter 在后台线程池处理请求，所有 `@Published` 更新必须切主线程
-- `UsageTracker` 不使用 `@MainActor`（避免阻塞代理请求处理线程）
-- `ChannelStore` 的 `channels` 数组是 `@Published`，读写需注意线程安全
-
-**验收标准**:
-- [ ] Thread Sanitizer 无数据竞争警告
-- [ ] 高并发请求下 `requestCount` 不丢失
-- [ ] 用量统计数据在 popover 中实时更新
-
----
-
-### 3.27 模块二十七：401 错误智能 Fallback **[新增]**
-
-**需求来源**: commit `a9c7153` — DeepSeek 返回 401（不支持的模型）时不会自动 fallback 到其他供应商。
-
-**功能描述**:
-- 401 错误不再硬编码为"不 fallback"，而是允许尝试下一个 Channel
-- 403 错误仍保持硬拦截（权限问题，切换模型无法解决）
-- 通过 `maxRetries` 限制重试次数，避免所有 Channel 都返回 401 时无限循环
-
-**路由策略**:
-```
-401 → try next channel (可能是模型不支持，而非 key 错误)
-403 → hard stop (权限问题，failover 无意义)
-其他错误 → 按 shouldFailover 规则处理
-```
-
-**验收标准**:
-- [ ] Channel A 返回 401 时自动切换到 Channel B
-- [ ] 所有 Channel 都返回 401 时正确终止并返回错误
-- [ ] 403 错误不触发 fallback
-- [ ] 日志记录 fallback 决策过程
-
----
-
-### 3.28 模块二十八：Popover 时间自动刷新 **[新增]**
-
-**需求来源**: commit `a9c7153` — "最近请求"区域的"X 分钟前"时间戳不会自动更新。
-
-**功能描述**:
-- MenuView 使用 `Timer.publish(every: 30, on: .main, in: .common)` 定时器
-- 每 30 秒更新 `now` 状态，触发 `timeAgo()` 重算
-- 仅在 popover 可见时消耗资源（SwiftUI 自动管理）
-
-**验收标准**:
-- [ ] popover 打开状态下，"X 分钟前"每 30 秒自动更新
-- [ ] 不造成明显的 CPU/内存开销
-
----
-
-### 3.29 模块二十九：Channel 行实时数据绑定 **[新增]**
-
-**需求来源**: commit `42cc4d3` — 测速完成后 Channel 行不更新延迟显示。
-
-**功能描述**:
-- `ChannelRowView` 改为接收 `channelID: String` 而非 `channel: Channel` 值拷贝
-- 通过 `@ObservedObject channelStore` 实时读取最新 Channel 数据
-- 任何 `ChannelStore` 更新（测速结果、状态变化）立即反映到 UI
-
-**技术约束**:
-- SwiftUI 的 `ForEach` diff 机制基于 `id`，Channel 的 `id` 不变时不会重建 View
-- 使用值拷贝会导致 View 显示旧数据，必须改为引用绑定
-
-**验收标准**:
-- [ ] 测速完成后延迟数值立即更新
-- [ ] Channel 状态变化实时反映
-- [ ] 删除 Channel 后列表正确刷新
-
----
-
-### 3.30 模块三十：Claude Code 一键接管 **[新增]**
-
-**需求来源**: commit `b4893a3` — 用户需要将 Claude Code 的 API 请求自动路由到 SmartLLM Router。
-
-**功能描述**:
-- `ClaudeCodeConfigManager` 管理 `~/.claude/settings.json` 配置
-- Settings → General 页面新增 "Claude Code Integration" 区域
-- 一键开启/关闭：将 `settings.json` 中的 `url` 字段设为 `http://127.0.0.1:1897`
-- 自动备份原配置（`.bak` → `.bak.1` → `.bak.2` 递增）
-- 显示当前接管状态（激活/未激活/配置不存在）
-
-**验收标准**:
-- [ ] 开启接管后 Claude Code 请求自动走代理
-- [ ] 关闭接管后恢复原始 URL
-- [ ] 配置文件备份不丢失历史版本
-- [ ] Settings UI 实时显示接管状态
-
----
-
-### 3.31 模块三十一：嵌套 Sheet 兼容方案 **[新增]**
-
-**需求来源**: commit `7a72c7e` — macOS SwiftUI 不支持在已有的 `.sheet` 中再弹 `.sheet`。
-
-**功能描述**:
-- `ModalPresenter` 工具类封装 `NSPanel.beginSheet` 能力
-- 用于 Onboarding → AddChannelView（模型元数据编辑器）等嵌套弹窗场景
-- 通过 `NSWindowDelegate.windowWillClose` 检测关闭事件，防止内存泄漏
-- 弹窗关闭通过 `onCancel` 回调而非 `@Environment(\.dismiss)`
-
-**技术约束**:
-- SwiftUI `.sheet` 在 macOS 上嵌套时内层不生效
-- `NSPanel` 需要持有强引用（`_activePanel`），关闭后置 nil
-- `NSHostingController` 包装 SwiftUI View
-
-**验收标准**:
-- [ ] Onboarding 中点击 "Add Channel" 正确弹出 AddChannelView
-- [ ] AddChannelView 中点击齿轮按钮正确弹出 ModelMetadataEditor
-- [ ] 关闭弹窗后内存正确释放
-- [ ] ESC 键和关闭按钮都能正确关闭弹窗
-
----
-
-### 3.32 模块三十二：UI 测试基础设施 **[新增]**
-
-**需求来源**: commit `b4893a3`, `cb4985c` — 需要自动化验证 UI 交互。
-
-**功能描述**:
-- `UITestCase` 基类封装 App 启动、通用断言、Accessibility ID 常量
-- 9 个 UI 测试文件覆盖：MenuView、SettingsView、SettingsTab、Onboarding、AddChannel、ChannelCRUD、AccessibilityCoverage
-- 62 个测试用例覆盖关键交互路径
-- 所有可交互元素设置 `accessibilityIdentifier`
-
-**测试分类**:
-| 文件 | 测试数 | 覆盖范围 |
-|------|:---:|------|
-| MenuViewUITests | 9 | 状态显示、快捷操作、按钮存在性 |
-| SettingsViewUITests | 8 | 窗口开关、Tab 内容、端口编辑 |
-| SettingsTabUITests | 3 | Tab 切换、Channel 列表 |
-| OnboardingFlowUITests | 3 | 引导流程、添加 Channel、完成 |
-| AddChannelUITests | 22 | Cancel、齿轮按钮、模型编辑、ESC |
-| AddChannelCRUDUITests | 4 | 表单校验、手动模型、编辑器、Cancel |
-| ChannelCRUDUITests | 7 | 列表渲染、操作按钮、批量测速 |
-| AccessibilityCoverageTests | 6 | 标识符覆盖率、按钮可交互性 |
-
-**验收标准**:
-- [ ] 所有 UI 测试编译通过
-- [ ] 在有 GUI 的环境中全部通过
-- [ ] Accessibility ID 覆盖率 > 90%
-
----
 
 ## 5. 非功能性需求
 
@@ -1548,7 +1606,11 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] Onboarding 是否支持批量添加多个 Channel（不能只添加一个就跳转）
 - [ ] Onboarding "Next" 按钮是否有合理的启用条件（至少 1 个测试通过，或提供 Skip 选项）
 - [ ] 添加 Channel 后是否自动 fetch models 并填充元信息
+- [ ] `/v1/models` 是否解析 input_modalities / architecture.input_modalities 并默认回退为 text
+- [ ] 模型能力标签（text/image/audio/video）是否随存储、导入导出和迁移保留
 - [ ] 连接测试是否使用 GET /v1/models（而非 POST 聊天请求，避免浪费 token 和硬编码 model）
+- [ ] 是否支持 Channel 配置导入导出，并明确未加密/加密导出的 API Key 处理策略
+- [ ] 是否支持 Channel 拖拽排序，并确认排序会影响路由和 failover 优先级
 - [ ] 是否先封装基础 UI 组件库再构建页面（按钮、表单、状态、列表、卡片、协议选择器）
 - [ ] 所有 View 页面是否已完全使用自定义组件替换原生控件（零 Button/TextField/SecureField/Toggle/Picker 泄漏）
 
@@ -1575,4 +1637,20 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 类型转换需求识别（外部 JSON → 内部模型）
 - [ ] 初始化器参数顺序确认
 - [ ] 向后兼容性设计（旧数据格式迁移）
+
+### 7.7 路由与代理能力
+- [ ] 聚合 Provider 模型名是否支持完整 ID 与基础模型名双向匹配
+- [ ] 所有模型匹配路径是否复用统一函数，避免散落 `==` 判断
+- [ ] 模型选择器是否聚合所有 Channel 的可用模型，而不是只看当前活跃 Channel
+- [ ] OpenAI / Anthropic 协议隔离是否在模型展示、路由和 fallback 中保持一致
+- [ ] 非聊天端点是否走透明代理，避免误套 chat/messages 转换逻辑
+- [ ] 401 / 403 / 429 / 5xx / timeout 的 failover 语义是否分别定义
+- [ ] failover 是否受 `maxRetries` 限制并记录完整决策链路
+- [ ] 转发上游时是否替换为 Channel Keychain API Key，避免透传客户端占位 Key
+
+### 7.8 质量门禁
+- [ ] UI Test 是否覆盖 Onboarding、Settings Tab、Add/Edit Channel、模型编辑、导入导出入口
+- [ ] 所有可交互元素是否有稳定 accessibilityIdentifier
+- [ ] UI Test 是否避免 `sleep(0.5)`、`.isDisabled` 等已知编译陷阱
+- [ ] Hermes 是否只负责 Review、测试、编译与质量门禁，业务/UI 实现交给 Claude Code
 
