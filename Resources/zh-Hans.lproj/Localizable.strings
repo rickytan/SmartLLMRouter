@@ -57,6 +57,8 @@
 "settings.channels.add" = "添加通道";
 "settings.channels.edit" = "编辑通道";
 "settings.channels.delete" = "删除";
+"settings.channels.enable" = "启用";
+"settings.channels.disable" = "禁用";
 "settings.channels.name" = "名称";
 "settings.channels.base_url" = "基础 URL";
 "settings.channels.api_key" = "API 密钥";

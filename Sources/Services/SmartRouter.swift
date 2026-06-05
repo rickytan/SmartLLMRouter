@@ -186,7 +186,7 @@ final class SmartRouter: ObservableObject {
 
     /// Select the best available channel for a request
     func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
 
@@ -213,6 +213,11 @@ final class SmartRouter: ObservableObject {
             }
         } else {
             selectedChannel = compatibleChannels.first
+            if let model = modelName, let channel = selectedChannel {
+                if let matched = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }) {
+                    effectiveModel = matched.identifier
+                }
+            }
         }
 
         guard let selectedChannel else {
@@ -274,7 +279,7 @@ final class SmartRouter: ObservableObject {
 
         retryCounter[requestID] = currentRetryCount + 1
 
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
@@ -419,7 +424,7 @@ final class SmartRouter: ObservableObject {
         apiProtocol: RequestForwarder.RequestProtocol,
         excludedChannelID: String?
     ) -> FallbackDecision? {
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
 
         // 1. Get all channels NOT in circuit open state and NOT the excluded channel
         let availableChannels = channels.filter { channel in
@@ -526,7 +531,7 @@ final class SmartRouter: ObservableObject {
     /// Estimate tokens based on original model's context length (fallback guess)
     private func estimateTokensFromModel(_ modelName: String?) -> Int? {
         guard let modelName else { return nil }
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
         for channel in channels {
             for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
                 if let contextLength = model.contextLength {

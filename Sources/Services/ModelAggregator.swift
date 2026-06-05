@@ -82,7 +82,7 @@ final class ModelAggregator {
     /// and updates each channel's model list in ChannelStore.
     private func fetchAndMergeAllChannels() async {
         let channels = await MainActor.run {
-            return ChannelStore.shared.channels
+            return ChannelStore.shared.enabledChannels
         }
         
         guard !channels.isEmpty else {

@@ -65,7 +65,7 @@ final class ModelSwitcher: ObservableObject {
 
     /// List of all models across all channels (for global mode)
     var allAvailableModels: [ModelEntry] {
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
         var seen = Set<String>()
         var result: [ModelEntry] = []
 
@@ -93,7 +93,7 @@ final class ModelSwitcher: ObservableObject {
 
         // Validate that the stored model still exists on any channel
         if let modelID = selectedModelID {
-            let exists = ChannelStore.shared.channels.contains { channel in
+            let exists = ChannelStore.shared.enabledChannels.contains { channel in
                 channel.models.contains { Self.modelMatches(requested: modelID, stored: $0.identifier) }
             }
             if !exists {

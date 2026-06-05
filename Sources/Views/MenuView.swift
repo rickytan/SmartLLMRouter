@@ -272,7 +272,7 @@ struct MenuView: View {
     }
 
     private func timeAgo(from date: Date) -> String {
-        let seconds = Int(now.timeIntervalSince(date))
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
         if seconds < 60 {
             return L10n.Menu.timeSeconds(seconds)
         } else if seconds < 3600 {

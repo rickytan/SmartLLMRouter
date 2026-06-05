@@ -36,7 +36,7 @@ struct ChannelRowView: View {
 
             // Status Indicator
             StatusIndicatorView(
-                isRunning: !channel.isCoolingDown,
+                isRunning: channel.isEnabled && !channel.isCoolingDown,
                 isCooldown: channel.isCoolingDown
             )
             .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
@@ -52,7 +52,7 @@ struct ChannelRowView: View {
 
                     Spacer()
 
-                    if channel.lastLatencyMs > 0 {
+                    if channel.lastLatencyMs > 0 && channel.isEnabled {
                         LatencyChip(latencyMs: channel.lastLatencyMs)
                     }
                 }
@@ -72,6 +72,16 @@ struct ChannelRowView: View {
 
             // Actions
             HStack(spacing: DesignToken.Spacing.xs) {
+                // Enable/Disable Toggle
+                IconButton(
+                    icon: channel.isEnabled ? "pause.circle" : "play.circle",
+                    tooltip: channel.isEnabled ? L10n.Settings.channelsDisable : L10n.Settings.channelsEnable,
+                    color: channel.isEnabled ? DesignToken.Colors.statusWarning : DesignToken.Colors.statusOnline
+                ) {
+                    channelStore.setChannelEnabled(id: channelID, isEnabled: !channel.isEnabled)
+                }
+                .accessibilityIdentifier("channel.toggle.\(index)")
+
                 IconButton(
                     icon: isTesting ? "ellipsis.circle.fill" : "bolt.fill",
                     tooltip: L10n.Settings.channelsTestConnection
@@ -82,6 +92,7 @@ struct ChannelRowView: View {
                         isTesting = false
                     }
                 }
+                .disabled(!channel.isEnabled)
                 .accessibilityIdentifier("channel.speedtest.\(index)")
 
                 IconButton(
@@ -106,6 +117,7 @@ struct ChannelRowView: View {
         .padding(.horizontal, DesignToken.Spacing.md)
         .background(isHovered ? DesignToken.Colors.hoverFill : Color.clear)
         .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+        .opacity(channel.isEnabled ? 1.0 : 0.5)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
                 isHovered = hovering
