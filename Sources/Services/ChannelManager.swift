@@ -647,6 +647,13 @@ final class ChannelManager: ObservableObject {
     // MARK: - Speed Test
 
     /// Run speed test (TTFT - Time to First Token) for a channel
+    /// HTTP-level RTT measurement via `GET /v1/models` (Bearer auth).
+    ///
+    /// Measures raw network round-trip time, not model inference latency. Works
+    /// for any provider that exposes a models list endpoint — no specific model
+    /// required, no streaming, no body. A non-2xx response is still treated as
+    /// "reachable + auth-checked" so the measured RTT reflects real network cost
+    /// even when the channel is misconfigured.
     func speedTest(channel: Channel) async -> TimeInterval? {
         guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
               !apiKey.isEmpty
@@ -658,72 +665,49 @@ final class ChannelManager: ObservableObject {
         isSpeedTesting = true
         let startTime = Date()
 
-        let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
-
-        var testURL: URL?
-        let baseURL = channel.baseURL
-
-        if channel.protocol == .anthropic || baseURL.contains("anthropic") {
-            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: true)
-        } else {
-            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: false)
-        }
-
-        guard let url = testURL else {
+        guard let url = buildModelsURL(baseURL: channel.baseURL) else {
             isSpeedTesting = false
             return nil
         }
 
-        let testBody: [String: Any] = [
-            "model": testModel,
-            "messages": [["role": "user", "content": "Hi"]],
-            "max_tokens": 1,
-            "stream": true,
-        ]
-
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if channel.protocol == .anthropic {
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        } else {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
-        if request.httpBody == nil {
-            Log.error("Failed to serialize test request body for channel \(channel.name)")
-        }
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        // /v1/models is OpenAI-compatible; Bearer auth works for all backends
+        // we route to (including Anthropic-protocol adapters that proxy this path).
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
-            // Log non-2xx status codes
-            if statusCode < 200 || statusCode >= 300 {
-                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
-                Log.error("Speed test for \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
+            // Accept 2xx, 401/403 (reachable, auth-checked), 4xx (reachable).
+            // Only network errors (timeouts, DNS, connection refused) are treated as failure.
+            let reachable = statusCode > 0
+            let rttMs = Date().timeIntervalSince(startTime) * 1000
+
+            guard reachable else {
+                Log.warn("Speed test for \(channel.name): no HTTP response")
                 isSpeedTesting = false
                 return nil
             }
 
-            let ttft = Date().timeIntervalSince(startTime) * 1000
-
-            lastSpeedTestResults[channel.id] = ttft
+            lastSpeedTestResults[channel.id] = rttMs
 
             var updatedChannel = channel
-            updatedChannel.lastLatencyMs = ttft
+            updatedChannel.lastLatencyMs = rttMs
             ChannelStore.shared.updateChannel(updatedChannel)
 
             isSpeedTesting = false
-            Log.info("Speed test for \(channel.name): \(ttft)ms")
-            return ttft
+            Log.info("Speed test for \(channel.name): \(Int(rttMs))ms (HTTP \(statusCode))")
+            return rttMs
+        } catch let urlError as URLError {
+            Log.warn("Speed test for \(channel.name) failed: \(urlError.code.rawValue) \(urlError.localizedDescription)")
+            isSpeedTesting = false
+            return nil
         } catch {
-            Log.error("Speed test failed: \(error.localizedDescription)")
+            Log.warn("Speed test for \(channel.name) failed: \(error.localizedDescription)")
             isSpeedTesting = false
             return nil
         }
