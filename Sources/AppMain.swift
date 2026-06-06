@@ -4,32 +4,13 @@ import Sparkle
 @main
 struct SmartLLMRouterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        // Settings window
+        // Settings scene — provides the standard macOS settings window with
+        // proper tab bar layout. Shown via NSApp.sendAction("showSettingsWindow:")
         Settings {
             SettingsView()
         }
-
-        // Onboarding window (hidden until opened)
-        Window(L10n.Onboarding.title, id: "onboarding") {
-            OnboardingView(onComplete: {
-                AppState.shared.completeOnboarding()
-                Self.closeOnboardingWindow()
-                // Show menu bar popover once on first launch
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    MenuBarManager.shared.showPopover()
-                }
-            })
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-    }
-
-    /// macOS 13-safe window close: find the onboarding window by scene identifier and close it.
-    private static func closeOnboardingWindow() {
-        NSApp.windows.first { $0.identifier?.rawValue == "onboarding" }?.close()
     }
 }
 
@@ -41,6 +22,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             userDriverDelegate: nil
         )
     }()
+
+    private var onboardingWindow: NSWindow?
 
     @MainActor
     func applicationDidFinishLaunching(_: Notification) {
@@ -58,17 +41,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start proxy server
         startProxy()
 
-        // Show onboarding if not completed
+        // Show onboarding if not completed — via NSWindow, no SwiftUI Window scene
         if !AppState.shared.onboardingCompleted {
-            Task {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                // Activate app first to bring window to front
-                NSApp.activate(ignoringOtherApps: true)
-                if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "onboarding" }) {
-                    window.makeKeyAndOrderFront(nil)
-                    window.center()  // Center on screen
-                }
-            }
+            showOnboardingWindow()
         }
 
         // Sparkle is already started via lazy property above
@@ -78,6 +53,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Prevent app from quitting when all windows are closed
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    @MainActor
+    private func showOnboardingWindow() {
+        let hostingView = NSHostingView(rootView: OnboardingView(onComplete: { [weak self] in
+            Task { @MainActor in
+                AppState.shared.completeOnboarding()
+                self?.onboardingWindow?.close()
+                self?.onboardingWindow = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    MenuBarManager.shared.showPopover()
+                }
+            }
+        }))
+
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 520),
+                              styleMask: [.titled, .closable],
+                              backing: .buffered,
+                              defer: false)
+        window.title = L10n.Onboarding.title
+        window.contentView = hostingView
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        // Activate app to bring window to front
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+
+        onboardingWindow = window
     }
 
     @MainActor

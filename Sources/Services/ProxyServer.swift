@@ -285,6 +285,14 @@ final class ProxyServer: ObservableObject {
         }
     }
 
+    /// Build upstream URL from channel's baseURL, appending the correct endpoint.
+    /// - If baseURL has no path, prepends /v1.
+    /// - If baseURL path ends with a version (e.g. /v1, /v3), strips /v1 from endpoint.
+    /// - If baseURL path has content but no version, keeps full /v1 endpoint.
+    private func buildUpstreamURL(baseURL: String, protocol: RequestForwarder.RequestProtocol) -> URL? {
+        URLBuilder.buildUpstreamURL(baseURL: baseURL, protocol: `protocol`)
+    }
+
     private func handleRequestSync(
         _ request: HttpRequest,
         targetProtocol: RequestForwarder.RequestProtocol
@@ -340,9 +348,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -582,9 +588,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(500, "Invalid upstream URL")
         }
@@ -859,9 +863,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -1657,18 +1659,12 @@ final class ChannelStore: ObservableObject {
     }
 
     func loadChannels() {
-        do {
-            guard let data = UserDefaults.standard.data(forKey: "smartllm_channels") else {
-                channels = []
-                return
-            }
-            channels = try JSONDecoder().decode([Channel].self, from: data)
-            activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
-            Log.debug("Loaded \(channels.count) channels")
-        } catch {
-            Log.error("Failed to load channels: \(error.localizedDescription)")
-            channels = []
+        guard let data = UserDefaults.standard.data(forKey: "smartllm_channels"),
+              let decoded = try? JSONDecoder().decode([Channel].self, from: data) else {
+            return
         }
+        channels = decoded
+        activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
     }
 
     func addChannel(_ channel: Channel) {

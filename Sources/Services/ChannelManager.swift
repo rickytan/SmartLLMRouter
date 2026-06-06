@@ -177,11 +177,7 @@ final class ChannelManager: ObservableObject {
         isLoadingModels = true
 
         let baseURL = channel.baseURL
-        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
-        } else {
-            URL(string: baseURL + "/v1/models")
-        }
+        let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
             isLoadingModels = false
@@ -192,13 +188,8 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 30
 
-        switch channel.protocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .auto:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -349,11 +340,7 @@ final class ChannelManager: ObservableObject {
 
         // Build the /v1/models URL
         let baseURL = channel.baseURL
-        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
-        } else {
-            URL(string: baseURL + "/v1/models")
-        }
+        let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
             return .failure("Invalid URL: \(baseURL)")
@@ -363,13 +350,8 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        switch channel.protocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .auto:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -610,13 +592,12 @@ final class ChannelManager: ObservableObject {
 
     /// Build the chat completions URL for either OpenAI or Anthropic protocol
     private func buildChatCompletionsURL(baseURL: String, isAnthropic: Bool) -> URL? {
-        let suffix = isAnthropic ? "/messages" : "/chat/completions"
+        URLBuilder.buildChatCompletionsURL(baseURL: baseURL, isAnthropic: isAnthropic)
+    }
 
-        if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            return URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + suffix)
-        } else {
-            return URL(string: baseURL + "/v1" + suffix)
-        }
+    /// Build the models URL from a base URL
+    private func buildModelsURL(baseURL: String) -> URL? {
+        URLBuilder.buildModelsURL(baseURL: baseURL)
     }
 
     /// Convert URLError to a user-friendly ConnectionTestResult
@@ -683,18 +664,9 @@ final class ChannelManager: ObservableObject {
         let baseURL = channel.baseURL
 
         if channel.protocol == .anthropic || baseURL.contains("anthropic") {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/messages")
-            } else {
-                testURL = URL(string: baseURL + "/v1/messages")
-            }
+            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: true)
         } else {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions")
-            } else {
-                testURL = URL(string: baseURL + "/v1/chat/completions")
-            }
+            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: false)
         }
 
         guard let url = testURL else {
