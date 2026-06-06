@@ -77,7 +77,7 @@ jobs:
             | xcpretty --color
 
   # ─────────────────────────────────────────────
-  # Release: Sign, Notarize, Package, Publish
+  # Release: Ad-hoc Sign, Package DMG, Publish
   # ─────────────────────────────────────────────
   release:
     name: Release
@@ -114,7 +114,7 @@ jobs:
             echo "warning: SwiftGen not installed, skipping"
           fi
 
-      - name: Build Release
+      - name: Build Release (ad-hoc signed)
         run: |
           xcodebuild build \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
@@ -122,110 +122,99 @@ jobs:
             -configuration Release \
             -destination "platform=macOS,arch=arm64" \
             CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
-            CODE_SIGN_IDENTITY="${{ vars.CODE_SIGN_IDENTITY_NAME }}" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty --color
 
-      # ── Code Signing ──
-      - name: Setup signing keychain
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: .github/scripts/setup-keychain.sh
-
-      - name: Sign App
-        env:
-          CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY_NAME }}
+      - name: Verify ad-hoc signature
         run: |
           APP_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
-          codesign --force --options runtime --sign "$CODE_SIGN_IDENTITY" \
-            --entitlements Resources/SmartLLMRouter.entitlements \
-            "$APP_PATH"
           codesign --verify --verbose "$APP_PATH"
+          codesign -dvv "$APP_PATH" 2>&1 | head -20
 
-      # ── Notarization ──
-      - name: Create ZIP for notarization
+      # ── Package DMG ──
+      - name: Determine version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Strip leading "v" if present (v1.0.0-alpha -> 1.0.0-alpha)
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building release for tag=$TAG version=$VERSION"
+
+      - name: Create DMG
         run: |
           mkdir -p "${{ env.OUTPUT_DIR }}"
-          ditto -c -k --sequesterRsrc --keepParent \
-            "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}" \
-            "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
+          APP_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          DMG_NAME="SmartLLMRouter-${{ steps.version.outputs.version }}.dmg"
+          DMG_PATH="${{ env.OUTPUT_DIR }}/$DMG_NAME"
 
-      - name: Notarize App
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-        run: |
-          xcrun notarytool submit "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
+          # Stage the .app + an Applications symlink in a temp folder
+          STAGING_DIR="$(mktemp -d)/dmg-staging"
+          mkdir -p "$STAGING_DIR"
+          cp -R "$APP_PATH" "$STAGING_DIR/"
+          ln -s /Applications "$STAGING_DIR/Applications"
 
-      - name: Staple Notarization Ticket
-        run: |
-          xcrun stapler staple "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          # Build a compressed DMG (UDZO = zlib-compressed, standard for distribution)
+          hdiutil create \
+            -volname "SmartLLMRouter ${{ steps.version.outputs.version }}" \
+            -srcfolder "$STAGING_DIR" \
+            -ov \
+            -format UDZO \
+            "$DMG_PATH"
 
-      # ── Final packaging ──
-      - name: Package final release ZIP
-        run: |
-          rm -f "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
-          ditto -c -k --sequesterRsrc --keepParent \
-            "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}" \
-            "${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip"
-          cp "${{ env.BUILD_DIR }}/${{ env.APP_NAME }}.dSYM" \
-            "${{ env.OUTPUT_DIR }}/" 2>/dev/null || true
+          # Ad-hoc sign the DMG too so codesign --verify passes on the container
+          codesign --force --sign - "$DMG_PATH"
+          codesign --verify --verbose "$DMG_PATH"
 
-      # ── Sparkle Appcast Generation ──
-      - name: Download Sparkle CLI tools
-        run: |
-          SPARKLE_VERSION="2.6.4"
-          curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
-            -o sparkle.tar.xz
-          tar xf sparkle.tar.xz
-          chmod +x sparkle/bin/generate_appcast
-          echo "$PWD/sparkle/bin" >> $GITHUB_PATH
+          ls -lh "${{ env.OUTPUT_DIR }}/"
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
 
-      - name: Generate Appcast
-        env:
-          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+      - name: Copy dSYM (if present)
         run: |
-          echo "$SPARKLE_ED_KEY" > sparkle_private.pem
-          generate_appcast \
-            --ed-key-file sparkle_private.pem \
-            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/" \
-            --link "https://github.com/${{ github.repository }}" \
-            "${{ env.OUTPUT_DIR }}"
-          rm -f sparkle_private.pem
+          DSYM_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}.dSYM"
+          if [ -d "$DSYM_PATH" ]; then
+            DSYM_ZIP="${{ env.OUTPUT_DIR }}/SmartLLMRouter-${{ steps.version.outputs.version }}.dSYM.zip"
+            ditto -c -k --sequesterRsrc --keepParent "$DSYM_PATH" "$DSYM_ZIP"
+            echo "Packaged dSYM at $DSYM_ZIP"
+          else
+            echo "No dSYM produced — skipping"
+          fi
 
       # ── Deploy ──
+      - name: Determine prerelease flag
+        id: prerelease
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == *alpha* || "$TAG" == *beta* || "$TAG" == *rc* ]]; then
+            echo "value=true" >> $GITHUB_OUTPUT
+          else
+            echo "value=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.OUTPUT_DIR }}/SmartLLMRouter.zip
-            ${{ env.OUTPUT_DIR }}/*.dSYM
+            ${{ env.OUTPUT_DIR }}/*.dmg
+            ${{ env.OUTPUT_DIR }}/*.dSYM.zip
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease.outputs.value }}
+          body: |
+            ## SmartLLMRouter ${{ steps.version.outputs.version }}
 
-      - name: Deploy Appcast to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ${{ env.OUTPUT_DIR }}
-          keep_files: false
-          force_orphan: true
-        if: ${{ !contains(github.ref, 'beta') && !contains(github.ref, 'alpha') }}
+            **Ad-hoc signed build.** First time opening on a new Mac, macOS Gatekeeper will block it.
+            Right-click the app → **Open** → **Open** to bypass, or run:
 
-      - name: Save Appcast (for review)
-        uses: actions/upload-artifact@v4
-        with:
-          name: appcast-xml
-          path: ${{ env.OUTPUT_DIR }}/appcast.xml
-          retention-days: 30
+            ```
+            xattr -cr /Applications/SmartLLMRouter.app
+            ```
+
+            ### Install
+            1. Download `SmartLLMRouter-${{ steps.version.outputs.version }}.dmg`
+            2. Open the DMG and drag the app into **Applications**
+            3. First launch: right-click → Open (Gatekeeper bypass)
