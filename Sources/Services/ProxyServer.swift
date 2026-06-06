@@ -1661,13 +1661,11 @@ final class ChannelStore: ObservableObject {
     func loadChannels() {
         do {
             guard let data = UserDefaults.standard.data(forKey: "smartllm_channels") else {
-                Log.info("[ChannelStore] No saved channels found, checking migration file")
                 migrateFromFileIfNeeded()
                 return
             }
             channels = try JSONDecoder().decode([Channel].self, from: data)
             activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
-            Log.info("[ChannelStore] Loaded \(channels.count) channels")
         } catch {
             Log.error("Failed to load channels: \(error.localizedDescription)")
             channels = []
