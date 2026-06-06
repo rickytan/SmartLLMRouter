@@ -177,11 +177,7 @@ final class ChannelManager: ObservableObject {
         isLoadingModels = true
 
         let baseURL = channel.baseURL
-        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
-        } else {
-            URL(string: baseURL + "/v1/models")
-        }
+        let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
             isLoadingModels = false
@@ -349,11 +345,7 @@ final class ChannelManager: ObservableObject {
 
         // Build the /v1/models URL
         let baseURL = channel.baseURL
-        var modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
-        } else {
-            URL(string: baseURL + "/v1/models")
-        }
+        let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
             return .failure("Invalid URL: \(baseURL)")
@@ -611,11 +603,21 @@ final class ChannelManager: ObservableObject {
     /// Build the chat completions URL for either OpenAI or Anthropic protocol
     private func buildChatCompletionsURL(baseURL: String, isAnthropic: Bool) -> URL? {
         let suffix = isAnthropic ? "/messages" : "/chat/completions"
-
-        if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            return URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + suffix)
+        let trimmed = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if baseURL.range(of: #"/v\d+/?$"#, options: .regularExpression) != nil {
+            return URL(string: trimmed + suffix)
         } else {
-            return URL(string: baseURL + "/v1" + suffix)
+            return URL(string: trimmed + "/v1" + suffix)
+        }
+    }
+
+    /// Build the models URL from a base URL
+    private func buildModelsURL(baseURL: String) -> URL? {
+        let trimmed = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if baseURL.range(of: #"/v\d+/?$"#, options: .regularExpression) != nil {
+            return URL(string: trimmed + "/models")
+        } else {
+            return URL(string: trimmed + "/v1/models")
         }
     }
 
@@ -683,18 +685,9 @@ final class ChannelManager: ObservableObject {
         let baseURL = channel.baseURL
 
         if channel.protocol == .anthropic || baseURL.contains("anthropic") {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/messages")
-            } else {
-                testURL = URL(string: baseURL + "/v1/messages")
-            }
+            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: true)
         } else {
-            if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-                testURL = URL(string: baseURL
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions")
-            } else {
-                testURL = URL(string: baseURL + "/v1/chat/completions")
-            }
+            testURL = buildChatCompletionsURL(baseURL: baseURL, isAnthropic: false)
         }
 
         guard let url = testURL else {

@@ -285,6 +285,24 @@ final class ProxyServer: ObservableObject {
         }
     }
 
+    /// Build upstream URL from channel's baseURL, appending the correct endpoint.
+    /// - If baseURL has no path, prepends /v1.
+    /// - If baseURL path ends with a version (e.g. /v1, /v3), strips /v1 from endpoint.
+    /// - If baseURL path has content but no version, keeps full /v1 endpoint.
+    private func buildUpstreamURL(baseURL: String, protocol: RequestForwarder.RequestProtocol) -> URL? {
+        let endpoint = `protocol` == .anthropic ? "/v1/messages" : "/v1/chat/completions"
+        var components = URLComponents(string: baseURL)
+        let basePath = components?.path ?? ""
+        if basePath.isEmpty || basePath == "/" {
+            components?.path = endpoint
+        } else if basePath.range(of: #"/v\d+$"#, options: .regularExpression) != nil {
+            components?.path = basePath + String(endpoint.dropFirst(3))
+        } else {
+            components?.path = basePath + endpoint
+        }
+        return components?.url
+    }
+
     private func handleRequestSync(
         _ request: HttpRequest,
         targetProtocol: RequestForwarder.RequestProtocol
@@ -340,9 +358,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -582,9 +598,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(500, "Invalid upstream URL")
         }
@@ -859,9 +873,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = upstreamProtocol == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        guard let upstreamURL = components?.url else {
+        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -1659,14 +1671,35 @@ final class ChannelStore: ObservableObject {
     func loadChannels() {
         do {
             guard let data = UserDefaults.standard.data(forKey: "smartllm_channels") else {
-                channels = []
+                Log.info("[ChannelStore] No saved channels found, checking migration file")
+                migrateFromFileIfNeeded()
                 return
             }
             channels = try JSONDecoder().decode([Channel].self, from: data)
             activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
-            Log.debug("Loaded \(channels.count) channels")
+            Log.info("[ChannelStore] Loaded \(channels.count) channels")
         } catch {
             Log.error("Failed to load channels: \(error.localizedDescription)")
+            channels = []
+        }
+    }
+
+    /// One-time migration: import channels from ~/Library/Application Support/SmartLLMRouter/channels.json
+    private func migrateFromFileIfNeeded() {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let fileURL = appSupport?.appendingPathComponent("SmartLLMRouter/channels.json")
+        guard let url = fileURL, let data = try? Data(contentsOf: url) else {
+            channels = []
+            return
+        }
+        do {
+            channels = try JSONDecoder().decode([Channel].self, from: data)
+            activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
+            saveChannels()
+            Log.info("[ChannelStore] Migrated \(channels.count) channels from file")
+            try? FileManager.default.removeItem(at: url)
+        } catch {
+            Log.error("[ChannelStore] Migration file decode failed: \(error.localizedDescription)")
             channels = []
         }
     }

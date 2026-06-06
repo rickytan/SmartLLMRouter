@@ -162,12 +162,13 @@ final class ModelAggregator {
             return []
         }
 
-        // Build the /v1/models URL
+        // Build the models URL
         let baseURL = channel.baseURL
-        let modelsURL: URL? = if baseURL.hasSuffix("/v1") || baseURL.hasSuffix("/v1/") {
-            URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/models")
+        let trimmed = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let modelsURL: URL? = if baseURL.range(of: #"/v\d+/?$"#, options: .regularExpression) != nil {
+            URL(string: trimmed + "/models")
         } else {
-            URL(string: baseURL + "/v1/models")
+            URL(string: trimmed + "/v1/models")
         }
 
         guard let url = modelsURL else {
