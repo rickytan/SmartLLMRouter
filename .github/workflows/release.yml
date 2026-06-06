@@ -11,6 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write  # required by softprops/action-gh-release to create the Release
+
 env:
   PROJECT_NAME: SmartLLMRouter
   SCHEME: SmartLLMRouter
