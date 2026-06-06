@@ -116,21 +116,32 @@ jobs:
 
       - name: Build Release (ad-hoc signed)
         run: |
+          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
+          mkdir -p "$BUILD_PATH"
+          set -o pipefail
           xcodebuild build \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
             -configuration Release \
             -destination "platform=macOS,arch=arm64" \
-            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
+            CONFIGURATION_BUILD_DIR="$BUILD_PATH" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty --color
+          echo "--- Build output dir ---"
+          ls -la "$BUILD_PATH"
 
       - name: Verify ad-hoc signature
         run: |
-          APP_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          APP_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::App not found at $APP_PATH"
+            echo "--- Contents of build dir: ---"
+            ls -la "$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}" || true
+            exit 1
+          fi
           codesign --verify --verbose "$APP_PATH"
           codesign -dvv "$APP_PATH" 2>&1 | head -20
 
@@ -147,10 +158,12 @@ jobs:
 
       - name: Create DMG
         run: |
-          mkdir -p "${{ env.OUTPUT_DIR }}"
-          APP_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
+          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/${{ env.OUTPUT_DIR }}"
+          mkdir -p "$OUTPUT_PATH"
+          APP_PATH="$BUILD_PATH/${{ env.APP_NAME }}"
           DMG_NAME="SmartLLMRouter-${{ steps.version.outputs.version }}.dmg"
-          DMG_PATH="${{ env.OUTPUT_DIR }}/$DMG_NAME"
+          DMG_PATH="$OUTPUT_PATH/$DMG_NAME"
 
           # Stage the .app + an Applications symlink in a temp folder
           STAGING_DIR="$(mktemp -d)/dmg-staging"
@@ -170,14 +183,16 @@ jobs:
           codesign --force --sign - "$DMG_PATH"
           codesign --verify --verbose "$DMG_PATH"
 
-          ls -lh "${{ env.OUTPUT_DIR }}/"
+          ls -lh "$OUTPUT_PATH/"
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
 
       - name: Copy dSYM (if present)
         run: |
-          DSYM_PATH="${{ env.BUILD_DIR }}/${{ env.APP_NAME }}.dSYM"
+          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
+          OUTPUT_PATH="$GITHUB_WORKSPACE/${{ env.OUTPUT_DIR }}"
+          DSYM_PATH="$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
           if [ -d "$DSYM_PATH" ]; then
-            DSYM_ZIP="${{ env.OUTPUT_DIR }}/SmartLLMRouter-${{ steps.version.outputs.version }}.dSYM.zip"
+            DSYM_ZIP="$OUTPUT_PATH/SmartLLMRouter-${{ steps.version.outputs.version }}.dSYM.zip"
             ditto -c -k --sequesterRsrc --keepParent "$DSYM_PATH" "$DSYM_ZIP"
             echo "Packaged dSYM at $DSYM_ZIP"
           else
