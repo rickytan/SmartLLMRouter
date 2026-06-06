@@ -298,7 +298,13 @@
 "channelExport.exportFailed" = "Export Failed";
 "channelExport.importSuccess" = "Import Successful";
 "channelExport.importSuccessDetail" = "Successfully imported %d channels";
+"channelExport.importSuccessPartialDetail" = "Imported %d of %d channels. %d skipped, %d failed.";
 "channelExport.importFailed" = "Import Failed";
+"channelExport.importNoneDetail" = "No channels were imported. See the items below for details.";
+"channelExport.importSkippedDuplicate" = "Skipped duplicate channel: %@";
+"channelExport.importFailedKeychain" = "Keychain error for %@: %@";
+"channelExport.importFailedDecrypt" = "Decryption error for %@: %@";
+"channelExport.importDetailsHeader" = "Issues encountered:";
 "channelExport.importPreview" = "Import Preview";
 "channelExport.importPreviewDetail" = "Found %d channels in the file. Review the details below:";
 "channelExport.importAll" = "Import All";
