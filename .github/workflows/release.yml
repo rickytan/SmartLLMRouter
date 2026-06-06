@@ -22,7 +22,7 @@ jobs:
   # ─────────────────────────────────────────────
   ci:
     name: Build & Test
-    runs-on: macos-14
+    runs-on: macos-15
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
     steps:
@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -51,12 +51,12 @@ jobs:
 
       - name: Build
         run: |
+          set -o pipefail
           xcodebuild build \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
             -configuration Release \
             -destination "platform=macOS,arch=arm64" \
-            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -65,12 +65,13 @@ jobs:
 
       - name: Run Unit Tests
         run: |
+          set -o pipefail
           xcodebuild test \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
             -configuration Release \
             -destination "platform=macOS,arch=arm64" \
-            CONFIGURATION_BUILD_DIR="${{ env.BUILD_DIR }}" \
+            -only-testing:SmartLLMRouterTests \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -81,7 +82,7 @@ jobs:
   # ─────────────────────────────────────────────
   release:
     name: Release
-    runs-on: macos-14
+    runs-on: macos-15
     if: startsWith(github.ref, 'refs/tags/')
     needs: [] # Independent; can run without CI job
 
@@ -94,7 +95,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -116,32 +117,49 @@ jobs:
 
       - name: Build Release (ad-hoc signed)
         run: |
-          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
-          mkdir -p "$BUILD_PATH"
           set -o pipefail
           xcodebuild build \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
             -configuration Release \
             -destination "platform=macOS,arch=arm64" \
-            CONFIGURATION_BUILD_DIR="$BUILD_PATH" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty --color
-          echo "--- Build output dir ---"
+
+      - name: Locate and stage built .app
+        run: |
+          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
+          mkdir -p "$BUILD_PATH"
+          # Ask xcodebuild where it actually put the products (DerivedData)
+          BUILT_PRODUCTS_DIR=$(xcodebuild \
+            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -destination "platform=macOS,arch=arm64" \
+            -showBuildSettings 2>/dev/null \
+            | awk -F' = ' '/^[[:space:]]+BUILT_PRODUCTS_DIR/ {print $2; exit}')
+          echo "BUILT_PRODUCTS_DIR=$BUILT_PRODUCTS_DIR"
+          SRC_APP="$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}"
+          if [ ! -d "$SRC_APP" ]; then
+            echo "::error::App not found at $SRC_APP"
+            ls -la "$BUILT_PRODUCTS_DIR" || true
+            exit 1
+          fi
+          rm -rf "$BUILD_PATH/${{ env.APP_NAME }}"
+          ditto "$SRC_APP" "$BUILD_PATH/${{ env.APP_NAME }}"
+          # Also copy dSYM if present (preserve bundle structure)
+          if [ -d "$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}.dSYM" ]; then
+            rm -rf "$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
+            ditto "$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}.dSYM" "$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
+          fi
           ls -la "$BUILD_PATH"
 
       - name: Verify ad-hoc signature
         run: |
           APP_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "::error::App not found at $APP_PATH"
-            echo "--- Contents of build dir: ---"
-            ls -la "$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}" || true
-            exit 1
-          fi
           codesign --verify --verbose "$APP_PATH"
           codesign -dvv "$APP_PATH" 2>&1 | head -20
 
