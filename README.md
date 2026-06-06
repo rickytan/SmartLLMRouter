@@ -8,18 +8,18 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ## 🇺🇸 Introduction
 
-**SmartLLM Router** is a native macOS menu bar application that acts as a local HTTP gateway. It allows you to manage multiple API Keys from different providers and provides automatic failover, intelligent routing, and load balancing.
+**SmartLLM Router** is a native macOS menu bar application that acts as a local HTTP gateway. It allows you to manage multiple API Keys from different providers (DeepSeek, OpenAI, Anthropic, Aliyun, MiniMax, etc.) and provides automatic failover and load balancing.
 
 ### Core Value
-1.  **Model-Driven Routing**: Just select a model in your client. The proxy automatically finds the best provider that supports it.
-2.  **Invisible Redundancy**: Multiple providers for the same model? If one fails, the proxy silently switches to another.
-3.  **Protocol Isolation**: Strict separation between OpenAI and Anthropic ecosystems.
+1.  **Model-Driven Routing**: Just select a model in your client. The proxy automatically finds the best provider that supports it. No manual switching.
+2.  **Invisible Redundancy**: Multiple providers for the same model? If one fails, the proxy silently switches to another. You get the same model, different provider.
+3.  **Protocol Isolation**: Strict separation between OpenAI and Anthropic ecosystems. Never see a Claude model in an OpenAI list.
 4.  **Zero Client Configuration**: Claude Code only needs `ANTHROPIC_BASE_URL=http://localhost:1897`.
 5.  **Privacy First**: 100% Local Execution. No telemetry, no cloud sync. Your API Keys stay in your Mac's Keychain.
 
 ### Key Features
-*   ✅ **Multi-Provider Support**: Manage keys for Anthropic, OpenAI, DeepSeek, Nvidia, Sensenova, and more.
-*   🔄 **Smart Auto-Failover**: Priority-based routing with intelligent cooldown and circuit breaker.
+*   ✅ **Multi-Provider Support**: Manage keys for Anthropic, OpenAI, DeepSeek, Aliyun DashScope, MiniMax, and more.
+*   🔄 **Smart Auto-Failover**: Priority-based routing with intelligent cooldown (handles 429/5xx/401 errors silently).
 *   🔀 **Protocol Adapter**: Seamless conversion between Anthropic (Claude) and OpenAI formats.
 *   📊 **Real-time Stats**: Track daily token usage and estimated costs (30-day history).
 *   📦 **Built-in Provider Metadata**: One-click setup for major providers via `providers.json`.
