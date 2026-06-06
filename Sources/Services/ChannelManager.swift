@@ -602,23 +602,12 @@ final class ChannelManager: ObservableObject {
 
     /// Build the chat completions URL for either OpenAI or Anthropic protocol
     private func buildChatCompletionsURL(baseURL: String, isAnthropic: Bool) -> URL? {
-        let suffix = isAnthropic ? "/messages" : "/chat/completions"
-        let trimmed = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if baseURL.range(of: #"/v\d+/?$"#, options: .regularExpression) != nil {
-            return URL(string: trimmed + suffix)
-        } else {
-            return URL(string: trimmed + "/v1" + suffix)
-        }
+        URLBuilder.buildChatCompletionsURL(baseURL: baseURL, isAnthropic: isAnthropic)
     }
 
     /// Build the models URL from a base URL
     private func buildModelsURL(baseURL: String) -> URL? {
-        let trimmed = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if baseURL.range(of: #"/v\d+/?$"#, options: .regularExpression) != nil {
-            return URL(string: trimmed + "/models")
-        } else {
-            return URL(string: trimmed + "/v1/models")
-        }
+        URLBuilder.buildModelsURL(baseURL: baseURL)
     }
 
     /// Convert URLError to a user-friendly ConnectionTestResult

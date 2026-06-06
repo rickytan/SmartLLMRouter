@@ -290,17 +290,7 @@ final class ProxyServer: ObservableObject {
     /// - If baseURL path ends with a version (e.g. /v1, /v3), strips /v1 from endpoint.
     /// - If baseURL path has content but no version, keeps full /v1 endpoint.
     private func buildUpstreamURL(baseURL: String, protocol: RequestForwarder.RequestProtocol) -> URL? {
-        let endpoint = `protocol` == .anthropic ? "/v1/messages" : "/v1/chat/completions"
-        var components = URLComponents(string: baseURL)
-        let basePath = components?.path ?? ""
-        if basePath.isEmpty || basePath == "/" {
-            components?.path = endpoint
-        } else if basePath.range(of: #"/v\d+$"#, options: .regularExpression) != nil {
-            components?.path = basePath + String(endpoint.dropFirst(3))
-        } else {
-            components?.path = basePath + endpoint
-        }
-        return components?.url
+        URLBuilder.buildUpstreamURL(baseURL: baseURL, protocol: `protocol`)
     }
 
     private func handleRequestSync(
