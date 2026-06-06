@@ -329,6 +329,109 @@ final class ConfigImporterTests: XCTestCase {
         XCTAssertEqual(anthropicChannel.protocol, .anthropic)
     }
 
+    // MARK: - Claude Code / Desktop config detection
+
+    /// Real-world regression: user's `~/.claude/settings.json` uses
+    /// `ANTHROPIC_AUTH_TOKEN` (Claude Code) instead of the old
+    /// `ANTHROPIC_API_KEY` (Claude Desktop). The scan must pick up
+    /// either.
+    func testScanClaudeJSONDetectsAnthropicAuthToken() async throws {
+        let json = """
+        {
+          "env": {
+            "ANTHROPIC_AUTH_TOKEN": "ark-test-token",
+            "ANTHROPIC_BASE_URL": "https://ark.cn-beijing.volces.com/api/coding"
+          }
+        }
+        """
+        let url = try writeTempClaudeSettings(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let channels = await ConfigImporter.scan(path: url.path)
+
+        XCTAssertEqual(channels.count, 1, "Should detect 1 channel from env.ANTHROPIC_AUTH_TOKEN")
+        XCTAssertEqual(channels[0].apiKey, "ark-test-token")
+        XCTAssertEqual(channels[0].baseURL, "https://ark.cn-beijing.volces.com/api/coding")
+        XCTAssertEqual(channels[0].protocol, .anthropic)
+        XCTAssertEqual(channels[0].source, "claude")
+    }
+
+    /// Backward compat: old Claude Desktop with `ANTHROPIC_API_KEY`
+    /// (no AUTH_TOKEN) must still be detected.
+    func testScanClaudeJSONDetectsLegacyAnthropicAPIKey() async throws {
+        let json = """
+        {
+          "env": {
+            "ANTHROPIC_API_KEY": "sk-ant-legacy",
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
+          }
+        }
+        """
+        let url = try writeTempClaudeSettings(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let channels = await ConfigImporter.scan(path: url.path)
+
+        XCTAssertEqual(channels.count, 1)
+        XCTAssertEqual(channels[0].apiKey, "sk-ant-legacy")
+        XCTAssertEqual(channels[0].baseURL, "https://api.anthropic.com")
+    }
+
+    /// AUTH_TOKEN takes priority over API_KEY when both are present
+    /// (Claude Code sets both in some setups; AUTH_TOKEN is the
+    /// "real" one).
+    func testScanClaudeJSONPrefersAuthTokenOverAPIKey() async throws {
+        let json = """
+        {
+          "env": {
+            "ANTHROPIC_AUTH_TOKEN": "auth-token-wins",
+            "ANTHROPIC_API_KEY": "api-key-loses"
+          }
+        }
+        """
+        let url = try writeTempClaudeSettings(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let channels = await ConfigImporter.scan(path: url.path)
+
+        XCTAssertEqual(channels.count, 1)
+        XCTAssertEqual(channels[0].apiKey, "auth-token-wins")
+    }
+
+    /// Configurations with multiple env keys (Claude Code + OpenAI
+    /// fallback) should yield multiple discovered channels.
+    func testScanClaudeJSONDetectsMultipleEnvKeys() async throws {
+        let json = """
+        {
+          "env": {
+            "ANTHROPIC_AUTH_TOKEN": "anthropic-key",
+            "ANTHROPIC_BASE_URL": "https://ark.cn-beijing.volces.com/api/coding",
+            "OPENAI_API_KEY": "openai-key",
+            "OPENAI_BASE_URL": "https://api.openai.com"
+          }
+        }
+        """
+        let url = try writeTempClaudeSettings(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let channels = await ConfigImporter.scan(path: url.path)
+
+        XCTAssertEqual(channels.count, 2)
+        let anthropic = channels.first { $0.protocol == .anthropic }
+        let openai = channels.first { $0.protocol == .openai }
+        XCTAssertNotNil(anthropic)
+        XCTAssertNotNil(openai)
+        XCTAssertEqual(anthropic?.apiKey, "anthropic-key")
+        XCTAssertEqual(openai?.apiKey, "openai-key")
+    }
+
+    private func writeTempClaudeSettings(_ json: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ConfigImporterTests-\(UUID().uuidString).json")
+        try json.data(using: .utf8)!.write(to: url)
+        return url
+    }
+
     func testImportedChannelIdentification() {
         let channel = ImportedChannel(
             name: "Test Provider",

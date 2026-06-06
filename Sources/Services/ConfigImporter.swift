@@ -193,12 +193,13 @@ final class ConfigImporter {
     }
 
     /// Extract API Key from CC Switch settings_config JSON
-    /// Priority: apiKey -> api_key -> env.ANTHROPIC_API_KEY -> env.OPENAI_API_KEY
+    /// Priority: apiKey -> api_key -> env.ANTHROPIC_AUTH_TOKEN -> env.ANTHROPIC_API_KEY -> env.OPENAI_API_KEY
     private static func extractAPIKey(from json: [String: Any]) -> String {
         if let key = json["apiKey"] as? String, !key.isEmpty { return key }
         if let key = json["api_key"] as? String, !key.isEmpty { return key }
-        
+
         if let env = json["env"] as? [String: String] {
+            if let key = env["ANTHROPIC_AUTH_TOKEN"], !key.isEmpty { return key }
             if let key = env["ANTHROPIC_API_KEY"], !key.isEmpty { return key }
             if let key = env["OPENAI_API_KEY"], !key.isEmpty { return key }
             if let key = env["GOOGLE_API_KEY"], !key.isEmpty { return key }
@@ -383,7 +384,9 @@ final class ConfigImporter {
         }
 
         if let env = json["env"] as? [String: String] {
-            if let key = env["ANTHROPIC_API_KEY"], !key.isEmpty {
+            // Claude Code uses ANTHROPIC_AUTH_TOKEN, old Claude Desktop uses ANTHROPIC_API_KEY
+            let anthropicKey = env["ANTHROPIC_AUTH_TOKEN"] ?? env["ANTHROPIC_API_KEY"]
+            if let key = anthropicKey, !key.isEmpty {
                 channels.append(ImportedChannel(
                     name: "Claude (Anthropic)",
                     baseURL: env["ANTHROPIC_BASE_URL"] ?? "https://api.anthropic.com",
