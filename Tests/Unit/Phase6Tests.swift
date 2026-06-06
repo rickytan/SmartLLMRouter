@@ -403,25 +403,44 @@ final class RouterErrorTypeTests: XCTestCase {
 final class SmartRoutingIntegrationTests: XCTestCase {
 
     // MARK: - Test Isolation
-    
-    /// Reset all shared singleton state before each test
+
+    private var isolatedStore: IsolatedChannelStore?
+    private var restoreShared: (() -> Void)?
+
+    override func setUp() async throws {
+        try await super.setUp()
+        // Install an isolated ChannelStore backed by an in-memory
+        // UserDefaults suite and a temp file. The shared singleton is
+        // restored in tearDown so this never leaks to other tests.
+        let (isolated, restore) = ChannelStoreTestSupport.installAsShared()
+        self.isolatedStore = isolated
+        self.restoreShared = restore
+        resetSharedState()
+    }
+
+    override func tearDown() async throws {
+        restoreShared?()
+        restoreShared = nil
+        isolatedStore = nil
+        try await super.tearDown()
+    }
+
+    /// Reset all shared singleton state before each test.
+    /// Uses the active shared (test override) and an isolated UserDefaults
+    /// suite — production `UserDefaults.standard` is never touched.
     private func resetSharedState() {
-        // Clear ChannelStore
-        ChannelStore.shared.channels = []
-        ChannelStore.shared.activeChannelID = nil
-        
+        let store = ChannelStore.shared
+        store.channels = []
+        store.activeChannelID = nil
+
         // Reset CircuitBreaker by creating a fresh instance via its private state
         // Since CircuitBreaker.shared is a singleton, we reset individual channel states
         for i in 0..<10 { CircuitBreaker.shared.reset(channelID: "test-ch-\(i)") }
-        
+
         // Reset SmartRouter shared state
         SmartRouter.shared.mode = .auto
         SmartRouter.shared.maxRetries = 3
         SmartRouter.shared.smartFallbackEnabled = false
-        
-        // Clear UserDefaults channels to prevent stale data from loading
-        UserDefaults.standard.removeObject(forKey: "smartllm_channels")
-        UserDefaults.standard.removeObject(forKey: "smartllm_active_channel")
     }
 
     // MARK: - Tests

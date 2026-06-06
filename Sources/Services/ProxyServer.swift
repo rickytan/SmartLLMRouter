@@ -1630,7 +1630,30 @@ final class ProxyServer: ObservableObject {
 
 @MainActor
 final class ChannelStore: ObservableObject {
-    static let shared = ChannelStore()
+    /// Default `UserDefaults` key for the channel-data cache.
+    static let userDefaultsKey = "smartllm_channels"
+    static let activeChannelDefaultsKey = "smartllm_active_channel"
+
+    /// Production singleton. Tests must NOT use this directly — they should
+    /// construct their own `ChannelStore` with an in-memory `UserDefaults`
+    /// suite and a temporary file URL (or `nil` for `fileURL` to skip disk
+    /// entirely), then call `setSharedForTesting` to install it.
+    static let productionShared = ChannelStore()
+
+    /// Test seam. Replaces the shared instance for the duration of a test
+    /// process. Production code must not call this.
+    static func setSharedForTesting(_ store: ChannelStore?) {
+        _sharedOverride = store
+    }
+
+    private static var _sharedOverride: ChannelStore?
+
+    /// The currently-active shared instance. Returns the test override if
+    /// set, otherwise the production singleton. All production code paths
+    /// should use this so test isolation works.
+    static var shared: ChannelStore {
+        _sharedOverride ?? productionShared
+    }
 
     @Published var channels: [Channel] = []
     @Published var activeChannelID: String?
@@ -1644,27 +1667,77 @@ final class ChannelStore: ObservableObject {
         return channels.first { $0.id == id && $0.isEnabled } ?? enabledChannels.first
     }
 
-    private init() {
+    let defaults: UserDefaults
+    let persistence: ChannelsPersistence
+
+    /// Designated initializer.
+    /// - Parameters:
+    ///   - defaults: `UserDefaults` instance to use as a write-through cache.
+    ///     Defaults to `.standard` for production; tests should inject a
+    ///     dedicated suite so they cannot pollute real user data.
+    ///   - persistence: File-backed storage. Defaults to a real on-disk
+    ///     instance; tests can inject a temporary file URL or `nil` (no file).
+    init(defaults: UserDefaults = .standard,
+         persistence: ChannelsPersistence = ChannelsPersistence()) {
+        self.defaults = defaults
+        self.persistence = persistence
         loadChannels()
     }
 
     func saveChannels() {
+        let channelsSnapshot = channels
+        let activeSnapshot = activeChannelID
+
+        // 1. File is the source of truth — write it first. If it fails we
+        //    still try the UserDefaults cache so the data is at least in
+        //    memory next launch under the same bundle ID.
+        let fileOK = persistence.save(channels: channelsSnapshot,
+                                       activeChannelID: activeSnapshot)
+        if !fileOK {
+            Log.warn("[ChannelStore] File persistence failed; falling back to UserDefaults cache only")
+        }
+
+        // 2. UserDefaults cache (for fast reads; not durable across bundle
+        //    ID changes).
         do {
-            let data = try JSONEncoder().encode(channels)
-            UserDefaults.standard.set(data, forKey: "smartllm_channels")
-            UserDefaults.standard.set(activeChannelID, forKey: "smartllm_active_channel")
+            let data = try JSONEncoder().encode(channelsSnapshot)
+            defaults.set(data, forKey: Self.userDefaultsKey)
+            defaults.set(activeSnapshot, forKey: Self.activeChannelDefaultsKey)
         } catch {
-            Log.error("Failed to save channels: \(error.localizedDescription)")
+            Log.error("Failed to encode channels for UserDefaults cache: \(error.localizedDescription)")
         }
     }
 
     func loadChannels() {
-        guard let data = UserDefaults.standard.data(forKey: "smartllm_channels"),
-              let decoded = try? JSONDecoder().decode([Channel].self, from: data) else {
+        // 1. File-backed storage (source of truth, independent of bundle ID).
+        switch persistence.load() {
+        case .loaded(let decoded, let activeID):
+            channels = decoded
+            activeChannelID = activeID
+            Log.info("[ChannelStore] Loaded \(decoded.count) channels from file")
             return
+        case .corrupted(let reason):
+            Log.warn("[ChannelStore] File corrupted (\(reason)) — trying UserDefaults")
+        case .empty:
+            break
         }
+
+        // 2. Current UserDefaults (cache, scoped to bundle ID).
+        if loadFromDefaults(defaults) { return }
+
+        Log.info("[ChannelStore] No channel data found in any source")
+    }
+
+    /// Attempt to decode from a specific `UserDefaults` instance.
+    /// - Returns: `true` if data was loaded.
+    @discardableResult
+    private func loadFromDefaults(_ source: UserDefaults) -> Bool {
+        guard let data = source.data(forKey: Self.userDefaultsKey),
+              let decoded = try? JSONDecoder().decode([Channel].self, from: data)
+        else { return false }
         channels = decoded
-        activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
+        activeChannelID = source.string(forKey: Self.activeChannelDefaultsKey)
+        return true
     }
 
     func addChannel(_ channel: Channel) {
