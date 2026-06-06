@@ -12,10 +12,10 @@ final class KeychainManager {
     private var apiKeysCache: [String: String]?
 
     private init() {
-        // Use .always accessibility so the app can access keys without prompting
-        // since the user explicitly stores these keys through the app itself
+        // .afterFirstUnlock: accessible after user unlocks login keychain once per boot.
+        // Avoids the deprecated .always which triggers password prompts on macOS 12+.
         keychain = Keychain(service: "com.smartllmrouter.keys")
-            .accessibility(.always)
+            .accessibility(.afterFirstUnlock)
     }
 
     /// Store an API key for a channel
