@@ -190,9 +190,10 @@ final class ProxyServer: ObservableObject {
         group.enter()
         DispatchQueue.main.sync {
             let modelName = self.extractModelName(from: bodyData)
+            let routingModelName = ModelSwitcher.shared.selectedModelID ?? modelName
             guard let decision = SmartRouter.shared.selectChannel(
                 requestID: reqIdString,
-                modelName: modelName
+                modelName: routingModelName
             ) else {
                 group.leave()
                 return
@@ -374,17 +375,12 @@ final class ProxyServer: ObservableObject {
             forwardedBody = swappedBody
         }
 
-        // Add auth headers
-        switch upstreamProtocol {
-        case .anthropic:
-            convertedHeaders["x-api-key"] = apiKey
-            convertedHeaders["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            convertedHeaders["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
 
         // Remove hop-by-hop headers
         convertedHeaders.removeValue(forKey: "host")
+
+
 
         // Forward request via URLSession
         let result = forwardRequestSync(
@@ -624,14 +620,7 @@ final class ProxyServer: ObservableObject {
             forwardedBody = swappedBody
         }
 
-        // Add auth headers
-        switch upstreamProtocol {
-        case .anthropic:
-            convertedHeaders["x-api-key"] = apiKey
-            convertedHeaders["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            convertedHeaders["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
 
         convertedHeaders.removeValue(forKey: "host")
 
@@ -717,6 +706,18 @@ final class ProxyServer: ObservableObject {
         }
     }
 
+    /// Set auth headers on a dictionary based on upstream protocol.
+    /// Uses lowercase keys to match Swifter's lowercased header parsing.
+    private func setAuthHeaders(_ headers: inout [String: String], apiKey: String, protocol: RequestForwarder.RequestProtocol) {
+        switch `protocol` {
+        case .anthropic:
+            headers["x-api-key"] = apiKey
+            headers["anthropic-version"] = "2023-06-01"
+        case .openai, .unknown:
+            headers["authorization"] = "Bearer \(apiKey)"
+        }
+    }
+
     /// Forward request synchronously
     private func forwardRequestSync(
         reqId _: Int64,
@@ -744,6 +745,8 @@ final class ProxyServer: ObservableObject {
                 for (k, v) in headers {
                     urlRequest.setValue(v, forHTTPHeaderField: k)
                 }
+
+
 
                 let (responseData, urlResponse) = try await URLSession.shared.data(for: urlRequest)
                 let httpResponse = urlResponse as? HTTPURLResponse
@@ -891,14 +894,7 @@ final class ProxyServer: ObservableObject {
             forwardedBody = modifiedBody
         }
 
-        // Add auth headers
-        switch upstreamProtocol {
-        case .anthropic:
-            convertedHeaders["x-api-key"] = apiKey
-            convertedHeaders["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            convertedHeaders["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
 
         convertedHeaders.removeValue(forKey: "host")
 
@@ -1168,13 +1164,7 @@ final class ProxyServer: ObservableObject {
         var headers = request.headers
         headers["content-type"] = "application/json"
         headers["content-length"] = String(effectiveBody.count)
-        switch targetProtocol {
-        case .anthropic:
-            headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            headers["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
 
         // Forward request
@@ -1306,13 +1296,7 @@ final class ProxyServer: ObservableObject {
 
         // Forward multipart body as-is, preserving content-type boundary
         var headers = request.headers
-        switch targetProtocol {
-        case .anthropic:
-            headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            headers["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
         // Keep original content-type (multipart boundary) and content-length
         if headers["content-type"] == nil {
@@ -1485,13 +1469,7 @@ final class ProxyServer: ObservableObject {
 
         // Build headers
         var headers = request.headers
-        switch targetProtocol {
-        case .anthropic:
-            headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            headers["Authorization"] = "Bearer \(apiKey)"
-        }
+        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
 
         // Body: only for POST (upload)
@@ -1655,9 +1633,13 @@ final class ChannelStore: ObservableObject {
     @Published var channels: [Channel] = []
     @Published var activeChannelID: String?
 
+    var enabledChannels: [Channel] {
+        channels.filter(\.isEnabled)
+    }
+
     var activeChannel: Channel? {
-        guard let id = activeChannelID else { return channels.first }
-        return channels.first { $0.id == id }
+        guard let id = activeChannelID else { return enabledChannels.first }
+        return channels.first { $0.id == id && $0.isEnabled } ?? enabledChannels.first
     }
 
     private init() {
@@ -1697,13 +1679,13 @@ final class ChannelStore: ObservableObject {
         }
 
         channels.append(channel)
-        if activeChannelID == nil { activeChannelID = channel.id }
+        if activeChannelID == nil, channel.isEnabled { activeChannelID = channel.id }
         saveChannels()
     }
 
     func removeChannel(id: String) {
         channels.removeAll { $0.id == id }
-        if activeChannelID == id { activeChannelID = channels.first?.id }
+        if activeChannelID == id { activeChannelID = enabledChannels.first?.id }
         saveChannels()
     }
 
@@ -1715,7 +1697,24 @@ final class ChannelStore: ObservableObject {
     }
 
     func setActiveChannel(id: String) {
+        guard channels.contains(where: { $0.id == id && $0.isEnabled }) else {
+            return
+        }
         activeChannelID = id
+        saveChannels()
+    }
+
+    func setChannelEnabled(id: String, isEnabled: Bool) {
+        guard let index = channels.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        channels[index].isEnabled = isEnabled
+        if !isEnabled, activeChannelID == id {
+            activeChannelID = enabledChannels.first?.id
+        } else if isEnabled, activeChannelID == nil {
+            activeChannelID = id
+        }
         saveChannels()
     }
 

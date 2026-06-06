@@ -106,6 +106,7 @@ struct Channel: Identifiable, Codable, Equatable {
     var priority: Int
     var `protocol`: APIProtocol
     var models: [ModelEntry]
+    var isEnabled: Bool = true
     var isCoolingDown: Bool = false
     var cooldownUntil: Date?
     var lastLatencyMs: Double = 0.0
@@ -119,6 +120,7 @@ struct Channel: Identifiable, Codable, Equatable {
         priority: Int = 1,
         protocol: APIProtocol = .auto,
         models: [ModelEntry] = [],
+        isEnabled: Bool = true,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -128,7 +130,30 @@ struct Channel: Identifiable, Codable, Equatable {
         self.priority = priority
         self.protocol = `protocol`
         self.models = models
+        self.isEnabled = isEnabled
         self.createdAt = createdAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, providerId, baseURL, priority
+        case `protocol`, models, isEnabled
+        case isCoolingDown, cooldownUntil, lastLatencyMs, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        providerId = try container.decodeIfPresent(String.self, forKey: .providerId)
+        baseURL = try container.decode(String.self, forKey: .baseURL)
+        priority = try container.decode(Int.self, forKey: .priority)
+        self.protocol = try container.decode(APIProtocol.self, forKey: .protocol)
+        models = try container.decode([ModelEntry].self, forKey: .models)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        isCoolingDown = try container.decodeIfPresent(Bool.self, forKey: .isCoolingDown) ?? false
+        cooldownUntil = try container.decodeIfPresent(Date.self, forKey: .cooldownUntil)
+        lastLatencyMs = try container.decodeIfPresent(Double.self, forKey: .lastLatencyMs) ?? 0.0
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 
     // MARK: - Equatable

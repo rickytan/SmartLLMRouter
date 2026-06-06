@@ -759,7 +759,7 @@ final class ChannelManager: ObservableObject {
 
     /// Run speed test for all channels
     func speedTestAllChannels() async {
-        let channels = ChannelStore.shared.channels
+        let channels = ChannelStore.shared.enabledChannels
 
         for channel in channels {
             if !CooldownEngine.shared.isCoolingDown(channelID: channel.id) {

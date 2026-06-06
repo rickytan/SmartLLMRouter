@@ -60,6 +60,7 @@ struct IconButton: View {
                     }
                 }
         )
+        .help(tooltip)
         .accessibilityLabel(tooltip)
         .accessibilityIdentifier("icon.button.\(icon)")
     }

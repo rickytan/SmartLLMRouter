@@ -57,6 +57,8 @@
 "settings.channels.add" = "Add Channel";
 "settings.channels.edit" = "Edit Channel";
 "settings.channels.delete" = "Delete";
+"settings.channels.enable" = "Enable";
+"settings.channels.disable" = "Disable";
 "settings.channels.name" = "Name";
 "settings.channels.base_url" = "Base URL";
 "settings.channels.api_key" = "API Key";

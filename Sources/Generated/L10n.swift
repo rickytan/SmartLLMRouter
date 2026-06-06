@@ -153,6 +153,12 @@ internal enum L10n {
     internal static var channelsDelete: String {
       NSLocalizedString("settings.channels.delete", comment: "")
     }
+    internal static var channelsEnable: String {
+      NSLocalizedString("settings.channels.enable", comment: "")
+    }
+    internal static var channelsDisable: String {
+      NSLocalizedString("settings.channels.disable", comment: "")
+    }
     internal static var channelsName: String {
       NSLocalizedString("settings.channels.name", comment: "")
     }
