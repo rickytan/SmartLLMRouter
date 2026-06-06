@@ -188,13 +188,8 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 30
 
-        switch channel.protocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .auto:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -355,13 +350,8 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        switch channel.protocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .auto:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

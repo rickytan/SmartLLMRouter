@@ -95,9 +95,12 @@ struct AddChannelView: View {
                 selectedProtocol = channel.protocol
                 priority = channel.priority
                 models = channel.models
-                selectedProviderId = channel.providerId
+                let knownProvider = channel.providerId.flatMap { id in
+                    channelManager.providerTemplates.contains(where: { $0.id == id }) ? id : nil
+                }
+                selectedProviderId = knownProvider
                 apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
-                isCustomProvider = (channel.providerId == nil || channel.providerId == "custom")
+                isCustomProvider = (knownProvider == nil)
                 if isCustomProvider {
                     customProviderName = channel.name
                 }
