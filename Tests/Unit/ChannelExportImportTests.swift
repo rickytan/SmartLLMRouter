@@ -5,27 +5,35 @@ import XCTest
 /// returns an `ImportResult` instead of an `Int`, so duplicates and
 /// failures are surfaced to the UI rather than silently logged.
 ///
-/// The keychain-based tests touch the real macOS Keychain because
-/// `KeychainManager` is a singleton. We use a unique per-test
-/// `channelID` namespace and clean up in `tearDown` so we don't
-/// pollute the host app's keychain entries.
+/// Both `ChannelStore` and `KeychainManager` are isolated per-test via
+/// dedicated test-support helpers. The unit-test target runs inside
+/// the host app's process (TEST_HOST/BUNDLE_LOADER), so any test that
+/// touched `KeychainManager.shared` (which uses the production service
+/// `com.smartllmrouter.keys`) would delete the user's real API keys.
+/// `KeychainManagerTestSupport` gives every test a UUID-scoped keychain
+/// service so the production keychain is never touched.
 @MainActor
 final class ChannelExportImportTests: XCTestCase {
 
     var isolated: IsolatedChannelStore!
+    var isolatedKeychain: IsolatedKeychainManager!
     var restore: (() -> Void)!
+    var restoreKeychain: (() -> Void)!
 
     override func setUp() async throws {
         try await super.setUp()
         let (iso, restoreFn) = ChannelStoreTestSupport.installAsShared()
         isolated = iso
         restore = restoreFn
-        // Make sure no leftover state from a previous run.
-        try? KeychainManager.shared.clearAll()
+        let (isoKc, restoreKc) = KeychainManagerTestSupport.installAsShared()
+        isolatedKeychain = isoKc
+        restoreKeychain = restoreKc
     }
 
     override func tearDown() async throws {
-        try? KeychainManager.shared.clearAll()
+        restoreKeychain?()
+        restoreKeychain = nil
+        isolatedKeychain = nil
         restore()
         isolated = nil
         restore = nil
