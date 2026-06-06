@@ -1659,64 +1659,12 @@ final class ChannelStore: ObservableObject {
     }
 
     func loadChannels() {
-        // 1. Try current UserDefaults
-        if let data = UserDefaults.standard.data(forKey: "smartllm_channels"),
-           let decoded = try? JSONDecoder().decode([Channel].self, from: data) {
-            channels = decoded
-            activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
+        guard let data = UserDefaults.standard.data(forKey: "smartllm_channels"),
+              let decoded = try? JSONDecoder().decode([Channel].self, from: data) else {
             return
         }
-
-        // 2. Decode failed or no data — try old bundle ID
-        if migrateFromOldBundleIfNeeded() { return }
-
-        // 3. Try file migration (legacy path)
-        if migrateFromFileIfNeeded() { return }
-
-        // 4. All failed — keep whatever we had (don't overwrite with [])
-        Log.error("[ChannelStore] No channel data found from any source")
-    }
-
-    /// Migrate channels from old bundle ID (com.smartllmrouter) to current bundle ID.
-    private func migrateFromOldBundleIfNeeded() -> Bool {
-        let oldDefaults = UserDefaults(suiteName: "com.smartllmrouter.SmartLLMRouter")
-        guard let data = oldDefaults?.data(forKey: "smartllm_channels") else { return false }
-
-        if let decoded = try? JSONDecoder().decode([Channel].self, from: data) {
-            channels = decoded
-            activeChannelID = oldDefaults?.string(forKey: "smartllm_active_channel")
-            saveChannels()
-            Log.info("[ChannelStore] Migrated \(channels.count) channels from old bundle ID")
-            // Clean up old UserDefaults
-            oldDefaults?.removeObject(forKey: "smartllm_channels")
-            oldDefaults?.removeObject(forKey: "smartllm_active_channel")
-            return true
-        }
-
-        Log.error("[ChannelStore] Old bundle ID data decode failed, discarding")
-        oldDefaults?.removeObject(forKey: "smartllm_channels")
-        return false
-    }
-
-    /// Migrate channels from ~/Library/Application Support/SmartLLMRouter/channels.json
-    @discardableResult
-    private func migrateFromFileIfNeeded() -> Bool {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        let fileURL = appSupport?.appendingPathComponent("SmartLLMRouter/channels.json")
-        guard let url = fileURL, let data = try? Data(contentsOf: url) else { return false }
-
-        if let decoded = try? JSONDecoder().decode([Channel].self, from: data) {
-            channels = decoded
-            activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
-            saveChannels()
-            Log.info("[ChannelStore] Migrated \(channels.count) channels from file")
-            try? FileManager.default.removeItem(at: url)
-            return true
-        }
-
-        Log.error("[ChannelStore] Migration file decode failed, discarding")
-        try? FileManager.default.removeItem(at: url)
-        return false
+        channels = decoded
+        activeChannelID = UserDefaults.standard.string(forKey: "smartllm_active_channel")
     }
 
     func addChannel(_ channel: Channel) {
