@@ -27,6 +27,35 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ---
 
+## 📥 Install (First-Time Setup)
+
+Download the latest DMG from the [Releases page](https://github.com/rickytan/SmartLLMRouter/releases) and drag **SmartLLMRouter.app** into **Applications**.
+
+> ⚠️ **First-launch Gatekeeper warning is expected.** SmartLLMRouter is currently **ad-hoc signed** — there is no paid Apple Developer certificate behind the build, so macOS will say:
+>
+> > *"SmartLLMRouter cannot be opened because it is from an unidentified developer."*
+>
+> The app is open source and built directly from this repo by GitHub Actions. You can verify the build at [Actions](https://github.com/rickytan/SmartLLMRouter/actions) before bypassing.
+
+### Option A — Right-click → Open (recommended)
+
+1. In Finder, **right-click `SmartLLMRouter.app`** in `/Applications` → **Open**
+2. Click **Open** again in the warning dialog
+3. Done — subsequent launches work normally (double-click)
+
+### Option B — Clear quarantine attribute (one-shot)
+
+```bash
+xattr -cr /Applications/SmartLLMRouter.app
+open /Applications/SmartLLMRouter.app
+```
+
+This removes the `com.apple.quarantine` extended attribute that Gatekeeper checks. Standard practice for ad-hoc signed apps and not specific to SmartLLMRouter.
+
+> 💡 **Why ad-hoc?** Apple Developer Program costs $99/year. While SmartLLMRouter is in alpha, we ship ad-hoc DMGs to keep distribution free and the build pipeline reproducible. Sparkle auto-update is intentionally disabled in this release — check the Releases page manually for new versions.
+
+---
+
 ## 🎯 Typical Use Cases
 
 ### Use Case 1: Claude Code with Multiple API Providers
