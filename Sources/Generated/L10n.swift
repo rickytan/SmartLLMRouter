@@ -774,8 +774,26 @@ internal enum L10n {
     internal static func importSuccessDetail(_ p1: Int) -> String {
       String(format: NSLocalizedString("channelExport.importSuccessDetail", comment: ""), p1)
     }
+    internal static func importSuccessPartialDetail(_ p1: Int, _ p2: Int, _ p3: Int, _ p4: Int) -> String {
+      String(format: NSLocalizedString("channelExport.importSuccessPartialDetail", comment: ""), p1, p2, p3, p4)
+    }
     internal static var importFailed: String {
       NSLocalizedString("channelExport.importFailed", comment: "")
+    }
+    internal static var importNoneDetail: String {
+      NSLocalizedString("channelExport.importNoneDetail", comment: "")
+    }
+    internal static func importSkippedDuplicate(_ p1: String) -> String {
+      String(format: NSLocalizedString("channelExport.importSkippedDuplicate", comment: ""), p1)
+    }
+    internal static func importFailedKeychain(_ p1: String, _ p2: String) -> String {
+      String(format: NSLocalizedString("channelExport.importFailedKeychain", comment: ""), p1, p2)
+    }
+    internal static func importFailedDecrypt(_ p1: String, _ p2: String) -> String {
+      String(format: NSLocalizedString("channelExport.importFailedDecrypt", comment: ""), p1, p2)
+    }
+    internal static var importDetailsHeader: String {
+      NSLocalizedString("channelExport.importDetailsHeader", comment: "")
     }
     internal static var importPreview: String {
       NSLocalizedString("channelExport.importPreview", comment: "")

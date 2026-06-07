@@ -4,7 +4,30 @@ import CryptoKit
 
 // MARK: - ChannelExportService Tests
 
+@MainActor
 final class ChannelExportServiceTests: XCTestCase {
+
+    // MARK: - Test Isolation
+
+    private var restoreKeychain: (() -> Void)?
+
+    override func setUp() async throws {
+        try await super.setUp()
+        // Install a per-test KeychainManager with a UUID-scoped
+        // service. The unit-test target inherits the host app's
+        // bundle ID, so without isolation, calls to
+        // KeychainManager.shared would write to the user's real
+        // keychain (and may trigger a macOS keychain prompt that
+        // hangs the test).
+        let (_, restore) = KeychainManagerTestSupport.installAsShared()
+        restoreKeychain = restore
+    }
+
+    override func tearDown() async throws {
+        restoreKeychain?()
+        restoreKeychain = nil
+        try await super.tearDown()
+    }
 
     // MARK: - Test Helpers
 

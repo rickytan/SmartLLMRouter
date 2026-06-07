@@ -297,7 +297,13 @@
 "channelExport.exportFailed" = "导出失败";
 "channelExport.importSuccess" = "导入成功";
 "channelExport.importSuccessDetail" = "成功导入 %d 个通道";
+"channelExport.importSuccessPartialDetail" = "导入 %d / %d 个通道，跳过 %d 个，失败 %d 个。";
 "channelExport.importFailed" = "导入失败";
+"channelExport.importNoneDetail" = "未导入任何通道，详情见下方。";
+"channelExport.importSkippedDuplicate" = "已跳过重复通道：%@";
+"channelExport.importFailedKeychain" = "Keychain 错误（%@）：%@";
+"channelExport.importFailedDecrypt" = "解密错误（%@）：%@";
+"channelExport.importDetailsHeader" = "问题汇总：";
 "channelExport.importPreview" = "导入预览";
 "channelExport.importPreviewDetail" = "在文件中发现 %d 个通道，请查看详情：";
 "channelExport.importAll" = "全部导入";
