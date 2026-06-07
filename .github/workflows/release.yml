@@ -21,12 +21,56 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
-  # CI: Build & Test (on every push/PR)
+  # Path filter: decide if code actually changed
   # ─────────────────────────────────────────────
-  ci:
-    name: Build & Test
-    runs-on: macos-15
+  # Docs-only PRs (README, *.md, LICENSE, .gitignore) should NOT pay for a
+  # full Xcode build. But the branch protection rule requires a "Build & Test"
+  # check to exist on every PR. We solve this by:
+  #   1. Always running the lightweight `ci` umbrella job (publishes
+  #      "Build & Test" status) — required check is always reported.
+  #   2. Conditionally running the heavy `build-test` job only when code
+  #      paths changed.
+  #   3. Umbrella job inspects build-test's result: success/skipped → green,
+  #      failure/cancelled → red.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # 'code' is true if any file matching these patterns changed.
+          # Docs-only PRs (no Swift/yml/Pods change) skip the heavy job.
+          filters: |
+            code:
+              - 'Sources/**'
+              - 'Tests/**'
+              - 'Resources/**'
+              - 'Pods/**'
+              - 'project.yml'
+              - 'Podfile'
+              - 'Podfile.lock'
+              - 'Gemfile'
+              - 'Gemfile.lock'
+              - 'swiftgen.yml'
+              - '.github/workflows/**'
+              - '**/*.swift'
+              - '**/*.entitlements'
+              - '**/*.xcassets/**'
+
+  # ─────────────────────────────────────────────
+  # Heavy job: real Xcode build + unit tests
+  # Runs only when code (not just docs) changed.
+  # ─────────────────────────────────────────────
+  build-test:
+    name: Xcode Build & Test
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: macos-15
 
     steps:
       - name: Checkout
@@ -79,6 +123,37 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty --color
+
+  # ─────────────────────────────────────────────
+  # Umbrella job: name MUST equal the branch-protection required check.
+  # Always runs (so the status is always reported), but mirrors build-test's
+  # outcome. Docs-only PRs → build-test is skipped → umbrella passes
+  # immediately with no macOS runner cost.
+  # ─────────────────────────────────────────────
+  ci:
+    name: Build & Test
+    needs: [changes, build-test]
+    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report status
+        run: |
+          CHANGES_RESULT="${{ needs.changes.result }}"
+          BUILD_RESULT="${{ needs.build-test.result }}"
+          echo "changes job: $CHANGES_RESULT"
+          echo "build-test job: $BUILD_RESULT"
+          # Pass if build-test succeeded OR was skipped (docs-only).
+          # Fail on actual failure or cancellation.
+          if [[ "$BUILD_RESULT" == "success" || "$BUILD_RESULT" == "skipped" ]]; then
+            if [[ "$BUILD_RESULT" == "skipped" ]]; then
+              echo "✅ Docs-only change — skipping Xcode build."
+            else
+              echo "✅ Build & tests passed."
+            fi
+            exit 0
+          fi
+          echo "::error::Xcode Build & Test job concluded with: $BUILD_RESULT"
+          exit 1
 
   # ─────────────────────────────────────────────
   # Release: Ad-hoc Sign, Package DMG, Publish
