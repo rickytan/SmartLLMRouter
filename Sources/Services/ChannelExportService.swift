@@ -10,6 +10,26 @@ final class ChannelExportService {
 
     private init() {}
 
+    // MARK: - Import Result
+
+    /// Outcome of an import attempt. Surfaces the silent failures that
+    /// the previous `Int` return value dropped on the floor — duplicate
+    /// base URLs, keychain write errors, decryption errors. The UI uses
+    /// this to show a complete success/failure report so the user knows
+    /// whether everything actually made it in.
+    struct ImportResult {
+        struct Issue: Equatable {
+            let channelName: String
+            let reason: String
+        }
+        let total: Int
+        let imported: Int
+        let skipped: [Issue]
+        let failed: [Issue]
+
+        var hasIssues: Bool { !skipped.isEmpty || !failed.isEmpty }
+    }
+
     // MARK: - Export Format
 
     struct ExportFile: Codable {
@@ -303,9 +323,15 @@ final class ChannelExportService {
         return (exportFile, exportFile.channels)
     }
 
-    /// Import channels from exported data
-    func importChannels(_ exportedChannels: [ExportedChannel], exportFile: ExportFile, password: String? = nil) -> Int {
-        var importCount = 0
+    /// Import channels from exported data.
+    /// - Returns: A `ImportResult` describing what happened to every channel.
+    ///   The previous signature returned `Int` and silently dropped duplicates
+    ///   and keychain/decryption failures — users would see "Imported 4
+    ///   channels" when only 2 actually made it in.
+    func importChannels(_ exportedChannels: [ExportedChannel], exportFile: ExportFile, password: String? = nil) -> ImportResult {
+        var imported = 0
+        var skipped: [ImportResult.Issue] = []
+        var failed: [ImportResult.Issue] = []
         var symmetricKey: SymmetricKey?
 
         // Decrypt API keys if needed
@@ -314,7 +340,11 @@ final class ChannelExportService {
                   let saltBase64 = exportFile.encryptionSalt,
                   let salt = Data(base64Encoded: saltBase64) else {
                 Log.error("[ChannelExport] Missing encryption parameters")
-                return 0
+                return ImportResult(total: exportedChannels.count, imported: 0,
+                                    skipped: [], failed: [ImportResult.Issue(
+                                        channelName: "—",
+                                        reason: L10n.ChannelExport.importFailedKeychain("file", "Missing encryption parameters")
+                                    )])
             }
             symmetricKey = deriveKey(from: password, salt: salt)
         }
@@ -323,6 +353,10 @@ final class ChannelExportService {
             // Check for duplicate baseURL
             if ChannelStore.shared.channels.contains(where: { $0.baseURL.lowercased() == exported.baseURL.lowercased() }) {
                 Log.info("[ChannelExport] Skipping duplicate channel: \(exported.baseURL)")
+                skipped.append(ImportResult.Issue(
+                    channelName: exported.name,
+                    reason: L10n.ChannelExport.importSkippedDuplicate(exported.baseURL)
+                ))
                 continue
             }
 
@@ -333,6 +367,10 @@ final class ChannelExportService {
                     apiKey = try decryptAPIKey(exported.apiKey, key: key, nonce: nonce)
                 } catch {
                     Log.error("[ChannelExport] Failed to decrypt API key for \(exported.name): \(error.localizedDescription)")
+                    failed.append(ImportResult.Issue(
+                        channelName: exported.name,
+                        reason: L10n.ChannelExport.importFailedDecrypt(exported.name, error.localizedDescription)
+                    ))
                     continue
                 }
             } else {
@@ -371,15 +409,24 @@ final class ChannelExportService {
                 try KeychainManager.shared.setAPIKey(apiKey, for: channel.id)
             } catch {
                 Log.error("[ChannelExport] Failed to save API key for \(exported.name): \(error.localizedDescription)")
+                failed.append(ImportResult.Issue(
+                    channelName: exported.name,
+                    reason: L10n.ChannelExport.importFailedKeychain(exported.name, error.localizedDescription)
+                ))
                 continue
             }
 
             // Add channel
             ChannelStore.shared.addChannel(channel)
-            importCount += 1
+            imported += 1
         }
 
-        return importCount
+        return ImportResult(
+            total: exportedChannels.count,
+            imported: imported,
+            skipped: skipped,
+            failed: failed
+        )
     }
 
     /// Show open panel and import channels
@@ -497,12 +544,63 @@ final class ChannelExportService {
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            let count = importChannels(channels, exportFile: exportFile, password: password)
-            showAlert(
-                title: L10n.ChannelExport.importSuccess,
-                message: L10n.ChannelExport.importSuccessDetail(count)
-            )
+            let result = importChannels(channels, exportFile: exportFile, password: password)
+            showImportResult(result)
         }
+    }
+
+    /// Show the result of an import. Surfaces skipped duplicates and
+    /// keychain / decryption failures that the previous design silently
+    /// logged. If everything went well, the success detail is the same
+    /// as before; if anything was skipped or failed, the user sees a
+    /// short report so they know whether the file actually imported.
+    private func showImportResult(_ result: ImportResult) {
+        let alert = NSAlert()
+        if result.imported == result.total && !result.hasIssues {
+            // Clean success
+            alert.messageText = L10n.ChannelExport.importSuccess
+            alert.informativeText = L10n.ChannelExport.importSuccessDetail(result.imported)
+            alert.alertStyle = .informational
+        } else if result.imported == 0 {
+            // Total failure
+            alert.messageText = L10n.ChannelExport.importFailed
+            alert.informativeText = L10n.ChannelExport.importNoneDetail
+            alert.alertStyle = .critical
+        } else {
+            // Partial success
+            alert.messageText = L10n.ChannelExport.importSuccess
+            alert.informativeText = L10n.ChannelExport.importSuccessPartialDetail(
+                result.imported, result.total,
+                result.skipped.count, result.failed.count
+            )
+            alert.alertStyle = .warning
+        }
+        alert.addButton(withTitle: L10n.ConfigImporter.ok)
+
+        if result.hasIssues {
+            // Build a details accessory view so the user can see exactly
+            // which channels were skipped or failed and why.
+            let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 160))
+            let textView = NSTextView(frame: scrollView.bounds)
+            textView.isEditable = false
+            textView.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+            textView.textContainerInset = NSSize(width: 8, height: 8)
+
+            var detail = L10n.ChannelExport.importDetailsHeader + "\n\n"
+            for issue in result.skipped {
+                detail += "• \(issue.reason)\n"
+            }
+            for issue in result.failed {
+                detail += "• \(issue.reason)\n"
+            }
+            textView.string = detail
+
+            scrollView.documentView = textView
+            scrollView.hasVerticalScroller = true
+            alert.accessoryView = scrollView
+        }
+
+        alert.runModal()
     }
 
     // MARK: - Encryption Helpers

@@ -32,6 +32,15 @@ struct ConfigImporterView: View {
         }
         .padding(DesignToken.Layout.cardPadding)
         .frame(width: 500, height: 450)
+        .task {
+            // Auto-scan on first appear so the user sees results
+            // immediately instead of being dropped into the "no
+            // results" empty state. The user can still hit "Scan"
+            // to refresh.
+            if discoveredChannels.isEmpty && !isScanning {
+                await scanConfigs()
+            }
+        }
         .alert(L10n.ConfigImporter.importComplete, isPresented: $showingImportSuccess) {
             Button(L10n.ConfigImporter.ok, role: .cancel) { dismiss() }
         } message: {
@@ -186,12 +195,14 @@ struct ConfigImporterView: View {
 
     private var actionButtons: some View {
         HStack(spacing: DesignToken.Spacing.sm) {
-            if !discoveredChannels.isEmpty {
-                SecondaryButton(L10n.ConfigImporter.scan, icon: "arrow.clockwise", isDisabled: isScanning) {
-                    Task { await scanConfigs() }
-                }
-                .accessibilityIdentifier("configImporter.scanButton")
+            // Scan button must always be visible. The previous design
+            // hid it when discoveredChannels was empty, which trapped
+            // the user in the "no results" state with no way to scan
+            // in the first place.
+            SecondaryButton(L10n.ConfigImporter.scan, icon: "arrow.clockwise", isDisabled: isScanning) {
+                Task { await scanConfigs() }
             }
+            .accessibilityIdentifier("configImporter.scanButton")
 
             Spacer()
 

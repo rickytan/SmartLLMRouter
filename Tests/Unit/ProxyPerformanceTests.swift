@@ -6,6 +6,25 @@ import XCTest
 @MainActor
 final class ProxyPerformanceTests: XCTestCase {
 
+    // MARK: - Test Isolation
+
+    private var isolatedStore: IsolatedChannelStore?
+    private var restoreShared: (() -> Void)?
+
+    override func setUp() async throws {
+        try await super.setUp()
+        let (isolated, restore) = ChannelStoreTestSupport.installAsShared()
+        self.isolatedStore = isolated
+        self.restoreShared = restore
+    }
+
+    override func tearDown() async throws {
+        restoreShared?()
+        restoreShared = nil
+        isolatedStore = nil
+        try await super.tearDown()
+    }
+
     // MARK: - Protocol Conversion Performance
 
     func testAnthropicToOpenAIConversionPerformance() throws {
