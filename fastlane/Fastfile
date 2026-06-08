@@ -47,9 +47,9 @@ lane :build do
   run("xcodegen", "generate")
 
   if File.exist?(root_path("Gemfile.lock"))
-    run("bundle", "exec", "pod", "install")
+    cocoapods(use_bundle_exec: true)
   else
-    run("pod", "install")
+    cocoapods(use_bundle_exec: false)
   end
 
   if system("command -v swiftgen &>/dev/null")
@@ -152,7 +152,7 @@ lane :dmg do
   dsym = root_path("build/#{APP_NAME}.dSYM")
   if Dir.exist?(dsym)
     dsym_zip = File.join(artifacts_dir, "#{PROJECT_NAME}-#{version}.dSYM.zip")
-    run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", "build/#{APP_NAME}.dSYM", dsym_zip)
+    zip(path: "build/#{APP_NAME}.dSYM", output_path: dsym_zip)
     UI.success("dSYM packaged: #{dsym_zip}")
   end
 
@@ -172,14 +172,14 @@ lane :notarize_dmg do
   dmg_path = root_path("release-artifacts/#{dmg_name}")
   UI.user_error!("#{dmg_path} not found -- run `fastlane dmg` first") unless File.exist?(dmg_path)
 
-  UI.header("Submitting for notarization: #{dmg_name}")
-  run("xcrun", "notarytool", "submit", dmg_path,
-      "--apple-id", apple_id_val, "--password", apple_password,
-      "--team-id", team_id_val, "--wait")
+  notarize(
+    package: dmg_path,
+    apple_id: apple_id_val,
+    password: apple_password,
+    team_id: team_id_val,
+    staple: true
+  )
 
-  UI.success("Notarization complete -- stapling...")
-  run("xcrun", "stapler", "staple", dmg_path)
-  run("xcrun", "stapler", "validate", dmg_path)
   UI.success("Notarized & stapled: #{dmg_path}")
 end
 
