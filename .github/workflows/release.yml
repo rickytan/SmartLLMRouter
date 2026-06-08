@@ -162,7 +162,12 @@ jobs:
       - name: Setup Ruby (bundler)
         run: bundle install
 
-      # ── fastlane release pipeline (match fetches certs automatically) ──
+      # ── SSH key for match (accesses private Certificates repo) ──
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
+
+      # ── fastlane release pipeline (match fetches certs via SSH) ──
       - name: Build, Sign, DMG, Notarize
         env:
           CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY_NAME }}
@@ -171,7 +176,6 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: bundle exec fastlane release
 
       # ── Determine version for release naming ──
