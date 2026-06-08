@@ -1,5 +1,5 @@
 source "https://rubygems.org"
 
-gem "cocoapods"
-gem "fastlane"
-gem "multi_json"
+gem "cocoapods", "~> 1.16"
+gem "fastlane", "~> 2.236"
+gem "multi_json", "~> 1.15"

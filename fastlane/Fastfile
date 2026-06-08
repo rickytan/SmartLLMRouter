@@ -64,16 +64,21 @@ lane :build do
 
   UI.header("Building #{PROJECT_NAME} (signing: #{identity == "-" ? "ad-hoc" : identity})")
 
-  run("set -o pipefail && xcodebuild build " \
-      "-workspace '#{WORKSPACE}' " \
-      "-scheme '#{SCHEME}' " \
-      "-configuration Release " \
-      "-destination 'platform=macOS,arch=arm64' " \
-      "CODE_SIGN_IDENTITY='#{identity}' " \
-      "CODE_SIGNING_REQUIRED=#{signing_required} " \
-      "CODE_SIGNING_ALLOWED=#{signing_allowed} " \
-      "ONLY_ACTIVE_ARCH=NO " \
-      "| xcpretty --color")
+  gym(
+    workspace: WORKSPACE,
+    scheme: SCHEME,
+    configuration: "Release",
+    destination: "platform=macOS,arch=arm64",
+    skip_package_ipa: true,
+    skip_archive: true,
+    skip_codesigning: identity == "-",
+    xcargs: "CODE_SIGN_IDENTITY='#{identity}' " \
+            "CODE_SIGNING_REQUIRED=#{signing_required} " \
+            "CODE_SIGNING_ALLOWED=#{signing_allowed} " \
+            "ONLY_ACTIVE_ARCH=NO",
+    output_directory: "build",
+    silent: false
+  )
 
   built_products_dir = FastlaneCore::CommandExecutor.execute(
     command: "cd #{ROOT} && xcodebuild -workspace '#{WORKSPACE}' -scheme '#{SCHEME}' " \
