@@ -27,6 +27,35 @@
 
 ---
 
+## 📥 安装（首次使用）
+
+从 [Releases 页面](https://github.com/rickytan/SmartLLMRouter/releases) 下载最新 DMG，将 **SmartLLMRouter.app** 拖入 **Applications** 文件夹。
+
+> ⚠️ **首次启动时 macOS 会弹出 Gatekeeper 警告，这是预期行为。** SmartLLMRouter 目前使用 **ad-hoc 签名** —— 项目尚未购买 Apple 开发者证书 ($99/年)，因此 macOS 会提示：
+>
+> > *"无法打开 SmartLLMRouter，因为它来自身份不明的开发者"*
+>
+> 本项目完全开源，DMG 由 GitHub Actions 直接从仓库源码构建。在绕过提示前，你可以在 [Actions 页面](https://github.com/rickytan/SmartLLMRouter/actions) 核实构建记录。
+
+### 方法 A — 右键打开（推荐）
+
+1. 在 Finder 中**右键** `/Applications/SmartLLMRouter.app` → **打开**
+2. 警告框中再次点击**打开**
+3. 完成 —— 之后双击即可正常启动
+
+### 方法 B — 命令行清除隔离属性（一次性）
+
+```bash
+xattr -cr /Applications/SmartLLMRouter.app
+open /Applications/SmartLLMRouter.app
+```
+
+此命令移除 `com.apple.quarantine` 扩展属性 —— 这是 macOS 给从浏览器下载的文件打的标记，Gatekeeper 据此拦截未签名/未公证的应用。这是 ad-hoc 签名应用的标准操作，并非 SmartLLMRouter 特有问题。
+
+> 💡 **为什么用 ad-hoc 签名？** Apple Developer Program 年费 $99。Alpha 阶段我们使用 ad-hoc DMG，保持发布免费且构建可复现。本版本暂时禁用了 Sparkle 自动更新，请定期访问 Releases 页面手动检查新版本。
+
+---
+
 ## 🎯 典型使用场景
 
 ### 场景一：Claude Code 多厂商 API 冗余
