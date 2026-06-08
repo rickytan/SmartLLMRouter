@@ -193,6 +193,11 @@ jobs:
             echo "value=false" >> $GITHUB_OUTPUT
           fi
 
+      # ── Generate release notes (exclude docs/CI commits) ──
+      - name: Generate release notes
+        id: notes
+        run: bash scripts/generate-release-notes.sh >> $GITHUB_OUTPUT
+
       # ── GitHub Release ──
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -200,7 +205,7 @@ jobs:
           files: |
             release-artifacts/*.dmg
             release-artifacts/*.dSYM.zip
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: ${{ steps.prerelease.outputs.value }}
 
