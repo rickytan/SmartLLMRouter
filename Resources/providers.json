@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.4.0",
   "providers": [
     {
       "id": "anthropic",
@@ -30,6 +30,34 @@
           "context_length": 200000,
           "input_price": 0.8,
           "output_price": 4.0
+        },
+        {
+          "model": "claude-3-5-sonnet-latest",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 3.0,
+          "output_price": 15.0
+        },
+        {
+          "model": "claude-3-haiku-20240307",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 0.25,
+          "output_price": 1.25
+        },
+        {
+          "model": "claude-3-7-sonnet-latest",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 3.0,
+          "output_price": 15.0
+        },
+        {
+          "model": "claude-3-opus-latest",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 15.0,
+          "output_price": 75.0
         }
       ],
       "base_urls": {
@@ -50,8 +78,8 @@
           "model": "gpt-4o",
           "protocol": "openai",
           "context_length": 128000,
-          "input_price": 5.0,
-          "output_price": 15.0
+          "input_price": 2.5,
+          "output_price": 10.0
         },
         {
           "model": "gpt-4o-mini",
@@ -73,6 +101,62 @@
           "context_length": 200000,
           "input_price": 1.1,
           "output_price": 4.4
+        },
+        {
+          "model": "gpt-4.1",
+          "protocol": "openai",
+          "context_length": 1047576,
+          "input_price": 2.0,
+          "output_price": 8.0
+        },
+        {
+          "model": "gpt-4.1-mini",
+          "protocol": "openai",
+          "context_length": 1047576,
+          "input_price": 0.4,
+          "output_price": 1.6
+        },
+        {
+          "model": "gpt-4.1-nano",
+          "protocol": "openai",
+          "context_length": 1047576,
+          "input_price": 0.1,
+          "output_price": 0.4
+        },
+        {
+          "model": "gpt-4.5-preview",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 75.0,
+          "output_price": 150.0
+        },
+        {
+          "model": "o1-pro",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 150.0,
+          "output_price": 600.0
+        },
+        {
+          "model": "o1-mini",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 1.1,
+          "output_price": 4.4
+        },
+        {
+          "model": "o3",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 10.0,
+          "output_price": 40.0
+        },
+        {
+          "model": "o4-mini",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 1.1,
+          "output_price": 4.4
         }
       ]
     },
@@ -89,8 +173,8 @@
           "model": "gemini-2.5-pro-preview-03-25",
           "protocol": "openai",
           "context_length": 1048576,
-          "input_price": 2.5,
-          "output_price": 15.0
+          "input_price": 1.25,
+          "output_price": 10.0
         },
         {
           "model": "gemini-2.0-flash",
@@ -98,6 +182,20 @@
           "context_length": 1048576,
           "input_price": 0.1,
           "output_price": 0.4
+        },
+        {
+          "model": "gemini-2.5-flash-preview-04-17",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.15,
+          "output_price": 0.6
+        },
+        {
+          "model": "gemini-2.0-flash-lite",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.05,
+          "output_price": 0.3
         }
       ]
     },
@@ -344,6 +442,34 @@
           "context_length": 32768,
           "input_price": 0.24,
           "output_price": 0.24
+        },
+        {
+          "model": "qwen-qwq-32b",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.29,
+          "output_price": 0.39
+        },
+        {
+          "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.11,
+          "output_price": 0.34
+        },
+        {
+          "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.2,
+          "output_price": 0.2
+        },
+        {
+          "model": "deepseek-r1-distill-llama-70b",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.75,
+          "output_price": 0.99
         }
       ]
     },
@@ -498,7 +624,9 @@
           "context_length": 32768,
           "input_price": 0.0,
           "output_price": 0.0,
-          "input_types": ["text"]
+          "input_types": [
+            "text"
+          ]
         },
         {
           "model": "mimo-v2-tts",
@@ -506,13 +634,1289 @@
           "context_length": 32768,
           "input_price": 0.0,
           "output_price": 0.0,
-          "input_types": ["text", "audio"]
+          "input_types": [
+            "text",
+            "audio"
+          ]
         }
       ],
       "base_urls": {
         "openai": "https://api.xiaomimimo.com/v1",
         "anthropic": "https://api.xiaomimimo.com/anthropic"
       }
+    },
+    {
+      "id": "xai",
+      "name_en": "xAI (Grok)",
+      "name_zh": "xAI (Grok)",
+      "base_url": "https://api.x.ai/v1",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "grok-3-beta",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 3.0,
+          "output_price": 15.0
+        },
+        {
+          "model": "grok-3-mini-beta",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.3,
+          "output_price": 0.5
+        },
+        {
+          "model": "grok-3-fast-beta",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 5.0,
+          "output_price": 25.0
+        },
+        {
+          "model": "grok-3-mini-fast-beta",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.6,
+          "output_price": 4.0
+        }
+      ]
+    },
+    {
+      "id": "azure_openai",
+      "name_en": "Azure OpenAI",
+      "name_zh": "Azure OpenAI",
+      "base_url": "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "gpt-4.1",
+          "protocol": "openai",
+          "context_length": 1047576,
+          "input_price": 2.0,
+          "output_price": 8.0
+        },
+        {
+          "model": "gpt-4o",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 2.5,
+          "output_price": 10.0
+        },
+        {
+          "model": "gpt-4o-mini",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.15,
+          "output_price": 0.6
+        }
+      ]
+    },
+    {
+      "id": "vertex_ai",
+      "name_en": "Google Vertex AI",
+      "name_zh": "Google Vertex AI",
+      "base_url": "https://YOUR_PROJECT-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/YOUR_LOCATION/publishers/google/models",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "gemini-2.5-flash-preview-04-17",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.15,
+          "output_price": 0.6
+        },
+        {
+          "model": "gemini-2.5-pro-preview-03-25",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 1.25,
+          "output_price": 10.0
+        }
+      ]
+    },
+    {
+      "id": "aws_bedrock",
+      "name_en": "AWS Bedrock",
+      "name_zh": "AWS Bedrock",
+      "base_url": "https://bedrock-runtime.YOUR_REGION.amazonaws.com",
+      "supports_protocols": [
+        "anthropic"
+      ],
+      "default_models": [
+        {
+          "model": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 3.0,
+          "output_price": 15.0
+        }
+      ]
+    },
+    {
+      "id": "nvidia",
+      "name_en": "Nvidia",
+      "name_zh": "NVIDIA NIM",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "nvidia/nemotron-3-ultra-550b-a55b",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.5,
+          "output_price": 2.5
+        },
+        {
+          "model": "stepfun-ai/step-3.7-flash",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "deepseek-ai/deepseek-v4-flash",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.14,
+          "output_price": 0.28
+        },
+        {
+          "model": "deepseek-ai/deepseek-v4-pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.435,
+          "output_price": 0.87
+        },
+        {
+          "model": "moonshotai/kimi-k2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "nvidia/nemotron-3-content-safety",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "nvidia/synthetic-video-detector",
+          "protocol": "openai",
+          "context_length": 0,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://integrate.api.nvidia.com/v1"
+    },
+    {
+      "id": "cerebras",
+      "name_en": "Cerebras",
+      "name_zh": "Cerebras",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "zai-glm-4.7",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 2.25,
+          "output_price": 2.75
+        },
+        {
+          "model": "gpt-oss-120b",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.25,
+          "output_price": 0.69
+        },
+        {
+          "model": "llama3.1-8b",
+          "protocol": "openai",
+          "context_length": 32000,
+          "input_price": 0.1,
+          "output_price": 0.1
+        }
+      ],
+      "base_url": "https://api.cerebras.com/v1"
+    },
+    {
+      "id": "deepinfra",
+      "name_en": "Deep Infra",
+      "name_zh": "Deep Infra",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "deepseek-ai/DeepSeek-V4-Flash",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.1,
+          "output_price": 0.2
+        },
+        {
+          "model": "deepseek-ai/DeepSeek-V4-Pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 1.3,
+          "output_price": 2.6
+        },
+        {
+          "model": "XiaomiMiMo/MiMo-V2.5",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.4,
+          "output_price": 2
+        },
+        {
+          "model": "XiaomiMiMo/MiMo-V2.5-Pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 1,
+          "output_price": 3
+        },
+        {
+          "model": "moonshotai/Kimi-K2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.75,
+          "output_price": 3.5
+        },
+        {
+          "model": "zai-org/GLM-5.1",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "google/gemma-4-26B-A4B-it",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.07,
+          "output_price": 0.34
+        },
+        {
+          "model": "google/gemma-4-31B-it",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.13,
+          "output_price": 0.38
+        }
+      ],
+      "base_url": "https://api.deepinfra.com/v1"
+    },
+    {
+      "id": "huggingface",
+      "name_en": "Hugging Face",
+      "name_zh": "Hugging Face",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "deepseek-ai/DeepSeek-V4-Pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.435,
+          "output_price": 0.87
+        },
+        {
+          "model": "moonshotai/Kimi-K2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.95,
+          "output_price": 4
+        },
+        {
+          "model": "zai-org/GLM-5.1",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 1,
+          "output_price": 3.2
+        },
+        {
+          "model": "MiniMaxAI/MiniMax-M2.7",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.3,
+          "output_price": 1.2
+        },
+        {
+          "model": "MiniMaxAI/MiniMax-M2.5",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.3,
+          "output_price": 1.2
+        },
+        {
+          "model": "zai-org/GLM-5",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 1,
+          "output_price": 3.2
+        },
+        {
+          "model": "Qwen/Qwen3-Coder-Next",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.2,
+          "output_price": 1.5
+        },
+        {
+          "model": "Qwen/Qwen3.5-397B-A17B",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.6,
+          "output_price": 3.6
+        }
+      ],
+      "base_url": "https://router.huggingface.co/v1"
+    },
+    {
+      "id": "perplexity",
+      "name_en": "Perplexity",
+      "name_zh": "Perplexity",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "sonar-deep-research",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 2,
+          "output_price": 8
+        },
+        {
+          "model": "sonar",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 1,
+          "output_price": 1
+        },
+        {
+          "model": "sonar-pro",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 3,
+          "output_price": 15
+        },
+        {
+          "model": "sonar-reasoning-pro",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 2,
+          "output_price": 8
+        }
+      ],
+      "base_url": "https://api.perplexity.com/v1"
+    },
+    {
+      "id": "github_models",
+      "name_en": "GitHub Models",
+      "name_zh": "GitHub Models",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "deepseek/deepseek-r1-0528",
+          "protocol": "openai",
+          "context_length": 65536,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "mistral-ai/mistral-medium-2505",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "openai/gpt-4.1-mini",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "openai/gpt-4.1-nano",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "deepseek/deepseek-v3-0324",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "mistral-ai/mistral-small-2503",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "meta/llama-4-scout-17b-16e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://models.github.ai/inference"
+    },
+    {
+      "id": "cloudflare_workers_ai",
+      "name_en": "Cloudflare Workers AI",
+      "name_zh": "Cloudflare Workers AI",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "@cf/moonshotai/kimi-k2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.95,
+          "output_price": 4
+        },
+        {
+          "model": "@cf/google/gemma-4-26b-a4b-it",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.1,
+          "output_price": 0.3
+        },
+        {
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.5,
+          "output_price": 1.5
+        },
+        {
+          "model": "@cf/zai-org/glm-4.7-flash",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.0605,
+          "output_price": 0.4
+        },
+        {
+          "model": "@cf/ibm-granite/granite-4.0-h-micro",
+          "protocol": "openai",
+          "context_length": 131000,
+          "input_price": 0.017,
+          "output_price": 0.112
+        },
+        {
+          "model": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.351,
+          "output_price": 0.555
+        },
+        {
+          "model": "@cf/openai/gpt-oss-120b",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.35,
+          "output_price": 0.75
+        },
+        {
+          "model": "@cf/openai/gpt-oss-20b",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.2,
+          "output_price": 0.3
+        }
+      ],
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1"
+    },
+    {
+      "id": "llama",
+      "name_en": "Llama",
+      "name_zh": "Meta Llama",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "cerebras-llama-4-maverick-17b-128e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "groq-llama-4-maverick-17b-128e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "llama-4-maverick-17b-128e-instruct-fp8",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "llama-4-scout-17b-16e-instruct-fp8",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "cerebras-llama-4-scout-17b-16e-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "llama-3.3-8b-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "llama-3.3-70b-instruct",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://api.llama.com/compat/v1/"
+    },
+    {
+      "id": "stepfun",
+      "name_en": "StepFun",
+      "name_zh": "阶跃星辰",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "step-3.5-flash-2603",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.1,
+          "output_price": 0.3
+        },
+        {
+          "model": "step-3.5-flash",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.096,
+          "output_price": 0.288
+        },
+        {
+          "model": "step-2-16k",
+          "protocol": "openai",
+          "context_length": 16384,
+          "input_price": 5.21,
+          "output_price": 16.44
+        },
+        {
+          "model": "step-1-32k",
+          "protocol": "openai",
+          "context_length": 32768,
+          "input_price": 2.05,
+          "output_price": 9.59
+        }
+      ],
+      "base_url": "https://api.stepfun.com/v1"
+    },
+    {
+      "id": "modelscope",
+      "name_en": "ModelScope",
+      "name_zh": "ModelScope (阿里)",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "ZhipuAI/GLM-4.6",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "Qwen/Qwen3-30B-A3B-Thinking-2507",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "ZhipuAI/GLM-4.5",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://api-inference.modelscope.cn/v1"
+    },
+    {
+      "id": "tencent_coding_plan",
+      "name_en": "Tencent Coding Plan (China)",
+      "name_zh": "腾讯 Coding Plan",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "hunyuan-2.0-instruct",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "hunyuan-t1",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "hunyuan-turbos",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "tc-code-latest",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "hunyuan-2.0-thinking",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "minimax-m2.5",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "glm-5",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "kimi-k2.5",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://api.lkeap.cloud.tencent.com/coding/v3"
+    },
+    {
+      "id": "bailing",
+      "name_en": "Bailing",
+      "name_zh": "百灵",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "Ring-1T",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.57,
+          "output_price": 2.29
+        },
+        {
+          "model": "Ling-1T",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.57,
+          "output_price": 2.29
+        }
+      ],
+      "base_url": "https://api.tbox.cn/api/llm/v1/chat/completions"
+    },
+    {
+      "id": "kimi_for_coding",
+      "name_en": "Kimi For Coding",
+      "name_zh": "Kimi Coding",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "k2p6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "k2p5",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "kimi-k2-thinking",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://api.kimi.com/coding/v1"
+    },
+    {
+      "id": "inception",
+      "name_en": "Inception",
+      "name_zh": "Inception",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "mercury-edit-2",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.25,
+          "output_price": 0.75
+        },
+        {
+          "model": "mercury-2",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.25,
+          "output_price": 0.75
+        }
+      ],
+      "base_url": "https://api.inceptionlabs.ai/v1/"
+    },
+    {
+      "id": "synthetic",
+      "name_en": "Synthetic",
+      "name_zh": "Synthetic",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "hf:moonshotai/Kimi-K2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.95,
+          "output_price": 4
+        },
+        {
+          "model": "hf:zai-org/GLM-5.1",
+          "protocol": "openai",
+          "context_length": 196608,
+          "input_price": 1,
+          "output_price": 3
+        },
+        {
+          "model": "hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.3,
+          "output_price": 1
+        },
+        {
+          "model": "hf:zai-org/GLM-5",
+          "protocol": "openai",
+          "context_length": 196608,
+          "input_price": 1,
+          "output_price": 3
+        },
+        {
+          "model": "hf:Qwen/Qwen3.5-397B-A17B",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.6,
+          "output_price": 3
+        },
+        {
+          "model": "hf:MiniMaxAI/MiniMax-M2.5",
+          "protocol": "openai",
+          "context_length": 191488,
+          "input_price": 0.6,
+          "output_price": 3
+        },
+        {
+          "model": "hf:zai-org/GLM-4.7-Flash",
+          "protocol": "openai",
+          "context_length": 196608,
+          "input_price": 0.06,
+          "output_price": 0.4
+        },
+        {
+          "model": "hf:nvidia/Kimi-K2.5-NVFP4",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.55,
+          "output_price": 2.19
+        }
+      ],
+      "base_url": "https://api.synthetic.new/openai/v1"
+    },
+    {
+      "id": "friendli",
+      "name_en": "Friendli",
+      "name_zh": "Friendli",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "zai-org/GLM-5.1",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "MiniMaxAI/MiniMax-M2.5",
+          "protocol": "openai",
+          "context_length": 196608,
+          "input_price": 0.3,
+          "output_price": 1.2
+        },
+        {
+          "model": "zai-org/GLM-5",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 1,
+          "output_price": 3.2
+        },
+        {
+          "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.2,
+          "output_price": 0.8
+        },
+        {
+          "model": "meta-llama/Llama-3.1-8B-Instruct",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.1,
+          "output_price": 0.1
+        },
+        {
+          "model": "meta-llama/Llama-3.3-70B-Instruct",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.6,
+          "output_price": 0.6
+        }
+      ],
+      "base_url": "https://api.friendli.ai/serverless/v1"
+    },
+    {
+      "id": "iflowcn",
+      "name_en": "iFlow",
+      "name_zh": "iFlow",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "kimi-k2-0905",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "qwen3-235b-a22b-instruct",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "qwen3-coder-plus",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "qwen3-235b-a22b-thinking-2507",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "deepseek-r1",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "qwen3-max-preview",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "deepseek-v3.2",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "qwen3-max",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0,
+          "output_price": 0
+        }
+      ],
+      "base_url": "https://apis.iflow.cn/v1"
+    },
+    {
+      "id": "drun",
+      "name_en": "D.Run (China)",
+      "name_zh": "D.Run",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "public/minimax-m25",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.29,
+          "output_price": 1.16
+        },
+        {
+          "model": "public/deepseek-r1",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.55,
+          "output_price": 2.2
+        },
+        {
+          "model": "public/deepseek-v3",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 0.28,
+          "output_price": 1.1
+        }
+      ],
+      "base_url": "https://chat.d.run/v1"
+    },
+    {
+      "id": "lucidquery",
+      "name_en": "LucidQuery AI",
+      "name_zh": "LucidQuery AI",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "lucidquery-nexus-coder",
+          "protocol": "openai",
+          "context_length": 250000,
+          "input_price": 2,
+          "output_price": 5
+        },
+        {
+          "model": "lucidnova-rf1-100b",
+          "protocol": "openai",
+          "context_length": 120000,
+          "input_price": 2,
+          "output_price": 5
+        }
+      ],
+      "base_url": "https://lucidquery.com/api/v1"
+    },
+    {
+      "id": "novita_ai",
+      "name_en": "NovitaAI",
+      "name_zh": "NovitaAI",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "qwen/qwen3.7-max",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 1.25,
+          "output_price": 3.75
+        },
+        {
+          "model": "inclusionai/ring-2.6-1t",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.3,
+          "output_price": 2.5
+        },
+        {
+          "model": "deepseek/deepseek-v4-flash",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.14,
+          "output_price": 0.28
+        },
+        {
+          "model": "deepseek/deepseek-v4-pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 1.69,
+          "output_price": 3.38
+        },
+        {
+          "model": "inclusionai/ling-2.6-flash",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.1,
+          "output_price": 0.3
+        },
+        {
+          "model": "inclusionai/ling-2.6-1t",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0
+        },
+        {
+          "model": "xiaomimimo/mimo-v2.5-pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 2,
+          "output_price": 6
+        },
+        {
+          "model": "moonshotai/kimi-k2.6",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.95,
+          "output_price": 4
+        }
+      ],
+      "base_url": "https://api.novita.ai/openai"
+    },
+    {
+      "id": "cortecs",
+      "name_en": "Cortecs",
+      "name_zh": "Cortecs",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "deepseek-v4-flash",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 0.133,
+          "output_price": 0.266
+        },
+        {
+          "model": "deepseek-v4-pro",
+          "protocol": "openai",
+          "context_length": 1048576,
+          "input_price": 1.553,
+          "output_price": 3.106
+        },
+        {
+          "model": "kimi-k2.6",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.81,
+          "output_price": 3.54
+        },
+        {
+          "model": "claude-opus4-7",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 5.6,
+          "output_price": 27.99
+        },
+        {
+          "model": "glm-5.1",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 1.31,
+          "output_price": 4.1
+        },
+        {
+          "model": "minimax-m2.7",
+          "protocol": "openai",
+          "context_length": 202752,
+          "input_price": 0.47,
+          "output_price": 1.4
+        },
+        {
+          "model": "nemotron-3-super-120b-a12b",
+          "protocol": "openai",
+          "context_length": 262144,
+          "input_price": 0.266,
+          "output_price": 0.799
+        },
+        {
+          "model": "gpt-5.4",
+          "protocol": "openai",
+          "context_length": 1050000,
+          "input_price": 3,
+          "output_price": 16.13
+        }
+      ],
+      "base_url": "https://api.cortecs.ai/v1"
+    },
+    {
+      "id": "nebius",
+      "name_en": "Nebius Token Factory",
+      "name_zh": "Nebius",
+      "supports_protocols": [
+        "openai"
+      ],
+      "default_models": [
+        {
+          "model": "deepseek-ai/DeepSeek-V4-Pro",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 1.75,
+          "output_price": 3.5
+        },
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "protocol": "openai",
+          "context_length": 256000,
+          "input_price": 0.3,
+          "output_price": 0.9
+        },
+        {
+          "model": "zai-org/GLM-5",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 1,
+          "output_price": 3.2
+        },
+        {
+          "model": "NousResearch/Hermes-4-405B",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 1,
+          "output_price": 3
+        },
+        {
+          "model": "NousResearch/Hermes-4-70B",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.13,
+          "output_price": 0.4
+        },
+        {
+          "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.1,
+          "output_price": 0.3
+        },
+        {
+          "model": "Qwen/Qwen3-32B",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.1,
+          "output_price": 0.3
+        },
+        {
+          "model": "Qwen/Qwen3-Next-80B-A3B-Thinking",
+          "protocol": "openai",
+          "context_length": 128000,
+          "input_price": 0.15,
+          "output_price": 1.2
+        }
+      ],
+      "base_url": "https://api.tokenfactory.nebius.com/v1"
     }
   ]
 }
