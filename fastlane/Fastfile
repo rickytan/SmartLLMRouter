@@ -1,0 +1,249 @@
+# frozen_string_literal: true
+
+opt_out_usage
+
+# SmartLLMRouter Fastfile
+# fastlane runs from fastlane/ — all commands prefixed with cd to project root
+
+default_platform(:mac)
+
+ROOT = File.expand_path("..", __dir__)
+PROJECT_NAME = "SmartLLMRouter"
+SCHEME       = "SmartLLMRouter"
+WORKSPACE    = "#{PROJECT_NAME}.xcworkspace"
+ENTITLEMENTS = "Resources/#{PROJECT_NAME}.entitlements"
+APP_NAME     = "#{PROJECT_NAME}.app"
+
+require 'shellwords'
+
+def run(*args)
+  cmd = if args.length == 1
+          "cd #{ROOT} && #{args.first}"
+        else
+          "cd #{ROOT} && #{args.map { |a| Shellwords.escape(a) }.join(' ')}"
+        end
+  FastlaneCore::CommandExecutor.execute(command: cmd, print_all: true, print_command: true)
+end
+
+def root_path(path)
+  File.join(ROOT, path)
+end
+
+def app_version
+  tag = ENV["GITHUB_REF"]&.then { |r| r.sub(%r{^refs/tags/}, "") }
+  tag ||= `cd #{ROOT} && git describe --tags --exact-match 2>/dev/null`.strip
+  tag = tag.sub(/^v/, "")
+  return tag unless tag.empty?
+  yml = File.read(root_path("project.yml"))
+  yml[/MARKETING_VERSION:\s*(\S+)/, 1] || "0.0.0"
+end
+
+def is_prerelease?
+  app_version.match?(/alpha|beta|rc/i)
+end
+
+# ── Build ──
+lane :build do
+  run("xcodegen", "generate")
+
+  if File.exist?(root_path("Gemfile.lock"))
+    run("bundle", "exec", "pod", "install")
+  else
+    run("pod", "install")
+  end
+
+  if system("command -v swiftgen &>/dev/null")
+    run("swiftgen", "config", "run")
+  else
+    UI.important("SwiftGen not installed -- skipping")
+  end
+
+  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"] || "-"
+  signing_required = identity == "-" ? "NO" : "YES"
+  signing_allowed  = identity == "-" ? "NO" : "YES"
+
+  UI.header("Building #{PROJECT_NAME} (signing: #{identity == "-" ? "ad-hoc" : identity})")
+
+  run("set -o pipefail && xcodebuild build " \
+      "-workspace '#{WORKSPACE}' " \
+      "-scheme '#{SCHEME}' " \
+      "-configuration Release " \
+      "-destination 'platform=macOS,arch=arm64' " \
+      "CODE_SIGN_IDENTITY='#{identity}' " \
+      "CODE_SIGNING_REQUIRED=#{signing_required} " \
+      "CODE_SIGNING_ALLOWED=#{signing_allowed} " \
+      "ONLY_ACTIVE_ARCH=NO " \
+      "| xcpretty --color")
+
+  built_products_dir = FastlaneCore::CommandExecutor.execute(
+    command: "cd #{ROOT} && xcodebuild -workspace '#{WORKSPACE}' -scheme '#{SCHEME}' " \
+             "-configuration Release -destination 'platform=macOS,arch=arm64' " \
+             "-showBuildSettings 2>/dev/null | " \
+             "awk -F' = ' '/^[[:space:]]+BUILT_PRODUCTS_DIR/ {print $2; exit}'",
+    print_all: false,
+    print_command: false
+  ).strip
+
+  UI.important("BUILT_PRODUCTS_DIR: #{built_products_dir}")
+
+  build_dir = root_path("build")
+  FileUtils.mkdir_p(build_dir)
+  FileUtils.rm_rf(File.join(build_dir, APP_NAME))
+  run("ditto", "#{built_products_dir}/#{APP_NAME}", "build/#{APP_NAME}")
+
+  dsym_src = "#{built_products_dir}/#{APP_NAME}.dSYM"
+  if Dir.exist?(dsym_src)
+    FileUtils.rm_rf(File.join(build_dir, "#{APP_NAME}.dSYM"))
+    run("ditto", dsym_src, "build/#{APP_NAME}.dSYM")
+  end
+
+  UI.success("Build complete: build/#{APP_NAME}")
+end
+
+# ── Sign ──
+lane :sign do
+  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
+  UI.user_error!("Set CODE_SIGN_IDENTITY or DEVELOPER_ID_APPLICATION env var") if identity.nil? || identity.empty? || identity == "-"
+
+  app_path = root_path("build/#{APP_NAME}")
+  UI.user_error!("#{app_path} not found -- run `fastlane build` first") unless Dir.exist?(app_path)
+
+  UI.header("Signing with: #{identity}")
+
+  run("codesign", "--force", "--options", "runtime", "--timestamp",
+      "--sign", identity, "--entitlements", ENTITLEMENTS, "--deep",
+      "build/#{APP_NAME}")
+
+  run("codesign", "--verify", "--verbose", "build/#{APP_NAME}")
+  run("codesign", "-dvv", "build/#{APP_NAME}")
+  UI.success("Signed: #{app_path}")
+end
+
+# ── DMG ──
+lane :dmg do
+  app_path = root_path("build/#{APP_NAME}")
+  UI.user_error!("#{app_path} not found -- run `fastlane build` first") unless Dir.exist?(app_path)
+
+  version = app_version
+  dmg_name = "#{PROJECT_NAME}-#{version}.dmg"
+  artifacts_dir = root_path("release-artifacts")
+  FileUtils.mkdir_p(artifacts_dir)
+
+  UI.header("Packaging DMG: #{dmg_name}")
+
+  staging = "#{Dir.mktmpdir}/dmg-staging"
+  FileUtils.mkdir_p(staging)
+  run("cp", "-R", "build/#{APP_NAME}", "#{staging}/")
+  FileUtils.ln_s("/Applications", "#{staging}/Applications")
+
+  dmg_path = File.join(artifacts_dir, dmg_name)
+  run("hdiutil", "create", "-volname", "#{PROJECT_NAME} #{version}",
+      "-srcfolder", staging, "-ov", "-format", "UDZO", dmg_path)
+
+  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"] || "-"
+  run("codesign", "--force", "--sign", identity, dmg_path)
+  run("codesign", "--verify", "--verbose", dmg_path)
+
+  dsym = root_path("build/#{APP_NAME}.dSYM")
+  if Dir.exist?(dsym)
+    dsym_zip = File.join(artifacts_dir, "#{PROJECT_NAME}-#{version}.dSYM.zip")
+    run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", "build/#{APP_NAME}.dSYM", dsym_zip)
+    UI.success("dSYM packaged: #{dsym_zip}")
+  end
+
+  FileUtils.rm_rf(staging)
+  UI.success("DMG created: #{dmg_path}")
+end
+
+# ── Notarize ──
+lane :notarize_dmg do
+  apple_id_val   = ENV["APPLE_ID"]
+  apple_password = ENV["APPLE_APP_SPECIFIC_PASSWORD"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"]
+  team_id_val    = ENV["APPLE_TEAM_ID"]
+  [apple_id_val, apple_password, team_id_val].each { |v| UI.user_error!("Missing required env var") if v.nil? || v.empty? }
+
+  version  = app_version
+  dmg_name = "#{PROJECT_NAME}-#{version}.dmg"
+  dmg_path = root_path("release-artifacts/#{dmg_name}")
+  UI.user_error!("#{dmg_path} not found -- run `fastlane dmg` first") unless File.exist?(dmg_path)
+
+  UI.header("Submitting for notarization: #{dmg_name}")
+  run("xcrun", "notarytool", "submit", dmg_path,
+      "--apple-id", apple_id_val, "--password", apple_password,
+      "--team-id", team_id_val, "--wait")
+
+  UI.success("Notarization complete -- stapling...")
+  run("xcrun", "stapler", "staple", dmg_path)
+  run("xcrun", "stapler", "validate", dmg_path)
+  UI.success("Notarized & stapled: #{dmg_path}")
+end
+
+# ── Appcast ──
+lane :appcast do
+  ed_key = ENV["SPARKLE_ED_PRIVATE_KEY"]
+  UI.user_error!("Set SPARKLE_ED_PRIVATE_KEY env var") if ed_key.nil? || ed_key.empty?
+
+  sparkle_ver = "2.6.4"
+  sparkle_dir = root_path("sparkle-bin")
+  generate_appcast = "#{sparkle_dir}/bin/generate_appcast"
+
+  unless File.exist?(generate_appcast)
+    UI.header("Downloading Sparkle #{sparkle_ver}...")
+    FileUtils.mkdir_p(sparkle_dir)
+    run("curl", "-fsSL",
+        "https://github.com/sparkle-project/Sparkle/releases/download/#{sparkle_ver}/Sparkle-#{sparkle_ver}.tar.xz",
+        "-o", "sparkle-bin/sparkle.tar.xz")
+    run("tar", "xf", "sparkle-bin/sparkle.tar.xz", "-C", "sparkle-bin")
+    FileUtils.chmod("+x", generate_appcast)
+  end
+
+  key_file = root_path("sparkle_private.pem")
+  File.write(key_file, ed_key)
+
+  repo = ENV["GITHUB_REPOSITORY"] || "rickytan/SmartLLMRouter"
+  download_prefix = "https://github.com/#{repo}/releases/download/"
+
+  UI.header("Generating Appcast...")
+  run(generate_appcast, "--ed-key-file", "sparkle_private.pem",
+      "--download-url-prefix", download_prefix,
+      "--link", "https://github.com/#{repo}", "release-artifacts/")
+
+  FileUtils.rm_f(key_file)
+  UI.success("Appcast generated: release-artifacts/appcast.xml")
+end
+
+# ── Full Release ──
+lane :release do
+  build
+
+  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
+  if identity && identity != "-"
+    sign
+  else
+    UI.important("Skipping Developer ID sign (ad-hoc build)")
+  end
+
+  dmg
+
+  if identity && identity != "-"
+    notarize_dmg
+  else
+    UI.important("Skipping notarization (ad-hoc build)")
+  end
+
+  if is_prerelease?
+    UI.important("Skipping Appcast generation (prerelease: #{app_version})")
+  elsif identity && identity != "-"
+    appcast
+  end
+
+  UI.success("Release #{app_version} complete!")
+end
+
+# ── Dry-run (local testing) ──
+lane :release_test do
+  ENV["CODE_SIGN_IDENTITY"] ||= "-"
+  build
+  dmg
+  UI.success("Test DMG ready at release-artifacts/")
+end

@@ -1,0 +1,3 @@
+app_identifier("com.smartllmrouter.app")
+apple_id(ENV["APPLE_ID"] || "")
+team_id(ENV["APPLE_TEAM_ID"] || "")
