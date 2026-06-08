@@ -75,7 +75,10 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Install dependencies
+      - name: Install Ruby dependencies
+        run: bundle install
+
+      - name: Install CocoaPods dependencies
         run: bundle exec pod install
 
       - name: Run SwiftGen
