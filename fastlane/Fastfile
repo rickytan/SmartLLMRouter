@@ -58,27 +58,41 @@ lane :build do
     UI.important("SwiftGen not installed -- skipping")
   end
 
-  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"] || "-"
-  signing_required = identity == "-" ? "NO" : "YES"
-  signing_allowed  = identity == "-" ? "NO" : "YES"
-
-  UI.header("Building #{PROJECT_NAME} (signing: #{identity == "-" ? "ad-hoc" : identity})")
-
-  gym(
-    workspace: WORKSPACE,
-    scheme: SCHEME,
-    configuration: "Release",
-    destination: "platform=macOS,arch=arm64",
-    skip_package_ipa: true,
-    skip_archive: true,
-    skip_codesigning: identity == "-",
-    xcargs: "CODE_SIGN_IDENTITY='#{identity}' " \
-            "CODE_SIGNING_REQUIRED=#{signing_required} " \
-            "CODE_SIGNING_ALLOWED=#{signing_allowed} " \
-            "ONLY_ACTIVE_ARCH=NO",
-    output_directory: "build",
-    silent: false
-  )
+  # match fetches Developer ID cert from git repo (if configured)
+  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
+  if identity && identity != "-"
+    match(type: "developer_id", app_identifier: "com.smartllmrouter.app", readonly: true)
+    UI.header("Building #{PROJECT_NAME} (signing: #{identity})")
+    gym(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      configuration: "Release",
+      destination: "platform=macOS,arch=arm64",
+      skip_package_ipa: true,
+      skip_archive: true,
+      export_method: "developer-id",
+      xcargs: "ONLY_ACTIVE_ARCH=NO",
+      output_directory: "build",
+      silent: false
+    )
+  else
+    UI.header("Building #{PROJECT_NAME} (signing: ad-hoc)")
+    gym(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      configuration: "Release",
+      destination: "platform=macOS,arch=arm64",
+      skip_package_ipa: true,
+      skip_archive: true,
+      skip_codesigning: true,
+      xcargs: "CODE_SIGN_IDENTITY='-' " \
+              "CODE_SIGNING_REQUIRED=NO " \
+              "CODE_SIGNING_ALLOWED=NO " \
+              "ONLY_ACTIVE_ARCH=NO",
+      output_directory: "build",
+      silent: false
+    )
+  end
 
   built_products_dir = FastlaneCore::CommandExecutor.execute(
     command: "cd #{ROOT} && xcodebuild -workspace '#{WORKSPACE}' -scheme '#{SCHEME}' " \
@@ -103,25 +117,6 @@ lane :build do
   end
 
   UI.success("Build complete: build/#{APP_NAME}")
-end
-
-# ── Sign ──
-lane :sign do
-  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
-  UI.user_error!("Set CODE_SIGN_IDENTITY or DEVELOPER_ID_APPLICATION env var") if identity.nil? || identity.empty? || identity == "-"
-
-  app_path = root_path("build/#{APP_NAME}")
-  UI.user_error!("#{app_path} not found -- run `fastlane build` first") unless Dir.exist?(app_path)
-
-  UI.header("Signing with: #{identity}")
-
-  run("codesign", "--force", "--options", "runtime", "--timestamp",
-      "--sign", identity, "--entitlements", ENTITLEMENTS, "--deep",
-      "build/#{APP_NAME}")
-
-  run("codesign", "--verify", "--verbose", "build/#{APP_NAME}")
-  run("codesign", "-dvv", "build/#{APP_NAME}")
-  UI.success("Signed: #{app_path}")
 end
 
 # ── DMG ──
@@ -219,14 +214,14 @@ end
 
 # ── Full Release ──
 lane :release do
-  build
-
   identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
+
   if identity && identity != "-"
-    sign
-  else
-    UI.important("Skipping Developer ID sign (ad-hoc build)")
+    # match fetches Developer ID cert from git repo
+    match(type: "developer_id", app_identifier: "com.smartllmrouter.app", readonly: true)
   end
+
+  build
 
   dmg
 
