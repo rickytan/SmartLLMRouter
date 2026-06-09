@@ -1,0 +1,4 @@
+git_url("git@github.com:QRCodeSnap/Certificates.git")
+storage_mode("git")
+type("developer_id")
+app_identifier("com.smartllmrouter.app")

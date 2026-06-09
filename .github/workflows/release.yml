@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # required by softprops/action-gh-release to create the Release
+  contents: write  # required by softprops/action-gh-release
 
 env:
   PROJECT_NAME: SmartLLMRouter
@@ -21,17 +21,8 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
-  # Path filter: decide if code actually changed
+  # Path filter: detect code vs docs-only changes
   # ─────────────────────────────────────────────
-  # Docs-only PRs (README, *.md, LICENSE, .gitignore) should NOT pay for a
-  # full Xcode build. But the branch protection rule requires a "Build & Test"
-  # check to exist on every PR. We solve this by:
-  #   1. Always running the lightweight `ci` umbrella job (publishes
-  #      "Build & Test" status) — required check is always reported.
-  #   2. Conditionally running the heavy `build-test` job only when code
-  #      paths changed.
-  #   3. Umbrella job inspects build-test's result: success/skipped → green,
-  #      failure/cancelled → red.
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
@@ -43,8 +34,6 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # 'code' is true if any file matching these patterns changed.
-          # Docs-only PRs (no Swift/yml/Pods change) skip the heavy job.
           filters: |
             code:
               - 'Sources/**'
@@ -58,13 +47,14 @@ jobs:
               - 'Gemfile.lock'
               - 'swiftgen.yml'
               - '.github/workflows/**'
+              - 'fastlane/**'
+              - 'scripts/**'
               - '**/*.swift'
               - '**/*.entitlements'
               - '**/*.xcassets/**'
 
   # ─────────────────────────────────────────────
-  # Heavy job: real Xcode build + unit tests
-  # Runs only when code (not just docs) changed.
+  # CI: Xcode build + unit tests
   # ─────────────────────────────────────────────
   build-test:
     name: Xcode Build & Test
@@ -85,7 +75,10 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Install dependencies
+      - name: Install Ruby dependencies
+        run: bundle install
+
+      - name: Install CocoaPods dependencies
         run: bundle exec pod install
 
       - name: Run SwiftGen
@@ -125,10 +118,7 @@ jobs:
             | xcpretty --color
 
   # ─────────────────────────────────────────────
-  # Umbrella job: name MUST equal the branch-protection required check.
-  # Always runs (so the status is always reported), but mirrors build-test's
-  # outcome. Docs-only PRs → build-test is skipped → umbrella passes
-  # immediately with no macOS runner cost.
+  # Umbrella job: satisfies branch protection
   # ─────────────────────────────────────────────
   ci:
     name: Build & Test
@@ -138,12 +128,7 @@ jobs:
     steps:
       - name: Report status
         run: |
-          CHANGES_RESULT="${{ needs.changes.result }}"
           BUILD_RESULT="${{ needs.build-test.result }}"
-          echo "changes job: $CHANGES_RESULT"
-          echo "build-test job: $BUILD_RESULT"
-          # Pass if build-test succeeded OR was skipped (docs-only).
-          # Fail on actual failure or cancellation.
           if [[ "$BUILD_RESULT" == "success" || "$BUILD_RESULT" == "skipped" ]]; then
             if [[ "$BUILD_RESULT" == "skipped" ]]; then
               echo "✅ Docs-only change — skipping Xcode build."
@@ -156,17 +141,13 @@ jobs:
           exit 1
 
   # ─────────────────────────────────────────────
-  # Release: Ad-hoc Sign, Package DMG, Publish
+  # Release: fastlane build → sign → dmg → notarize → release
   # ─────────────────────────────────────────────
   release:
     name: Release
     runs-on: macos-15
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [] # Independent; can run without CI job
-
-    env:
-      APP_NAME: SmartLLMRouter.app
-      OUTPUT_DIR: release-artifacts
+    needs: []
 
     steps:
       - name: Checkout
@@ -178,124 +159,34 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # ── Build ──
-      - name: Generate project
-        run: xcodegen generate
+      - name: Setup Ruby (bundler)
+        run: bundle install
 
-      - name: Install dependencies
-        run: bundle exec pod install
+      # ── SSH key for match (accesses private Certificates repo) ──
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
 
-      - name: Run SwiftGen
-        run: |
-          if command -v swiftgen &>/dev/null; then
-            swiftgen config run
-          else
-            echo "warning: SwiftGen not installed, skipping"
-          fi
+      # ── fastlane release pipeline (match fetches certs via SSH) ──
+      - name: Build, Sign, DMG, Notarize
+        env:
+          CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY_NAME }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane release
 
-      - name: Build Release (ad-hoc signed)
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
-            -scheme "${{ env.SCHEME }}" \
-            -configuration Release \
-            -destination "platform=macOS,arch=arm64" \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGNING_ALLOWED=YES \
-            ONLY_ACTIVE_ARCH=NO \
-            | xcpretty --color
-
-      - name: Locate and stage built .app
-        run: |
-          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
-          mkdir -p "$BUILD_PATH"
-          # Ask xcodebuild where it actually put the products (DerivedData)
-          BUILT_PRODUCTS_DIR=$(xcodebuild \
-            -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
-            -scheme "${{ env.SCHEME }}" \
-            -configuration Release \
-            -destination "platform=macOS,arch=arm64" \
-            -showBuildSettings 2>/dev/null \
-            | awk -F' = ' '/^[[:space:]]+BUILT_PRODUCTS_DIR/ {print $2; exit}')
-          echo "BUILT_PRODUCTS_DIR=$BUILT_PRODUCTS_DIR"
-          SRC_APP="$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}"
-          if [ ! -d "$SRC_APP" ]; then
-            echo "::error::App not found at $SRC_APP"
-            ls -la "$BUILT_PRODUCTS_DIR" || true
-            exit 1
-          fi
-          rm -rf "$BUILD_PATH/${{ env.APP_NAME }}"
-          ditto "$SRC_APP" "$BUILD_PATH/${{ env.APP_NAME }}"
-          # Also copy dSYM if present (preserve bundle structure)
-          if [ -d "$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}.dSYM" ]; then
-            rm -rf "$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
-            ditto "$BUILT_PRODUCTS_DIR/${{ env.APP_NAME }}.dSYM" "$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
-          fi
-          ls -la "$BUILD_PATH"
-
-      - name: Verify ad-hoc signature
-        run: |
-          APP_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}/${{ env.APP_NAME }}"
-          codesign --verify --verbose "$APP_PATH"
-          codesign -dvv "$APP_PATH" 2>&1 | head -20
-
-      # ── Package DMG ──
+      # ── Determine version for release naming ──
       - name: Determine version
         id: version
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          # Strip leading "v" if present (v1.0.0-alpha -> 1.0.0-alpha)
           VERSION="${TAG#v}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building release for tag=$TAG version=$VERSION"
 
-      - name: Create DMG
-        run: |
-          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
-          OUTPUT_PATH="$GITHUB_WORKSPACE/${{ env.OUTPUT_DIR }}"
-          mkdir -p "$OUTPUT_PATH"
-          APP_PATH="$BUILD_PATH/${{ env.APP_NAME }}"
-          DMG_NAME="SmartLLMRouter-${{ steps.version.outputs.version }}.dmg"
-          DMG_PATH="$OUTPUT_PATH/$DMG_NAME"
-
-          # Stage the .app + an Applications symlink in a temp folder
-          STAGING_DIR="$(mktemp -d)/dmg-staging"
-          mkdir -p "$STAGING_DIR"
-          cp -R "$APP_PATH" "$STAGING_DIR/"
-          ln -s /Applications "$STAGING_DIR/Applications"
-
-          # Build a compressed DMG (UDZO = zlib-compressed, standard for distribution)
-          hdiutil create \
-            -volname "SmartLLMRouter ${{ steps.version.outputs.version }}" \
-            -srcfolder "$STAGING_DIR" \
-            -ov \
-            -format UDZO \
-            "$DMG_PATH"
-
-          # Ad-hoc sign the DMG too so codesign --verify passes on the container
-          codesign --force --sign - "$DMG_PATH"
-          codesign --verify --verbose "$DMG_PATH"
-
-          ls -lh "$OUTPUT_PATH/"
-          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
-
-      - name: Copy dSYM (if present)
-        run: |
-          BUILD_PATH="$GITHUB_WORKSPACE/${{ env.BUILD_DIR }}"
-          OUTPUT_PATH="$GITHUB_WORKSPACE/${{ env.OUTPUT_DIR }}"
-          DSYM_PATH="$BUILD_PATH/${{ env.APP_NAME }}.dSYM"
-          if [ -d "$DSYM_PATH" ]; then
-            DSYM_ZIP="$OUTPUT_PATH/SmartLLMRouter-${{ steps.version.outputs.version }}.dSYM.zip"
-            ditto -c -k --sequesterRsrc --keepParent "$DSYM_PATH" "$DSYM_ZIP"
-            echo "Packaged dSYM at $DSYM_ZIP"
-          else
-            echo "No dSYM produced — skipping"
-          fi
-
-      # ── Deploy ──
       - name: Determine prerelease flag
         id: prerelease
         run: |
@@ -306,26 +197,28 @@ jobs:
             echo "value=false" >> $GITHUB_OUTPUT
           fi
 
+      # ── Generate release notes (exclude docs/CI commits) ──
+      - name: Generate release notes
+        id: notes
+        run: bash scripts/generate-release-notes.sh >> $GITHUB_OUTPUT
+
+      # ── GitHub Release ──
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.OUTPUT_DIR }}/*.dmg
-            ${{ env.OUTPUT_DIR }}/*.dSYM.zip
-          generate_release_notes: true
+            release-artifacts/*.dmg
+            release-artifacts/*.dSYM.zip
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: ${{ steps.prerelease.outputs.value }}
-          body: |
-            ## SmartLLMRouter ${{ steps.version.outputs.version }}
 
-            **Ad-hoc signed build.** First time opening on a new Mac, macOS Gatekeeper will block it.
-            Right-click the app → **Open** → **Open** to bypass, or run:
-
-            ```
-            xattr -cr /Applications/SmartLLMRouter.app
-            ```
-
-            ### Install
-            1. Download `SmartLLMRouter-${{ steps.version.outputs.version }}.dmg`
-            2. Open the DMG and drag the app into **Applications**
-            3. First launch: right-click → Open (Gatekeeper bypass)
+      # ── Deploy Appcast to GitHub Pages (stable releases only) ──
+      - name: Deploy Appcast to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: release-artifacts
+          keep_files: false
+          force_orphan: true
+        if: ${{ steps.prerelease.outputs.value == 'false' }}

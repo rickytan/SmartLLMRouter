@@ -53,3 +53,12 @@ Resources/specs/*.ts
 .hermes/
 Gemfile.lock
 Podfile.lock
+
+# fastlane
+fastlane/report.xml
+fastlane/README.md
+
+# Release artifacts
+release-artifacts/
+sparkle-bin/
+sparkle_private.pem
