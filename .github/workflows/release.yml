@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # required by softprops/action-gh-release
+  contents: write
 
 env:
   PROJECT_NAME: SmartLLMRouter
@@ -20,9 +20,6 @@ env:
   BUILD_DIR: build
 
 jobs:
-  # ─────────────────────────────────────────────
-  # Path filter: detect code vs docs-only changes
-  # ─────────────────────────────────────────────
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
@@ -53,9 +50,6 @@ jobs:
               - '**/*.entitlements'
               - '**/*.xcassets/**'
 
-  # ─────────────────────────────────────────────
-  # CI: Xcode build + unit tests
-  # ─────────────────────────────────────────────
   build-test:
     name: Xcode Build & Test
     needs: changes
@@ -117,9 +111,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty --color
 
-  # ─────────────────────────────────────────────
-  # Umbrella job: satisfies branch protection
-  # ─────────────────────────────────────────────
   ci:
     name: Build & Test
     needs: [changes, build-test]
@@ -131,18 +122,15 @@ jobs:
           BUILD_RESULT="${{ needs.build-test.result }}"
           if [[ "$BUILD_RESULT" == "success" || "$BUILD_RESULT" == "skipped" ]]; then
             if [[ "$BUILD_RESULT" == "skipped" ]]; then
-              echo "✅ Docs-only change — skipping Xcode build."
+              echo "Docs-only change, skipping Xcode build."
             else
-              echo "✅ Build & tests passed."
+              echo "Build & tests passed."
             fi
             exit 0
           fi
           echo "::error::Xcode Build & Test job concluded with: $BUILD_RESULT"
           exit 1
 
-  # ─────────────────────────────────────────────
-  # Release: fastlane build → sign → dmg → notarize → release
-  # ─────────────────────────────────────────────
   release:
     name: Release
     runs-on: macos-15
@@ -159,15 +147,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Setup Ruby (bundler)
+      - name: Setup Ruby
         run: bundle install
 
-      # ── SSH key for match (accesses private Certificates repo) ──
-      - uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
-
-      # ── fastlane release pipeline (match fetches certs via SSH) ──
       - name: Build, Sign, DMG, Notarize
         env:
           CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY_NAME }}
@@ -176,9 +158,11 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-        run: bundle exec fastlane release
+        run: |
+          MATCH_GIT_BASIC_AUTHORIZATION=$(echo -n "x-access-token:${{ secrets.GITHUB_TOKEN }}" | base64)
+          export MATCH_GIT_BASIC_AUTHORIZATION
+          bundle exec fastlane release
 
-      # ── Determine version for release naming ──
       - name: Determine version
         id: version
         run: |
@@ -197,12 +181,10 @@ jobs:
             echo "value=false" >> $GITHUB_OUTPUT
           fi
 
-      # ── Generate release notes (exclude docs/CI commits) ──
       - name: Generate release notes
         id: notes
         run: bash scripts/generate-release-notes.sh >> $GITHUB_OUTPUT
 
-      # ── GitHub Release ──
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -213,7 +195,6 @@ jobs:
           draft: false
           prerelease: ${{ steps.prerelease.outputs.value }}
 
-      # ── Deploy Appcast to GitHub Pages (stable releases only) ──
       - name: Deploy Appcast to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

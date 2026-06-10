@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="nodeGreen" cx="0.35" cy="0.3" r="0.65">
+      <stop offset="0%" stop-color="#5EFF7E"/>
+      <stop offset="100%" stop-color="#34C759"/>
+    </radialGradient>
+    <radialGradient id="nodeYellow" cx="0.35" cy="0.3" r="0.65">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FF9500"/>
+    </radialGradient>
+    <radialGradient id="nodeRed" cx="0.35" cy="0.3" r="0.65">
+      <stop offset="0%" stop-color="#FF6B6B"/>
+      <stop offset="100%" stop-color="#FF3B30"/>
+    </radialGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="bigGlow" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur stdDeviation="35" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="roundedClip">
+      <rect width="1024" height="1024" rx="224"/>
+    </clipPath>
+  </defs>
+
+  <!-- Transparent background, white rounded rect -->
+  <rect width="1024" height="1024" rx="224" fill="#FFFFFF"/>
+
+  <!-- Content clipped to rounded rect -->
+  <g clip-path="url(#roundedClip)">
+
+  <!-- 30° clockwise rotation, centroid = (512, 512) -->
+  <!-- Green: (599, 284) — top-right -->
+  <!-- Red:   (709, 604) — right-bottom -->
+  <!-- Yellow:(229, 648) — left-bottom -->
+
+  <!-- Connecting lines: accent blue #007AFF, 20px thick -->
+  <!-- Yellow → Green -->
+  <line x1="229" y1="648" x2="599" y2="284" stroke="#007AFF" stroke-width="20" opacity="0.45" stroke-linecap="round"/>
+  <!-- Green → Red -->
+  <line x1="599" y1="284" x2="709" y2="604" stroke="#007AFF" stroke-width="20" opacity="0.45" stroke-linecap="round"/>
+  <!-- Red → Yellow -->
+  <line x1="709" y1="604" x2="229" y2="648" stroke="#007AFF" stroke-width="20" opacity="0.45" stroke-linecap="round"/>
+
+  <!-- Data packets -->
+  <!-- Yellow → Green -->
+  <circle r="8" fill="#007AFF" opacity="0.8">
+    <animateMotion dur="2.5s" repeatCount="indefinite" path="M229,648 L599,284"/>
+    <animate attributeName="opacity" values="0.8;0.8;0" dur="2.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- Green → Red -->
+  <circle r="8" fill="#007AFF" opacity="0.8">
+    <animateMotion dur="3s" repeatCount="indefinite" path="M599,284 L709,604"/>
+    <animate attributeName="opacity" values="0.8;0.8;0" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <!-- Red → Yellow -->
+  <circle r="8" fill="#007AFF" opacity="0.8">
+    <animateMotion dur="2.8s" repeatCount="indefinite" path="M709,604 L229,648"/>
+    <animate attributeName="opacity" values="0.8;0.8;0" dur="2.8s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Node 1: left-bottom (yellow) -->
+  <g transform="translate(229, 648)">
+    <circle cx="0" cy="0" r="85" fill="#FF9500" opacity="0.06" filter="url(#bigGlow)"/>
+    <circle cx="0" cy="0" r="55" fill="url(#nodeYellow)" filter="url(#glow)"/>
+    <circle cx="0" cy="0" r="55" fill="none" stroke="#FF9500" stroke-width="2.5" opacity="0.4"/>
+    <circle cx="0" cy="0" r="16" fill="#FFFFFF" opacity="0.3"/>
+  </g>
+
+  <!-- Node 2: top-right (green) -->
+  <g transform="translate(599, 284)">
+    <circle cx="0" cy="0" r="85" fill="#34C759" opacity="0.06" filter="url(#bigGlow)"/>
+    <circle cx="0" cy="0" r="55" fill="url(#nodeGreen)" filter="url(#glow)"/>
+    <circle cx="0" cy="0" r="55" fill="none" stroke="#34C759" stroke-width="2.5" opacity="0.4"/>
+    <circle cx="0" cy="0" r="16" fill="#FFFFFF" opacity="0.3"/>
+  </g>
+
+  <!-- Node 3: right-bottom (red) -->
+  <g transform="translate(709, 604)">
+    <circle cx="0" cy="0" r="85" fill="#FF3B30" opacity="0.06" filter="url(#bigGlow)"/>
+    <circle cx="0" cy="0" r="55" fill="url(#nodeRed)" filter="url(#glow)"/>
+    <circle cx="0" cy="0" r="55" fill="none" stroke="#FF3B30" stroke-width="2.5" opacity="0.4"/>
+    <circle cx="0" cy="0" r="16" fill="#FFFFFF" opacity="0.3"/>
+  </g>
+
+  </g>
+
+  <!-- Border -->
+  <rect width="1024" height="1024" rx="224" fill="none" stroke="#007AFF" stroke-width="2" opacity="0.15"/>
+</svg>
