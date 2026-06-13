@@ -7,11 +7,20 @@ import SwiftUI
 struct ChannelRowView: View {
     let channelID: String
     let index: Int
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var channelManager: ChannelManager
     @State private var isHovered = false
     @State private var isTesting = false
     @State private var showingEditSheet = false
+
+    @MainActor
+    init(channelID: String, index: Int, services: AppServices? = nil) {
+        let services = services ?? .shared
+        self.channelID = channelID
+        self.index = index
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
+    }
 
     /// Live channel data from store (always up-to-date)
     private var channel: Channel {
@@ -108,7 +117,7 @@ struct ChannelRowView: View {
                     tooltip: L10n.Settings.channelsDelete,
                     color: DesignToken.Colors.destructive
                 ) {
-                    ChannelStore.shared.removeChannel(id: channelID)
+                    channelStore.removeChannel(id: channelID)
                 }
                 .accessibilityIdentifier("settings.channels.row.deleteButton")
             }

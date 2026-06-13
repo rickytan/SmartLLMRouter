@@ -4,8 +4,8 @@ import SwiftUI
 
 struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var channelManager: ChannelManager
 
     let editingChannel: Channel?
 
@@ -33,8 +33,12 @@ struct AddChannelView: View {
     // Search (for provider picker)
     @State private var searchQuery: String = ""
 
-    init(editingChannel: Channel? = nil) {
+    @MainActor
+    init(editingChannel: Channel? = nil, services: AppServices? = nil) {
+        let services = services ?? .shared
         self.editingChannel = editingChannel
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
     }
 
     var body: some View {

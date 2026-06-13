@@ -5,11 +5,19 @@ import Sparkle
 // MARK: - SettingsView
 
 struct SettingsView: View {
-    @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var usage = UsageTracker.shared
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var usage: UsageTracker
     @State private var selectedTab = 0
     @State private var showingAddChannel = false
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _appState = ObservedObject(wrappedValue: services.appState)
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _usage = ObservedObject(wrappedValue: services.usageTracker)
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -55,10 +63,19 @@ struct SettingsView: View {
 // MARK: - General Tab
 
 struct GeneralSettingsTab: View {
-    @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var proxy = ProxyServer.shared
-    @ObservedObject private var shellConfig = ShellConfigManager.shared
-    @ObservedObject private var claudeCode = ClaudeCodeConfigManager.shared
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var proxy: ProxyServer
+    @ObservedObject private var shellConfig: ShellConfigManager
+    @ObservedObject private var claudeCode: ClaudeCodeConfigManager
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _appState = ObservedObject(wrappedValue: services.appState)
+        _proxy = ObservedObject(wrappedValue: services.proxyServer)
+        _shellConfig = ObservedObject(wrappedValue: services.shellConfigManager)
+        _claudeCode = ObservedObject(wrappedValue: services.claudeCodeConfigManager)
+    }
 
     var body: some View {
         ScrollView {
@@ -237,11 +254,20 @@ struct GeneralSettingsTab: View {
 // MARK: - Channels Tab
 
 struct ChannelsTab: View {
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var channelManager: ChannelManager
+    private let channelExportService: ChannelExportService
     @State private var showingAddChannel = false
     @State private var showingConfigImporter = false
     @State private var isTestingAll = false
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        channelExportService = services.channelExportService
+    }
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
@@ -303,7 +329,7 @@ struct ChannelsTab: View {
                     tooltip: L10n.ChannelExport.exportChannels,
                     isDisabled: channelStore.channels.isEmpty
                 ) {
-                    ChannelExportService.shared.showExportOptions(channels: channelStore.channels)
+                    channelExportService.showExportOptions(channels: channelStore.channels)
                 }
                 .help(L10n.ChannelExport.exportChannels)
                 .accessibilityIdentifier("settings.channels.exportChannels")
@@ -312,7 +338,7 @@ struct ChannelsTab: View {
                     icon: "square.and.arrow.down",
                     tooltip: L10n.ChannelExport.importChannels
                 ) {
-                    ChannelExportService.shared.importChannelsWithPanel()
+                    channelExportService.importChannelsWithPanel()
                 }
                 .help(L10n.ChannelExport.importChannels)
                 .accessibilityIdentifier("settings.channels.importChannels")
@@ -339,10 +365,21 @@ struct ChannelsTab: View {
 // MARK: - Advanced Tab
 
 struct AdvancedTab: View {
-    @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var channelStore = ChannelStore.shared
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var smartRouter: SmartRouter
+    private let circuitBreaker: CircuitBreaker
     @State private var circuitStates: [String: CircuitState] = [:]
     @State private var refreshTimer: Timer?
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _appState = ObservedObject(wrappedValue: services.appState)
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _smartRouter = ObservedObject(wrappedValue: services.smartRouter)
+        circuitBreaker = services.circuitBreaker
+    }
 
     var body: some View {
         ScrollView {
@@ -410,8 +447,8 @@ struct AdvancedTab: View {
             ToggleRow(
                 L10n.Settings.advancedSmartFallback,
                 isOn: Binding(
-                    get: { SmartRouter.shared.smartFallbackEnabled },
-                    set: { SmartRouter.shared.smartFallbackEnabled = $0; SmartRouter.shared.saveSettings() }
+                    get: { smartRouter.smartFallbackEnabled },
+                    set: { smartRouter.smartFallbackEnabled = $0; smartRouter.saveSettings() }
                 )
             )
             .accessibilityIdentifier("settings.advanced.smartFallback")
@@ -426,8 +463,8 @@ struct AdvancedTab: View {
                 placeholder: "$2.00",
                 hint: L10n.Settings.advancedMaxFallbackCostHint,
                 value: Binding(
-                    get: { SmartRouter.shared.maxFallbackCost },
-                    set: { SmartRouter.shared.maxFallbackCost = $0; SmartRouter.shared.saveSettings() }
+                    get: { smartRouter.maxFallbackCost },
+                    set: { smartRouter.maxFallbackCost = $0; smartRouter.saveSettings() }
                 ),
                 accessibilityID: "settings.advanced.maxFallbackCost"
             )
@@ -558,12 +595,12 @@ struct AdvancedTab: View {
     }
 
     private func refreshCircuitStates() {
-        circuitStates = CircuitBreaker.shared.allStates()
+        circuitStates = circuitBreaker.allStates()
     }
 
     private func resetAllCircuits() {
         for channel in channelStore.channels {
-            CircuitBreaker.shared.reset(channelID: channel.id)
+            circuitBreaker.reset(channelID: channel.id)
         }
         refreshCircuitStates()
     }
@@ -606,8 +643,15 @@ extension Color {
 // MARK: - Usage Tab
 
 struct UsageTab: View {
-    @ObservedObject private var usage = UsageTracker.shared
-    @ObservedObject private var channelStore = ChannelStore.shared
+    @ObservedObject private var usage: UsageTracker
+    @ObservedObject private var channelStore: ChannelStore
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _usage = ObservedObject(wrappedValue: services.usageTracker)
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+    }
 
     var body: some View {
         ScrollView {

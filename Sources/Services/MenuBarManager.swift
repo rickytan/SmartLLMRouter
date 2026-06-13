@@ -29,7 +29,7 @@ final class MenuBarManager: NSObject {
         popover.animates = true
 
         // Create hosting view with MenuView
-        popoverHostingView = NSHostingView(rootView: MenuView())
+        popoverHostingView = NSHostingView(rootView: MenuView(services: AppServices.shared))
         popover.contentViewController = NSViewController()
         popover.contentViewController?.view = popoverHostingView
     }
@@ -55,7 +55,7 @@ final class MenuBarManager: NSObject {
 
     /// Refresh the popover content (called when state changes)
     func refreshPopoverContent() {
-        popoverHostingView = NSHostingView(rootView: MenuView())
+        popoverHostingView = NSHostingView(rootView: MenuView(services: AppServices.shared))
         popover.contentViewController?.view = popoverHostingView
     }
 
