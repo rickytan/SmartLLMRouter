@@ -10,7 +10,7 @@ final class ProxyServer: ObservableObject {
     @Published var port: Int = 1897
     @Published var lastError: String?
 
-    private let upstreamTimeout: TimeInterval = 3
+    private let upstreamTimeout: TimeInterval = 120
     private var _requestCount: Int64 = 0
     private let requestCountLock = NSLock()
 
