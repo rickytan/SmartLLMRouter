@@ -12,6 +12,7 @@ final class AppServices {
     let appState: AppState
     let proxyServer: ProxyServer
     let channelServices: ChannelServices
+    let routerServices: RouterServices
     let channelStore: ChannelStore
     let channelManager: ChannelManager
     let modelSwitcher: ModelSwitcher
@@ -27,6 +28,7 @@ final class AppServices {
         appState = .shared
         proxyServer = .shared
         channelServices = .shared
+        routerServices = .shared
         channelStore = .shared
         channelManager = .shared
         modelSwitcher = .shared

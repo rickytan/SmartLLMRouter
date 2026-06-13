@@ -137,9 +137,15 @@ final class RouterRuntimeState {
     private var requestToChannel: [String: String] = [:]
     private var channels: [Channel] = []
     private var activeChannelID: String?
-    private let circuitBreaker = CircuitBreaker.shared
+    private let circuitBreaker: CircuitBreaker
+    private let switchLock: SwitchLock
 
-    private init() {
+    private init(
+        circuitBreaker: CircuitBreaker = .shared,
+        switchLock: SwitchLock = .shared
+    ) {
+        self.circuitBreaker = circuitBreaker
+        self.switchLock = switchLock
         let defaults = UserDefaults.standard
         mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
         let savedMaxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
@@ -262,7 +268,7 @@ final class RouterRuntimeState {
 
         let previousChannelID = requestToChannel[requestID]
         if let previousChannelID {
-            _ = SwitchLock.shared.execute {
+            _ = switchLock.execute {
                 self.circuitBreaker.recordFailure(channelID: previousChannelID)
             }
         }
@@ -469,8 +475,10 @@ final class SmartRouter: ObservableObject {
     private var retryCounter: [String: Int] = [:]
     private var requestToChannel: [String: String] = [:]
 
+    private let services = RouterServices.shared
+
     /// Circuit breaker instance (replaces CooldownEngine)
-    private var circuitBreaker: CircuitBreaker { CircuitBreaker.shared }
+    private var circuitBreaker: CircuitBreaker { services.circuitBreaker }
 
     private init() {
         loadSettings()
@@ -511,7 +519,7 @@ final class SmartRouter: ObservableObject {
     }
 
     private func syncRuntimeSettings() {
-        RouterRuntimeState.shared.updateSettings(
+        services.runtimeState.updateSettings(
             mode: mode,
             maxRetries: maxRetries,
             smartFallbackEnabled: smartFallbackEnabled,
@@ -523,7 +531,7 @@ final class SmartRouter: ObservableObject {
 
     /// Select the best available channel for a request
     func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = services.channelServices.enabledChannels
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
 
@@ -608,7 +616,7 @@ final class SmartRouter: ObservableObject {
         let previousChannelID = requestToChannel[requestID]
 
         // Use SwitchLock to prevent race conditions in state changes
-        SwitchLock.shared.execute {
+        services.switchLock.execute {
             if let prevID = previousChannelID {
                 self.circuitBreaker.recordFailure(channelID: prevID)
             }
@@ -616,7 +624,7 @@ final class SmartRouter: ObservableObject {
 
         retryCounter[requestID] = currentRetryCount + 1
 
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = services.channelServices.enabledChannels
 
         let sortedChannels = channels.sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
@@ -771,7 +779,7 @@ final class SmartRouter: ObservableObject {
         apiProtocol: RequestForwarder.RequestProtocol,
         excludedChannelID: String?
     ) -> FallbackDecision? {
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = services.channelServices.enabledChannels
 
         // 1. Get all channels NOT in circuit open state and NOT the excluded channel
         let availableChannels = channels.filter { channel in
@@ -878,7 +886,7 @@ final class SmartRouter: ObservableObject {
     /// Estimate tokens based on original model's context length (fallback guess)
     private func estimateTokensFromModel(_ modelName: String?) -> Int? {
         guard let modelName else { return nil }
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = services.channelServices.enabledChannels
         for channel in channels {
             for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
                 if let contextLength = model.contextLength {

@@ -5,6 +5,7 @@ import Swifter
 final class ProxyServer: ObservableObject {
     static let shared = ProxyServer()
     private let httpServer = HttpServer()
+    private let services = RouterServices.shared
 
     @Published var isRunning: Bool = false
     @Published var port: Int = 1897
@@ -185,15 +186,15 @@ final class ProxyServer: ObservableObject {
         reqIdString: String
     ) -> RequestState? {
         let modelName = extractModelName(from: bodyData)
-        let override = ModelOverrideRuntimeState.shared.snapshot()
+        let override = services.modelOverrideState.snapshot()
         let routingModelName = override.selectedModelID ?? modelName
-        guard let decision = RouterRuntimeState.shared.selectChannel(
+        guard let decision = services.runtimeState.selectChannel(
             requestID: reqIdString,
             modelName: routingModelName
         ) else {
             return nil
         }
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: decision.channel.id),
+        guard let apiKey = services.channelServices.apiKey(for: decision.channel.id),
               !apiKey.isEmpty
         else {
             return nil
@@ -206,11 +207,11 @@ final class ProxyServer: ObservableObject {
     }
 
     private func readModelOverride() -> (hasOverride: Bool, selectedModelID: String?) {
-        ModelOverrideRuntimeState.shared.snapshot()
+        services.modelOverrideState.snapshot()
     }
 
     private func routerRecordSuccess(channelID: String) {
-        RouterRuntimeState.shared.recordSuccess(channelID: channelID)
+        services.runtimeState.recordSuccess(channelID: channelID)
     }
 
     private func routerHandleError(
@@ -220,7 +221,7 @@ final class ProxyServer: ObservableObject {
         errorBody: Data? = nil,
         requestProtocol: RequestForwarder.RequestProtocol? = nil
     ) -> RoutingDecision? {
-        RouterRuntimeState.shared.handleError(
+        services.runtimeState.handleError(
             requestID: requestID,
             statusCode: statusCode,
             modelName: modelName,
@@ -230,7 +231,7 @@ final class ProxyServer: ObservableObject {
     }
 
     private func routerCompleteRequest(requestID: String) {
-        RouterRuntimeState.shared.completeRequest(requestID: requestID)
+        services.runtimeState.completeRequest(requestID: requestID)
     }
 
     private func upstreamProtocol(
@@ -447,7 +448,7 @@ final class ProxyServer: ObservableObject {
 
             // Record usage
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: modelName ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -496,7 +497,7 @@ final class ProxyServer: ObservableObject {
                 )
             }
 
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: modelName ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: 0, outputTokens: 0, estimatedCost: 0,
@@ -522,7 +523,7 @@ final class ProxyServer: ObservableObject {
         let reqIdString = "req-\(reqId)"
         let channel = routingDecision.channel
 
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = services.channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             routerCompleteRequest(requestID: reqIdString)
@@ -647,7 +648,7 @@ final class ProxyServer: ObservableObject {
 
             // Record usage for retry channel
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: extractModelName(from: bodyData) ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -914,7 +915,7 @@ final class ProxyServer: ObservableObject {
             }
 
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: modelName ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -1020,12 +1021,12 @@ final class ProxyServer: ObservableObject {
         var foundModel: ModelEntry?
         var foundChannelName: String = "unknown"
 
-        if ModelAggregator.shared.hasCachedModels() {
-            let models = ModelAggregator.shared.allModels()
+        if services.modelAggregator.hasCachedModels() {
+            let models = services.modelAggregator.allModels()
             foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
             if foundModel != nil {
                 // Find which channel owns this model
-                for channel in RouterRuntimeState.shared.enabledChannelsSnapshot()
+                for channel in services.runtimeState.enabledChannelsSnapshot()
                     where channel.models.contains(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                     foundChannelName = channel.name
                     break
@@ -1043,7 +1044,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Fallback: check ChannelStore directly
-        for channel in RouterRuntimeState.shared.enabledChannelsSnapshot() {
+        for channel in services.runtimeState.enabledChannelsSnapshot() {
             if let model = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                 foundModel = model
                 foundChannelName = channel.name
@@ -1143,7 +1144,7 @@ final class ProxyServer: ObservableObject {
             // Record usage
             let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: modelName ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -1225,7 +1226,7 @@ final class ProxyServer: ObservableObject {
         reqIdString: String,
         modelName: String?
     ) -> HttpResponse {
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = services.channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             routerCompleteRequest(requestID: reqIdString)
@@ -1277,7 +1278,7 @@ final class ProxyServer: ObservableObject {
             // Record usage (best effort — multipart responses may not have usage)
             let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: modelName ?? channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -1334,12 +1335,12 @@ final class ProxyServer: ObservableObject {
 
     /// Get the first available channel as fallback.
     private func getFirstAvailableChannel() -> Channel? {
-        RouterRuntimeState.shared.enabledChannelsSnapshot().first
+        services.runtimeState.enabledChannelsSnapshot().first
     }
 
     /// Get the first available OpenAI-protocol channel (for OpenAI-only APIs like Files).
     private func getFirstOpenAIChannel() -> Channel? {
-        RouterRuntimeState.shared.enabledChannelsSnapshot().first { channel in
+        services.runtimeState.enabledChannelsSnapshot().first { channel in
             switch channel.protocol {
             case .openai, .auto:
                 true
@@ -1369,7 +1370,7 @@ final class ProxyServer: ObservableObject {
             return errorResponse(503, "No available OpenAI channel for Files API")
         }
 
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = services.channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             return errorResponse(503, "No API key for channel")
@@ -1451,7 +1452,7 @@ final class ProxyServer: ObservableObject {
             // Record usage (best effort)
             let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            UsageTracker.shared.recordUsage(
+            services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: channel.models.first?.identifier ?? "unknown",
                 inputTokens: usage.input, outputTokens: usage.output,
@@ -1489,8 +1490,8 @@ final class ProxyServer: ObservableObject {
 
     private func handleModelsRequest() -> HttpResponse {
         // Fast path: If we have cached models, return them immediately.
-        if ModelAggregator.shared.hasCachedModels() {
-            let models = ModelAggregator.shared.allModels()
+        if services.modelAggregator.hasCachedModels() {
+            let models = services.modelAggregator.allModels()
             let modelsJSON = models.map { model in
                 ["id": model.identifier, "object": "model",
                  "created": Int(Date().timeIntervalSince1970),
@@ -1506,7 +1507,7 @@ final class ProxyServer: ObservableObject {
         var fetchCompleted = false
 
         Task {
-            await ModelAggregator.shared.fetchAllModelsIfNeeded()
+            await services.modelAggregator.fetchAllModelsIfNeeded()
             fetchCompleted = true
             semaphore.signal()
         }
@@ -1516,7 +1517,7 @@ final class ProxyServer: ObservableObject {
 
         if waitResult == .success && fetchCompleted {
             // Fetch succeeded, return fresh models
-            let models = ModelAggregator.shared.allModels()
+            let models = services.modelAggregator.allModels()
             let modelsJSON = models.map { model in
                 ["id": model.identifier, "object": "model",
                  "created": Int(Date().timeIntervalSince1970),
@@ -1529,7 +1530,7 @@ final class ProxyServer: ObservableObject {
         // Return whatever static models we have in ChannelStore to avoid empty response.
         Log.warn("[Proxy] /v1/models fetch timed out or failed, returning fallback models")
         var fallbackModels: [[String: Any]] = []
-        for channel in RouterRuntimeState.shared.enabledChannelsSnapshot() {
+        for channel in services.runtimeState.enabledChannelsSnapshot() {
             for model in channel.models where model.isEnabled {
                 fallbackModels.append([
                     "id": model.identifier, "object": "model",
