@@ -10,6 +10,7 @@ final class ProxyServer: ObservableObject {
     @Published var port: Int = 1897
     @Published var lastError: String?
 
+    private let upstreamTimeout: TimeInterval = 3
     private var _requestCount: Int64 = 0
     private let requestCountLock = NSLock()
 
@@ -77,7 +78,7 @@ final class ProxyServer: ObservableObject {
             _ = group.wait(timeout: .now() + 1)
             let json: [String: Any] = [
                 "status": status,
-                "port": portNum,
+                "port": portNum
             ]
             return HttpResponse.ok(.json(json))
         }
@@ -178,59 +179,38 @@ final class ProxyServer: ObservableObject {
         let routingDecision: RoutingDecision
     }
 
-    /// Synchronously reads channel + routing decision from MainActor-isolated services.
-    /// Must be called from a background thread (Swifter handler context).
     private func readRequestState(
-        request: HttpRequest,
+        request _: HttpRequest,
         bodyData: Data,
         reqIdString: String
     ) -> RequestState? {
-        var result: RequestState?
-        let group = DispatchGroup()
-        group.enter()
-        DispatchQueue.main.sync {
-            let modelName = self.extractModelName(from: bodyData)
-            let routingModelName = ModelSwitcher.shared.selectedModelID ?? modelName
-            guard let decision = SmartRouter.shared.selectChannel(
-                requestID: reqIdString,
-                modelName: routingModelName
-            ) else {
-                group.leave()
-                return
-            }
-            guard let apiKey = KeychainManager.shared.getAPIKey(for: decision.channel.id),
-                  !apiKey.isEmpty
-            else {
-                group.leave()
-                return
-            }
-            result = RequestState(
-                channel: decision.channel,
-                apiKey: apiKey,
-                routingDecision: decision
-            )
-            group.leave()
+        let modelName = extractModelName(from: bodyData)
+        let override = ModelOverrideRuntimeState.shared.snapshot()
+        let routingModelName = override.selectedModelID ?? modelName
+        guard let decision = RouterRuntimeState.shared.selectChannel(
+            requestID: reqIdString,
+            modelName: routingModelName
+        ) else {
+            return nil
         }
-        _ = group.wait(timeout: .now() + 1)
-        return result
+        guard let apiKey = KeychainManager.shared.getAPIKey(for: decision.channel.id),
+              !apiKey.isEmpty
+        else {
+            return nil
+        }
+        return RequestState(
+            channel: decision.channel,
+            apiKey: apiKey,
+            routingDecision: decision
+        )
     }
 
-    /// Synchronously reads model override info from MainActor-isolated ModelSwitcher.
     private func readModelOverride() -> (hasOverride: Bool, selectedModelID: String?) {
-        var result: (Bool, String?) = (false, nil)
-        DispatchQueue.main.sync {
-            result = (ModelSwitcher.shared.hasOverride, ModelSwitcher.shared.selectedModelID)
-        }
-        return result
+        ModelOverrideRuntimeState.shared.snapshot()
     }
-
-    // MARK: - Thread-safe SmartRouter helpers
-    // All SmartRouter methods are @MainActor-isolated; these helpers bridge from background threads.
 
     private func routerRecordSuccess(channelID: String) {
-        DispatchQueue.main.sync {
-            SmartRouter.shared.recordSuccess(channelID: channelID)
-        }
+        RouterRuntimeState.shared.recordSuccess(channelID: channelID)
     }
 
     private func routerHandleError(
@@ -240,35 +220,17 @@ final class ProxyServer: ObservableObject {
         errorBody: Data? = nil,
         requestProtocol: RequestForwarder.RequestProtocol? = nil
     ) -> RoutingDecision? {
-        var decision: RoutingDecision?
-        let group = DispatchGroup()
-        group.enter()
-        DispatchQueue.main.sync {
-            if let requestProtocol {
-                decision = SmartRouter.shared.handleError(
-                    requestID: requestID,
-                    statusCode: statusCode,
-                    modelName: modelName,
-                    errorBody: errorBody,
-                    requestProtocol: requestProtocol
-                )
-            } else {
-                decision = SmartRouter.shared.handleError(
-                    requestID: requestID,
-                    statusCode: statusCode,
-                    modelName: modelName
-                )
-            }
-            group.leave()
-        }
-        _ = group.wait(timeout: .now() + 1)
-        return decision
+        RouterRuntimeState.shared.handleError(
+            requestID: requestID,
+            statusCode: statusCode,
+            modelName: modelName,
+            errorBody: errorBody,
+            requestProtocol: requestProtocol
+        )
     }
 
     private func routerCompleteRequest(requestID: String) {
-        DispatchQueue.main.sync {
-            SmartRouter.shared.completeRequest(requestID: requestID)
-        }
+        RouterRuntimeState.shared.completeRequest(requestID: requestID)
     }
 
     private func upstreamProtocol(
@@ -386,15 +348,13 @@ final class ProxyServer: ObservableObject {
         // Remove hop-by-hop headers
         convertedHeaders.removeValue(forKey: "host")
 
-
-
         // Forward request via URLSession
         let result = forwardRequestSync(
             reqId: reqId,
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: 120
+            timeout: upstreamTimeout
         )
 
         switch result {
@@ -508,7 +468,7 @@ final class ProxyServer: ObservableObject {
 
         case let .failure(error):
             // Record failure with CircuitBreaker
-            routerHandleError(
+            _ = routerHandleError(
                 requestID: reqIdString,
                 statusCode: 502,
                 modelName: modelName
@@ -634,7 +594,7 @@ final class ProxyServer: ObservableObject {
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: 120
+            timeout: upstreamTimeout
         )
 
         switch result {
@@ -749,8 +709,6 @@ final class ProxyServer: ObservableObject {
                 for (k, v) in headers {
                     urlRequest.setValue(v, forHTTPHeaderField: k)
                 }
-
-
 
                 let (responseData, urlResponse) = try await URLSession.shared.data(for: urlRequest)
                 let httpResponse = urlResponse as? HTTPURLResponse
@@ -906,7 +864,7 @@ final class ProxyServer: ObservableObject {
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: 120
+            timeout: upstreamTimeout
         )
 
         switch result {
@@ -1067,13 +1025,10 @@ final class ProxyServer: ObservableObject {
             foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
             if foundModel != nil {
                 // Find which channel owns this model
-                DispatchQueue.main.sync {
-                    for channel in ChannelStore.shared.channels {
-                        if channel.models.contains(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
-                            foundChannelName = channel.name
-                            break
-                        }
-                    }
+                for channel in RouterRuntimeState.shared.channelsSnapshot()
+                    where channel.models.contains(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
+                    foundChannelName = channel.name
+                    break
                 }
                 if let foundModel {
                     let modelJSON: [String: Any] = [
@@ -1088,13 +1043,11 @@ final class ProxyServer: ObservableObject {
         }
 
         // Fallback: check ChannelStore directly
-        DispatchQueue.main.sync {
-            for channel in ChannelStore.shared.channels {
-                if let model = channel.models.first(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
-                    foundModel = model
-                    foundChannelName = channel.name
-                    break
-                }
+        for channel in RouterRuntimeState.shared.channelsSnapshot() {
+            if let model = channel.models.first(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
+                foundModel = model
+                foundChannelName = channel.name
+                break
             }
         }
 
@@ -1175,7 +1128,7 @@ final class ProxyServer: ObservableObject {
             url: upstreamURL,
             headers: headers,
             body: effectiveBody,
-            timeout: 120
+            timeout: upstreamTimeout
         )
 
         switch result {
@@ -1381,28 +1334,19 @@ final class ProxyServer: ObservableObject {
 
     /// Get the first available channel as fallback.
     private func getFirstAvailableChannel() -> Channel? {
-        var result: Channel?
-        DispatchQueue.main.sync {
-            result = ChannelStore.shared.channels.first
-        }
-        return result
+        RouterRuntimeState.shared.channelsSnapshot().first
     }
 
     /// Get the first available OpenAI-protocol channel (for OpenAI-only APIs like Files).
     private func getFirstOpenAIChannel() -> Channel? {
-        var result: Channel?
-        DispatchQueue.main.sync {
-            for channel in ChannelStore.shared.channels {
-                switch channel.protocol {
-                case .openai, .auto:
-                    result = channel
-                    return
-                case .anthropic:
-                    break
-                }
+        RouterRuntimeState.shared.channelsSnapshot().first { channel in
+            switch channel.protocol {
+            case .openai, .auto:
+                true
+            case .anthropic:
+                false
             }
         }
-        return result
     }
 
     // MARK: 10,11. Files API endpoints
@@ -1585,25 +1529,22 @@ final class ProxyServer: ObservableObject {
         // Return whatever static models we have in ChannelStore to avoid empty response.
         Log.warn("[Proxy] /v1/models fetch timed out or failed, returning fallback models")
         var fallbackModels: [[String: Any]] = []
-        DispatchQueue.main.sync {
-            let channels = ChannelStore.shared.channels
-            for channel in channels {
-                for model in channel.models {
-                    fallbackModels.append([
-                        "id": model.identifier, "object": "model",
-                        "created": Int(Date().timeIntervalSince1970),
-                        "owned_by": channel.name
-                    ])
-                }
+        for channel in RouterRuntimeState.shared.channelsSnapshot() {
+            for model in channel.models {
+                fallbackModels.append([
+                    "id": model.identifier, "object": "model",
+                    "created": Int(Date().timeIntervalSince1970),
+                    "owned_by": channel.name
+                ])
             }
         }
-        
+
         return HttpResponse.ok(.json(["object": "list", "data": fallbackModels]))
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
         let body: [String: Any] = [
-            "error": ["message": message, "type": "api_error", "code": statusCode],
+            "error": ["message": message, "type": "api_error", "code": statusCode]
         ]
         return rawResponse(statusCode: statusCode, headers: ["content-type": "application/json"], json: body)
     }
@@ -1687,12 +1628,15 @@ final class ChannelStore: ObservableObject {
     func saveChannels() {
         let channelsSnapshot = channels
         let activeSnapshot = activeChannelID
+        RouterRuntimeState.shared.updateChannels(channelsSnapshot, activeChannelID: activeSnapshot)
 
         // 1. File is the source of truth — write it first. If it fails we
         //    still try the UserDefaults cache so the data is at least in
         //    memory next launch under the same bundle ID.
-        let fileOK = persistence.save(channels: channelsSnapshot,
-                                       activeChannelID: activeSnapshot)
+        let fileOK = persistence.save(
+            channels: channelsSnapshot,
+            activeChannelID: activeSnapshot
+        )
         if !fileOK {
             Log.warn("[ChannelStore] File persistence failed; falling back to UserDefaults cache only")
         }
@@ -1714,6 +1658,7 @@ final class ChannelStore: ObservableObject {
         case .loaded(let decoded, let activeID):
             channels = decoded
             activeChannelID = activeID
+            RouterRuntimeState.shared.updateChannels(decoded, activeChannelID: activeID)
             Log.info("[ChannelStore] Loaded \(decoded.count) channels from file")
             return
         case .corrupted(let reason):
@@ -1725,6 +1670,7 @@ final class ChannelStore: ObservableObject {
         // 2. Current UserDefaults (cache, scoped to bundle ID).
         if loadFromDefaults(defaults) { return }
 
+        RouterRuntimeState.shared.updateChannels(channels, activeChannelID: activeChannelID)
         Log.info("[ChannelStore] No channel data found in any source")
     }
 
@@ -1737,6 +1683,7 @@ final class ChannelStore: ObservableObject {
         else { return false }
         channels = decoded
         activeChannelID = source.string(forKey: Self.activeChannelDefaultsKey)
+        RouterRuntimeState.shared.updateChannels(channels, activeChannelID: activeChannelID)
         return true
     }
 
@@ -1790,7 +1737,7 @@ final class ChannelStore: ObservableObject {
     func moveChannel(from source: IndexSet, to destination: Int) {
         channels.move(fromOffsets: source, toOffset: destination)
         // Update priority based on new order
-        for (index, channel) in channels.enumerated() {
+        for index in channels.indices {
             channels[index].priority = index + 1
         }
         saveChannels()
