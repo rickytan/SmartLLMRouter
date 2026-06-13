@@ -71,7 +71,10 @@ final class ChannelManager: ObservableObject {
     @Published var isSpeedTesting: Bool = false
     @Published var lastSpeedTestResults: [String: TimeInterval] = [:]
 
+    private let channelServices: ChannelServices
+
     private init() {
+        channelServices = .shared
         loadProviderTemplates()
     }
 
@@ -148,13 +151,13 @@ final class ChannelManager: ObservableObject {
             name: template.nameEn,
             providerId: template.id,
             baseURL: baseURL,
-            priority: ChannelStore.shared.channels.count + 1,
+            priority: channelServices.nextPriority,
             protocol: resolvedProtocol,
             models: models
         )
 
         do {
-            try KeychainManager.shared.setAPIKey(apiKey, for: channel.id)
+            try channelServices.setAPIKey(apiKey, for: channel.id)
         } catch {
             Log.error("Failed to save API key: \(error.localizedDescription)")
             return nil
@@ -167,7 +170,7 @@ final class ChannelManager: ObservableObject {
 
     /// Fetch available models from an upstream API
     func fetchModels(channel: Channel) async -> [ModelEntry] {
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             Log.warn("No API key for channel \(channel.id)")
@@ -332,7 +335,7 @@ final class ChannelManager: ObservableObject {
     /// Test connection to a channel. Primary method: GET /v1/models.
     /// Falls back to POST if GET returns 403, timeout, or other errors.
     func testConnection(channel: Channel) async -> ConnectionTestResult {
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             return .failure("API Key is empty")
@@ -655,7 +658,7 @@ final class ChannelManager: ObservableObject {
     /// "reachable + auth-checked" so the measured RTT reflects real network cost
     /// even when the channel is misconfigured.
     func speedTest(channel: Channel) async -> TimeInterval? {
-        guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id),
+        guard let apiKey = channelServices.apiKey(for: channel.id),
               !apiKey.isEmpty
         else {
             Log.warn("No API key for speed test")
@@ -697,7 +700,7 @@ final class ChannelManager: ObservableObject {
 
             var updatedChannel = channel
             updatedChannel.lastLatencyMs = rttMs
-            ChannelStore.shared.updateChannel(updatedChannel)
+            channelServices.updateChannel(updatedChannel)
 
             isSpeedTesting = false
             Log.info("Speed test for \(channel.name): \(Int(rttMs))ms (HTTP \(statusCode))")
@@ -715,10 +718,10 @@ final class ChannelManager: ObservableObject {
 
     /// Run speed test for all channels
     func speedTestAllChannels() async {
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = channelServices.enabledChannels
 
         for channel in channels {
-            if !CooldownEngine.shared.isCoolingDown(channelID: channel.id) {
+            if !channelServices.isCoolingDown(channelID: channel.id) {
                 _ = await speedTest(channel: channel)
             }
         }

@@ -52,8 +52,10 @@ final class CooldownEngine: ObservableObject {
     @Published private(set) var cooldowns: [CooldownEntry] = []
 
     private var cleanupTimer: Timer?
+    private let channelServices: ChannelServices
 
     private init() {
+        channelServices = .shared
         loadCooldowns()
         startCleanupTimer()
     }
@@ -172,7 +174,7 @@ final class CooldownEngine: ObservableObject {
 
     /// Update ChannelStore's channel cooldown flags
     private func updateChannelCooldownFlags() {
-        let channels = ChannelStore.shared.channels
+        let channels = channelServices.channels
         for channel in channels {
             let isCooling = isCoolingDown(channelID: channel.id)
             let cooldownEnd = getCooldown(channelID: channel.id)?.endTime
@@ -182,7 +184,7 @@ final class CooldownEngine: ObservableObject {
                 var updatedChannel = channel
                 updatedChannel.isCoolingDown = isCooling
                 updatedChannel.cooldownUntil = cooldownEnd
-                ChannelStore.shared.updateChannel(updatedChannel)
+                channelServices.updateChannel(updatedChannel)
             }
         }
     }

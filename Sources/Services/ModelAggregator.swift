@@ -90,7 +90,7 @@ final class ModelAggregator {
     /// and updates each channel's model list in ChannelStore.
     private func fetchAndMergeAllChannels() async {
         let channels = await MainActor.run {
-            return ChannelStore.shared.enabledChannels
+            return ChannelServices.shared.enabledChannels
         }
         
         guard !channels.isEmpty else {
@@ -147,11 +147,9 @@ final class ModelAggregator {
         let finalUpdates = updates
         await MainActor.run {
             for update in finalUpdates {
-                if let index = ChannelStore.shared.channels.firstIndex(where: { $0.id == update.id }) {
-                    ChannelStore.shared.channels[index].models = update.models
-                }
+                ChannelServices.shared.updateModels(update.models, for: update.id)
             }
-            ChannelStore.shared.saveChannels()
+            ChannelServices.shared.saveChannels()
         }
 
         let totalUnique = allUniqueModels.count
@@ -162,7 +160,7 @@ final class ModelAggregator {
     /// and a 5-second timeout.
     private func fetchModelsForChannel(_ channel: Channel) async -> [ModelEntry] {
         let apiKey = await MainActor.run {
-            return KeychainManager.shared.getAPIKey(for: channel.id)
+            return ChannelServices.shared.apiKey(for: channel.id)
         }
         
         guard let apiKey = apiKey, !apiKey.isEmpty else {
