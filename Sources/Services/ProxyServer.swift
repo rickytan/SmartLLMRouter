@@ -1025,8 +1025,8 @@ final class ProxyServer: ObservableObject {
             foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
             if foundModel != nil {
                 // Find which channel owns this model
-                for channel in RouterRuntimeState.shared.channelsSnapshot()
-                    where channel.models.contains(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
+                for channel in RouterRuntimeState.shared.enabledChannelsSnapshot()
+                    where channel.models.contains(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                     foundChannelName = channel.name
                     break
                 }
@@ -1043,8 +1043,8 @@ final class ProxyServer: ObservableObject {
         }
 
         // Fallback: check ChannelStore directly
-        for channel in RouterRuntimeState.shared.channelsSnapshot() {
-            if let model = channel.models.first(where: { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
+        for channel in RouterRuntimeState.shared.enabledChannelsSnapshot() {
+            if let model = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
                 foundModel = model
                 foundChannelName = channel.name
                 break
@@ -1334,12 +1334,12 @@ final class ProxyServer: ObservableObject {
 
     /// Get the first available channel as fallback.
     private func getFirstAvailableChannel() -> Channel? {
-        RouterRuntimeState.shared.channelsSnapshot().first
+        RouterRuntimeState.shared.enabledChannelsSnapshot().first
     }
 
     /// Get the first available OpenAI-protocol channel (for OpenAI-only APIs like Files).
     private func getFirstOpenAIChannel() -> Channel? {
-        RouterRuntimeState.shared.channelsSnapshot().first { channel in
+        RouterRuntimeState.shared.enabledChannelsSnapshot().first { channel in
             switch channel.protocol {
             case .openai, .auto:
                 true
@@ -1529,8 +1529,8 @@ final class ProxyServer: ObservableObject {
         // Return whatever static models we have in ChannelStore to avoid empty response.
         Log.warn("[Proxy] /v1/models fetch timed out or failed, returning fallback models")
         var fallbackModels: [[String: Any]] = []
-        for channel in RouterRuntimeState.shared.channelsSnapshot() {
-            for model in channel.models {
+        for channel in RouterRuntimeState.shared.enabledChannelsSnapshot() {
+            for model in channel.models where model.isEnabled {
                 fallbackModels.append([
                     "id": model.identifier, "object": "model",
                     "created": Int(Date().timeIntervalSince1970),
@@ -1696,18 +1696,24 @@ final class ChannelStore: ObservableObject {
 
         channels.append(channel)
         if activeChannelID == nil, channel.isEnabled { activeChannelID = channel.id }
+        ModelAggregator.shared.invalidateCache()
         saveChannels()
     }
 
     func removeChannel(id: String) {
         channels.removeAll { $0.id == id }
         if activeChannelID == id { activeChannelID = enabledChannels.first?.id }
+        ModelAggregator.shared.invalidateCache()
         saveChannels()
     }
 
     func updateChannel(_ channel: Channel) {
         if let index = channels.firstIndex(where: { $0.id == channel.id }) {
+            let previousChannel = channels[index]
             channels[index] = channel
+            if previousChannel.isEnabled != channel.isEnabled || previousChannel.models != channel.models {
+                ModelAggregator.shared.invalidateCache()
+            }
             saveChannels()
         }
     }
@@ -1731,6 +1737,8 @@ final class ChannelStore: ObservableObject {
         } else if isEnabled, activeChannelID == nil {
             activeChannelID = id
         }
+        ModelAggregator.shared.invalidateCache()
+        ModelSwitcher.shared.validateSelection()
         saveChannels()
     }
 

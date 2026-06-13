@@ -44,6 +44,14 @@ final class ModelAggregator {
         await fetchAndMergeAllChannels()
     }
 
+    /// Clears cached aggregation so the next request reflects current channel state.
+    func invalidateCache() {
+        lock.lock()
+        cachedModels = [:]
+        hasInitialized = false
+        lock.unlock()
+    }
+
     /// Returns the aggregated, deduplicated list of all known model entries
     /// across all channels. Reads from the in-memory cache.
     /// Thread-safe.
@@ -57,7 +65,7 @@ final class ModelAggregator {
 
         // Gather from cache first
         for models in cacheSnapshot.values {
-            for model in models {
+            for model in models where model.isEnabled {
                 if !seen.contains(model.identifier) {
                     seen.insert(model.identifier)
                     result.append(model)

@@ -96,7 +96,7 @@ final class ModelSwitcher: ObservableObject {
         // Validate that the stored model still exists on any channel
         if let modelID = selectedModelID {
             let exists = ChannelStore.shared.enabledChannels.contains { channel in
-                channel.models.contains { Self.modelMatches(requested: modelID, stored: $0.identifier) }
+                channel.models.contains { $0.isEnabled && Self.modelMatches(requested: modelID, stored: $0.identifier) }
             }
             if !exists {
                 selectedModelID = nil
@@ -112,6 +112,20 @@ final class ModelSwitcher: ObservableObject {
     /// Reset to default passthrough
     func resetToDefault() {
         selectedModelID = nil
+    }
+
+    /// Clears the selection if it no longer exists on an enabled channel.
+    func validateSelection() {
+        guard let modelID = selectedModelID else {
+            return
+        }
+
+        let exists = ChannelStore.shared.enabledChannels.contains { channel in
+            channel.models.contains { $0.isEnabled && Self.modelMatches(requested: modelID, stored: $0.identifier) }
+        }
+        if !exists {
+            selectedModelID = nil
+        }
     }
 
     // MARK: - Persistence
