@@ -34,6 +34,7 @@ final class ModelSwitcher: ObservableObject {
     @Published var selectedModelID: String? {
         didSet {
             saveSelection()
+            ModelOverrideRuntimeState.shared.update(selectedModelID: selectedModelID)
         }
     }
 
@@ -87,9 +88,10 @@ final class ModelSwitcher: ObservableObject {
 
     private init() {
         selectedModelID = UserDefaults.standard.string(forKey: selectedModelKey)
-        if selectedModelID == "Default" || selectedModelID == "" {
+        if selectedModelID == "Default" || selectedModelID?.isEmpty == true {
             selectedModelID = nil
         }
+        ModelOverrideRuntimeState.shared.update(selectedModelID: selectedModelID)
 
         // Validate that the stored model still exists on any channel
         if let modelID = selectedModelID {
@@ -126,13 +128,13 @@ final class ModelSwitcher: ObservableObject {
 
     /// Flexible model name matching that handles aggregated provider prefixes.
     /// e.g. "z-ai/glm-5.1" matches "glm-5.1" and vice versa.
-    static func modelMatches(requested: String, stored: String) -> Bool {
+    nonisolated static func modelMatches(requested: String, stored: String) -> Bool {
         // Exact match
         if requested == stored { return true }
 
         // Strip prefix: "z-ai/glm-5.1" → "glm-5.1"
-        let requestedBase = requested.contains("/") ? String(requested.split(separator: "/").last!) : requested
-        let storedBase = stored.contains("/") ? String(stored.split(separator: "/").last!) : stored
+        let requestedBase = requested.split(separator: "/").last.map(String.init) ?? requested
+        let storedBase = stored.split(separator: "/").last.map(String.init) ?? stored
 
         return requestedBase == storedBase
     }

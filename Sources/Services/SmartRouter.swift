@@ -125,6 +125,332 @@ struct RoutingDecision {
     }
 }
 
+final class RouterRuntimeState {
+    static let shared = RouterRuntimeState()
+
+    private let lock = NSRecursiveLock()
+    private var mode: RoutingMode = .auto
+    private var maxRetries: Int = 3
+    private var smartFallbackEnabled: Bool = false
+    private var maxFallbackCost: Double = 2.0
+    private var retryCounter: [String: Int] = [:]
+    private var requestToChannel: [String: String] = [:]
+    private var channels: [Channel] = []
+    private var activeChannelID: String?
+    private let circuitBreaker = CircuitBreaker.shared
+
+    private init() {
+        let defaults = UserDefaults.standard
+        mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
+        let savedMaxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
+        maxRetries = savedMaxRetries == 0 ? 3 : savedMaxRetries
+        smartFallbackEnabled = defaults.bool(forKey: "smartllm_smart_fallback_enabled")
+        let savedMaxFallbackCost = defaults.double(forKey: "smartllm_max_fallback_cost")
+        maxFallbackCost = savedMaxFallbackCost > 0 ? savedMaxFallbackCost : 2.0
+    }
+
+    func updateSettings(mode: RoutingMode, maxRetries: Int, smartFallbackEnabled: Bool, maxFallbackCost: Double) {
+        lock.lock()
+        self.mode = mode
+        self.maxRetries = maxRetries
+        self.smartFallbackEnabled = smartFallbackEnabled
+        self.maxFallbackCost = maxFallbackCost
+        lock.unlock()
+    }
+
+    func updateChannels(_ channels: [Channel], activeChannelID: String?) {
+        lock.lock()
+        self.channels = channels
+        self.activeChannelID = activeChannelID
+        lock.unlock()
+    }
+
+    func channelsSnapshot() -> [Channel] {
+        lock.lock()
+        defer { lock.unlock() }
+        return channels
+    }
+
+    func enabledChannelsSnapshot() -> [Channel] {
+        lock.lock()
+        defer { lock.unlock() }
+        return channels.filter(\.isEnabled)
+    }
+
+    func activeChannelSnapshot() -> Channel? {
+        lock.lock()
+        defer { lock.unlock() }
+        let enabled = channels.filter(\.isEnabled)
+        guard let activeChannelID else { return enabled.first }
+        return channels.first { $0.id == activeChannelID && $0.isEnabled } ?? enabled.first
+    }
+
+    func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
+        let availableChannels = sortedChannels.filter { circuitBreaker.isAvailable(channelID: $0.id) }
+        let compatibleChannels: [Channel] = if let model = modelName {
+            availableChannels.filter { channel in
+                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
+            }
+        } else {
+            availableChannels
+        }
+
+        let selectedChannel: Channel?
+        var effectiveModel = modelName
+        if let model = modelName, compatibleChannels.isEmpty {
+            selectedChannel = availableChannels.first
+            if let selectedChannel {
+                effectiveModel = selectedChannel.models.first { $0.isEnabled }?.identifier
+                Log.info("No exact channel match for model '\(model)'; using \(effectiveModel ?? "default model") via \(selectedChannel.name)")
+            }
+        } else {
+            selectedChannel = compatibleChannels.first
+            if let model = modelName, let channel = selectedChannel,
+               let matched = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }) {
+                effectiveModel = matched.identifier
+            }
+        }
+
+        guard let selectedChannel else {
+            Log.warn("No available channels for routing")
+            return nil
+        }
+
+        requestToChannel[requestID] = selectedChannel.id
+
+        return RoutingDecision(
+            channel: selectedChannel,
+            isRetry: false,
+            previousChannelID: nil,
+            retryCount: 0,
+            originalModel: modelName,
+            effectiveModel: effectiveModel
+        )
+    }
+
+    func handleError(requestID: String, statusCode: Int, modelName: String? = nil, errorBody: Data? = nil, requestProtocol: RequestForwarder.RequestProtocol? = nil) -> RoutingDecision? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let errorType = RouterErrorType(statusCode: statusCode, errorBody: errorBody)
+        Log.info("Handling error \(statusCode) for request \(requestID)")
+
+        if mode == .manual {
+            Log.info("Manual mode - no retry")
+            return nil
+        }
+
+        if errorType == .forbidden403 {
+            Log.info("Error type \(errorType) does not trigger failover")
+            return nil
+        }
+
+        if !errorType.shouldFailover {
+            Log.info("Error type \(errorType) does not trigger failover")
+            return nil
+        }
+
+        let currentRetryCount = retryCounter[requestID] ?? 0
+        if currentRetryCount >= maxRetries {
+            Log.warn("Max retries exceeded for request \(requestID)")
+            return nil
+        }
+
+        let previousChannelID = requestToChannel[requestID]
+        if let previousChannelID {
+            _ = SwitchLock.shared.execute {
+                self.circuitBreaker.recordFailure(channelID: previousChannelID)
+            }
+        }
+
+        retryCounter[requestID] = currentRetryCount + 1
+
+        let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
+        let availableChannels = sortedChannels.filter { channel in
+            channel.id != previousChannelID && circuitBreaker.isAvailable(channelID: channel.id)
+        }
+        let compatibleChannels: [Channel] = if let model = modelName {
+            availableChannels.filter { channel in
+                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
+            }
+        } else {
+            availableChannels
+        }
+
+        if errorType == .contextLengthExceeded, let nextChannel = compatibleChannels.first {
+            requestToChannel[requestID] = nextChannel.id
+            Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
+            return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
+        }
+
+        if errorType == .contextLengthExceeded, smartFallbackEnabled,
+           let fallback = selectFallbackModelLocked(
+               requestID: requestID,
+               originalModel: modelName ?? "unknown",
+               actualTokensUsed: parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0,
+               errorType: errorType,
+               apiProtocol: requestProtocol ?? .openai,
+               excludedChannelID: previousChannelID,
+               retryCount: currentRetryCount + 1
+           ) {
+            return fallback
+        }
+
+        if errorType != .contextLengthExceeded, let nextChannel = compatibleChannels.first {
+            requestToChannel[requestID] = nextChannel.id
+            Log.info("Retrying with channel \(nextChannel.name) (retry #\(currentRetryCount + 1))")
+            return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
+        }
+
+        if smartFallbackEnabled,
+           let fallback = selectFallbackModelLocked(
+               requestID: requestID,
+               originalModel: modelName ?? "unknown",
+               actualTokensUsed: parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0,
+               errorType: errorType,
+               apiProtocol: requestProtocol ?? .openai,
+               excludedChannelID: previousChannelID,
+               retryCount: currentRetryCount + 1
+           ) {
+            return fallback
+        }
+
+        Log.warn(errorType == .contextLengthExceeded ? "No suitable channel or fallback for context_length_exceeded on request \(requestID)" : "No alternative channels available for retry")
+        return nil
+    }
+
+    func recordSuccess(channelID: String) {
+        circuitBreaker.recordSuccess(channelID: channelID)
+    }
+
+    func completeRequest(requestID: String) {
+        lock.lock()
+        retryCounter.removeValue(forKey: requestID)
+        requestToChannel.removeValue(forKey: requestID)
+        lock.unlock()
+    }
+
+    private func selectFallbackModelLocked(
+        requestID: String,
+        originalModel: String,
+        actualTokensUsed: Int,
+        errorType: RouterErrorType,
+        apiProtocol: RequestForwarder.RequestProtocol,
+        excludedChannelID: String?,
+        retryCount: Int
+    ) -> RoutingDecision? {
+        let availableChannels = channels.filter { channel in
+            channel.isEnabled && channel.id != excludedChannelID && circuitBreaker.isAvailable(channelID: channel.id)
+        }
+
+        var candidates: [(channel: Channel, model: ModelEntry)] = []
+        for channel in availableChannels {
+            for model in channel.models where model.isEnabled {
+                guard let contextLength = model.contextLength else { continue }
+                let modelProtocol: RequestForwarder.RequestProtocol = switch channel.protocol {
+                case .openai: .openai
+                case .anthropic: .anthropic
+                case .auto: .openai
+                }
+                if modelProtocol != apiProtocol { continue }
+                if contextLength <= actualTokensUsed { continue }
+                let pricePer1M = model.outputPricePer1M ?? model.inputPricePer1M ?? 0.0
+                let cost = Double(actualTokensUsed + 5000) * pricePer1M / 1_000_000.0
+                if cost > maxFallbackCost { continue }
+                candidates.append((channel: channel, model: model))
+            }
+        }
+
+        candidates.sort { ($0.model.contextLength ?? 0) > ($1.model.contextLength ?? 0) }
+
+        guard let best = candidates.first else {
+            Log.warn("No suitable fallback model found for request \(requestID)")
+            return nil
+        }
+
+        let previousChannel = channels.first { $0.id == excludedChannelID } ?? Channel(name: "Unknown", baseURL: "")
+        let cost = Double(actualTokensUsed + 5000) * (best.model.outputPricePer1M ?? best.model.inputPricePer1M ?? 0.0) / 1_000_000.0
+
+        Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
+        Log.info("  Original model: \(originalModel) (Channel: \(previousChannel.name), Error: \(errorType))")
+        Log.info("  Fallback model: \(best.model.identifier) (Channel: \(best.channel.name), Context: \(formatContextLength(best.model.contextLength ?? 0)))")
+        Log.info("  Protocol: \(protocolLabel(apiProtocol)) (same protocol)")
+        Log.info("  Estimated cost: $\(String(format: "%.3f", cost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
+        Log.info("  Retry attempt: \(retryCount)/\(maxRetries)")
+
+        requestToChannel[requestID] = best.channel.id
+        return RoutingDecision(channel: best.channel, isRetry: true, previousChannelID: excludedChannelID, retryCount: retryCount, originalModel: originalModel, effectiveModel: best.model.identifier)
+    }
+
+    private func parseActualTokensUsedLocked(from body: Data?, modelName: String?) -> Int? {
+        guard let body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+        else {
+            return estimateTokensFromModelLocked(modelName)
+        }
+
+        if let usage = json["usage"] as? [String: Any] {
+            return usage["input_tokens"] as? Int ?? usage["prompt_tokens"] as? Int
+        }
+
+        if let error = json["error"] as? [String: Any],
+           let usage = error["usage"] as? [String: Any] {
+            return usage["input_tokens"] as? Int ?? usage["prompt_tokens"] as? Int
+        }
+
+        return estimateTokensFromModelLocked(modelName)
+    }
+
+    private func estimateTokensFromModelLocked(_ modelName: String?) -> Int? {
+        guard let modelName else { return nil }
+        for channel in channels where channel.isEnabled {
+            for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
+                if let contextLength = model.contextLength {
+                    return Int(Double(contextLength) * 0.8)
+                }
+            }
+        }
+        return nil
+    }
+
+    private func formatContextLength(_ length: Int) -> String {
+        if length >= 1_000_000 { return "\(length / 1_000_000)M tokens" }
+        if length >= 1_000 { return "\(length / 1_000)K tokens" }
+        return "\(length) tokens"
+    }
+
+    private func protocolLabel(_ p: RequestForwarder.RequestProtocol) -> String {
+        switch p {
+        case .openai: "OpenAI"
+        case .anthropic: "Anthropic"
+        case .unknown: "Unknown"
+        }
+    }
+}
+
+final class ModelOverrideRuntimeState {
+    static let shared = ModelOverrideRuntimeState()
+
+    private let lock = NSLock()
+    private var selectedModelID: String?
+
+    func update(selectedModelID: String?) {
+        lock.lock()
+        self.selectedModelID = selectedModelID
+        lock.unlock()
+    }
+
+    func snapshot() -> (hasOverride: Bool, selectedModelID: String?) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (selectedModelID != nil, selectedModelID)
+    }
+}
+
 /// Smart routing engine for channel selection and failover
 @MainActor
 final class SmartRouter: ObservableObject {
@@ -148,6 +474,7 @@ final class SmartRouter: ObservableObject {
 
     private init() {
         loadSettings()
+        syncRuntimeSettings()
     }
 
     // MARK: - Settings
@@ -180,6 +507,16 @@ final class SmartRouter: ObservableObject {
         UserDefaults.standard.set(cooldown401Hours, forKey: "smartllm_router_cooldown_401")
         UserDefaults.standard.set(smartFallbackEnabled, forKey: "smartllm_smart_fallback_enabled")
         UserDefaults.standard.set(maxFallbackCost, forKey: "smartllm_max_fallback_cost")
+        syncRuntimeSettings()
+    }
+
+    private func syncRuntimeSettings() {
+        RouterRuntimeState.shared.updateSettings(
+            mode: mode,
+            maxRetries: maxRetries,
+            smartFallbackEnabled: smartFallbackEnabled,
+            maxFallbackCost: maxFallbackCost
+        )
     }
 
     // MARK: - Routing Logic
@@ -326,9 +663,14 @@ final class SmartRouter: ObservableObject {
                     apiProtocol: protocolType,
                     excludedChannelID: previousChannelID
                 ) {
+                    let fallbackContext = fallback.channel.models
+                        .first { $0.identifier == fallback.fallbackModel }?
+                        .contextLength
+                        .map(formatContextLength) ?? "N/A"
+
                     Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
                     Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
+                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
                     Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
                     Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
                     Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
@@ -380,9 +722,14 @@ final class SmartRouter: ObservableObject {
                 apiProtocol: protocolType,
                 excludedChannelID: previousChannelID
             ) {
+                let fallbackContext = fallback.channel.models
+                    .first { $0.identifier == fallback.fallbackModel }?
+                    .contextLength
+                    .map(formatContextLength) ?? "N/A"
+
                 Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
                 Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallback.channel.models.first(where: { $0.identifier == fallback.fallbackModel })?.contextLength.map(formatContextLength) ?? "N/A"))")
+                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
                 Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
                 Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
                 Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
@@ -467,7 +814,7 @@ final class SmartRouter: ObservableObject {
         }
 
         // 3. Sort by context length descending (largest context first)
-        candidates.sort { $0.model.contextLength! > $1.model.contextLength! }
+        candidates.sort { ($0.model.contextLength ?? 0) > ($1.model.contextLength ?? 0) }
 
         guard let best = candidates.first else {
             Log.warn("No suitable fallback model found for request \(requestID)")
