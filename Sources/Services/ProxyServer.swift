@@ -6,6 +6,7 @@ final class ProxyServer: ObservableObject {
     static let shared = ProxyServer()
     private let httpServer = HttpServer()
     private let services = RouterServices.shared
+    private let modelEndpointHandler: ModelEndpointHandler
 
     @Published var isRunning: Bool = false
     @Published var port: Int = 1897
@@ -23,6 +24,7 @@ final class ProxyServer: ObservableObject {
     }
 
     private init() {
+        modelEndpointHandler = ModelEndpointHandler(services: services)
         setupRoutes()
     }
 
@@ -86,7 +88,7 @@ final class ProxyServer: ObservableObject {
 
         httpServer.get["/v1/models"] = { [weak self] _ in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleModelsRequest()
+            return self.modelEndpointHandler.handleListModels()
         }
 
         // MARK: - New API Endpoints
@@ -94,7 +96,7 @@ final class ProxyServer: ObservableObject {
         // 1. Single model lookup
         httpServer["/v1/models/:modelId"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleSingleModelRequest(request)
+            return self.modelEndpointHandler.handleSingleModel(modelId: self.extractPathParameter(from: request, named: "modelId"))
         }
 
         // 2. Embeddings
@@ -1010,61 +1012,6 @@ final class ProxyServer: ObservableObject {
 
     // MARK: - New endpoint handlers
 
-    // MARK: 1. Single model lookup — GET /v1/models/{id}
-
-    private func handleSingleModelRequest(_ request: HttpRequest) -> HttpResponse {
-        guard let modelId = extractPathParameter(from: request, named: "modelId") else {
-            return errorResponse(400, "Missing model ID")
-        }
-
-        // Thread-safe: check cached models
-        var foundModel: ModelEntry?
-        var foundChannelName: String = "unknown"
-
-        if services.modelAggregator.hasCachedModels() {
-            let models = services.modelAggregator.allModels()
-            foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
-            if foundModel != nil {
-                // Find which channel owns this model
-                for channel in services.runtimeState.enabledChannelsSnapshot()
-                    where channel.models.contains(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
-                    foundChannelName = channel.name
-                    break
-                }
-                if let foundModel {
-                    let modelJSON: [String: Any] = [
-                        "id": foundModel.identifier,
-                        "object": "model",
-                        "created": Int(Date().timeIntervalSince1970),
-                        "owned_by": foundChannelName
-                    ]
-                    return HttpResponse.ok(.json(modelJSON))
-                }
-            }
-        }
-
-        // Fallback: check ChannelStore directly
-        for channel in services.runtimeState.enabledChannelsSnapshot() {
-            if let model = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }) {
-                foundModel = model
-                foundChannelName = channel.name
-                break
-            }
-        }
-
-        guard let model = foundModel else {
-            return errorResponse(404, "Model '\(modelId)' not found")
-        }
-
-        let modelJSON: [String: Any] = [
-            "id": model.identifier,
-            "object": "model",
-            "created": Int(Date().timeIntervalSince1970),
-            "owned_by": foundChannelName
-        ]
-        return HttpResponse.ok(.json(modelJSON))
-    }
-
     // MARK: 2,3,6,9. Auxiliary JSON endpoints (embeddings, images/generations, audio/speech, moderations)
 
     /// Handles POST requests with JSON body that forward to upstream without protocol conversion.
@@ -1486,61 +1433,6 @@ final class ProxyServer: ObservableObject {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(502, "Upstream request failed")
         }
-    }
-
-    private func handleModelsRequest() -> HttpResponse {
-        // Fast path: If we have cached models, return them immediately.
-        if services.modelAggregator.hasCachedModels() {
-            let models = services.modelAggregator.allModels()
-            let modelsJSON = models.map { model in
-                ["id": model.identifier, "object": "model",
-                 "created": Int(Date().timeIntervalSince1970),
-                 "owned_by": "aggregated"] as [String: Any]
-            }
-            return HttpResponse.ok(.json(["object": "list", "data": modelsJSON]))
-        }
-
-        // First request path: Block and wait for the fetch to complete.
-        // We use a semaphore to bridge the async fetch into this sync handler.
-        // Timeout is set to 8s (5s request timeout + 3s processing buffer).
-        let semaphore = DispatchSemaphore(value: 0)
-        var fetchCompleted = false
-
-        Task {
-            await services.modelAggregator.fetchAllModelsIfNeeded()
-            fetchCompleted = true
-            semaphore.signal()
-        }
-
-        // Wait for the fetch to finish, but don't wait forever.
-        let waitResult = semaphore.wait(timeout: .now() + 8)
-
-        if waitResult == .success && fetchCompleted {
-            // Fetch succeeded, return fresh models
-            let models = services.modelAggregator.allModels()
-            let modelsJSON = models.map { model in
-                ["id": model.identifier, "object": "model",
-                 "created": Int(Date().timeIntervalSince1970),
-                 "owned_by": "aggregated"] as [String: Any]
-            }
-            return HttpResponse.ok(.json(["object": "list", "data": modelsJSON]))
-        }
-
-        // Fallback path: Timeout or fetch failed.
-        // Return whatever static models we have in ChannelStore to avoid empty response.
-        Log.warn("[Proxy] /v1/models fetch timed out or failed, returning fallback models")
-        var fallbackModels: [[String: Any]] = []
-        for channel in services.runtimeState.enabledChannelsSnapshot() {
-            for model in channel.models where model.isEnabled {
-                fallbackModels.append([
-                    "id": model.identifier, "object": "model",
-                    "created": Int(Date().timeIntervalSince1970),
-                    "owned_by": channel.name
-                ])
-            }
-        }
-
-        return HttpResponse.ok(.json(["object": "list", "data": fallbackModels]))
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
