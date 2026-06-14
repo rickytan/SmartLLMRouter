@@ -8,6 +8,7 @@ final class ProxyServer: ObservableObject {
     private let services = RouterServices.shared
     private let modelEndpointHandler: ModelEndpointHandler
     private let filesEndpointHandler: FilesEndpointHandler
+    private let auxiliaryEndpointHandler: AuxiliaryEndpointHandler
     private let forwardingClient = HTTPForwardingClient()
     private let requestIDGenerator = RequestIDGenerator()
 
@@ -27,6 +28,12 @@ final class ProxyServer: ObservableObject {
             services: services,
             forwardingClient: forwardingClient,
             requestIDGenerator: requestIDGenerator
+        )
+        auxiliaryEndpointHandler = AuxiliaryEndpointHandler(
+            services: services,
+            forwardingClient: forwardingClient,
+            requestIDGenerator: requestIDGenerator,
+            upstreamTimeout: upstreamTimeout
         )
         setupRoutes()
     }
@@ -105,13 +112,13 @@ final class ProxyServer: ObservableObject {
         // 2. Embeddings
         httpServer.post["/v1/embeddings"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleAuxiliaryRequest(request, targetPath: "/v1/embeddings")
+            return self.auxiliaryEndpointHandler.handle(request, targetPath: "/v1/embeddings")
         }
 
         // 3. Image generation
         httpServer.post["/v1/images/generations"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleAuxiliaryRequest(request, targetPath: "/v1/images/generations")
+            return self.auxiliaryEndpointHandler.handle(request, targetPath: "/v1/images/generations")
         }
 
         // 4. Image edits (multipart)
@@ -129,7 +136,7 @@ final class ProxyServer: ObservableObject {
         // 6. TTS
         httpServer.post["/v1/audio/speech"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleAuxiliaryRequest(request, targetPath: "/v1/audio/speech")
+            return self.auxiliaryEndpointHandler.handle(request, targetPath: "/v1/audio/speech")
         }
 
         // 7. Audio transcriptions (multipart)
@@ -147,7 +154,7 @@ final class ProxyServer: ObservableObject {
         // 9. Moderations
         httpServer.post["/v1/moderations"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleAuxiliaryRequest(request, targetPath: "/v1/moderations")
+            return self.auxiliaryEndpointHandler.handle(request, targetPath: "/v1/moderations")
         }
 
         // 10. Files list/upload
@@ -935,108 +942,6 @@ final class ProxyServer: ObservableObject {
     }
 
     // MARK: - New endpoint handlers
-
-    // MARK: 2,3,6,9. Auxiliary JSON endpoints (embeddings, images/generations, audio/speech, moderations)
-
-    /// Handles POST requests with JSON body that forward to upstream without protocol conversion.
-    /// These are single-operation endpoints — no failover chain.
-    private func handleAuxiliaryRequest(_ request: HttpRequest, targetPath: String) -> HttpResponse {
-        let reqId = nextRequestID()
-        let startTime = Date()
-        let reqIdString = "req-\(reqId)"
-
-        Log.info("[#\(reqId)] \(request.method) \(request.path)")
-
-        // Parse body to extract model name for routing
-        guard !request.body.isEmpty else {
-            return errorResponse(400, "Empty request body")
-        }
-        let bodyData = Data(request.body)
-        let modelName = extractModelName(from: bodyData)
-
-        // Thread-safe: read routing state
-        guard let state = readRequestState(
-            request: request,
-            bodyData: bodyData,
-            reqIdString: reqIdString
-        ) else {
-            Log.error("[#\(reqId)] No available channels or missing API key for \(targetPath)")
-            return errorResponse(503, "No available channel")
-        }
-
-        let channel = state.channel
-        let apiKey = state.apiKey
-
-        // Thread-safe: read model override
-        let override = readModelOverride()
-        let effectiveBody = applyModelOverride(body: bodyData, hasOverride: override.hasOverride, selectedModelID: override.selectedModelID)
-
-        // Determine target protocol based on channel
-        let targetProtocol: RequestForwarder.RequestProtocol
-        switch channel.protocol {
-        case .anthropic:
-            targetProtocol = .anthropic
-        case .openai, .auto:
-            targetProtocol = .openai
-        }
-
-        // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = targetPath
-        guard let upstreamURL = components?.url else {
-            return errorResponse(500, "Invalid upstream URL")
-        }
-
-        // Build headers with auth
-        var headers = request.headers
-        headers["content-type"] = "application/json"
-        headers["content-length"] = String(effectiveBody.count)
-        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
-        headers.removeValue(forKey: "host")
-
-        // Forward request
-        let result = forwardingClient.forwardSync(
-            url: upstreamURL,
-            headers: headers,
-            body: effectiveBody,
-            timeout: upstreamTimeout
-        )
-
-        switch result {
-        case let .success(data, statusCode, responseHeaders):
-            let latency = Date().timeIntervalSince(startTime)
-
-            // Record success
-            if statusCode >= 200 && statusCode < 300 {
-                routerRecordSuccess(channelID: channel.id)
-            }
-
-            // Record usage
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
-            let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            services.usageTracker.recordUsage(
-                channelID: channel.id, channelName: channel.name,
-                model: modelName ?? channel.models.first?.identifier ?? "unknown",
-                inputTokens: usage.input, outputTokens: usage.output,
-                estimatedCost: cost, latency: latency * 1000,
-                statusCode: statusCode, isError: statusCode >= 400
-            )
-
-            routerCompleteRequest(requestID: reqIdString)
-
-            return buildFinalResponse(
-                statusCode: statusCode,
-                body: data,
-                isStream: false,
-                headers: responseHeaders
-            )
-
-        case let .failure(error):
-            Log.error("[#\(reqId)] Forward failed: \(error.localizedDescription)")
-            routerCompleteRequest(requestID: reqIdString)
-            return errorResponse(502, "Upstream request failed")
-        }
-    }
 
     // MARK: 4,5,7,8. Multipart endpoints (images/edits, images/variations, audio/transcriptions, audio/translations)
 
