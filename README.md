@@ -1,6 +1,6 @@
 # 🚅 SmartLLM Router
 
-A privacy-first local API gateway for LLMs, specifically optimized for **Claude Code** and developer workflows.
+A **lightweight, native macOS menu bar proxy** for Claude Code — protocol conversion, silent failover, and token stats across 42+ LLM providers. **100% local, privacy-first.**
 
 > 🇨🇳 [查看中文文档](README_ZH.md)
 
@@ -8,7 +8,15 @@ A privacy-first local API gateway for LLMs, specifically optimized for **Claude 
 
 ## 🇺🇸 Introduction
 
-**SmartLLM Router** is a native macOS menu bar application that acts as a local HTTP gateway. It allows you to manage multiple API Keys from different providers (DeepSeek, OpenAI, Anthropic, Aliyun, MiniMax, etc.) and provides automatic failover and load balancing.
+**SmartLLM Router** is a lightweight, native macOS menu bar app that runs as a local HTTP proxy. Manage API keys from 42+ LLM providers (DeepSeek, OpenAI, Anthropic, Aliyun, MiniMax, and more) with automatic failover and load balancing — all running locally on your Mac.
+
+### Why SmartLLM Router?
+
+|  | SmartLLM Router | Cloud Proxies |
+|---|---|---|
+| **Lightweight** | ~8MB native binary, sips resources | Heavy runtimes, Docker required |
+| **Native** | Swift + SwiftUI, macOS-native UX | Web UIs, Electron wrappers |
+| **Privacy** | 100% local, keys in Keychain | Keys on third-party servers |
 
 ### Core Value
 1.  **Model-Driven Routing**: Just select a model in your client. The proxy automatically finds the best provider that supports it. No manual switching.

@@ -1,6 +1,6 @@
 # 🚅 SmartLLM Router
 
-专为 **Claude Code** 设计的隐私优先本地 LLM API 网关。
+**轻量、原生的 macOS 菜单栏代理**，专为 Claude Code 打造——协议转换、静默故障转移、Token 统计，覆盖 42+ LLM 厂商。**100% 本地运行，隐私安全。**
 
 > 🇺🇸 [View English Documentation](README.md)
 
@@ -8,7 +8,15 @@
 
 ## 🇨🇳 简介
 
-**SmartLLM Router** 是一款原生 macOS 菜单栏应用，作为一个本地 HTTP 网关运行。它允许你管理来自不同提供商（DeepSeek、OpenAI、Anthropic、阿里百炼、MiniMax 等）的多个 API Key，并提供自动故障转移和负载均衡能力。
+**SmartLLM Router** 是一款轻量、原生的 macOS 菜单栏应用，作为本地 HTTP 代理运行。管理来自 42+ LLM 厂商（DeepSeek、OpenAI、Anthropic、阿里百炼、MiniMax 等）的 API Key，具备自动故障转移和负载均衡——一切都在你的 Mac 本地完成。
+
+### 为什么选择 SmartLLM Router？
+
+|  | SmartLLM Router | 云端代理 |
+|---|---|---|
+| **轻量** | ~8MB 原生二进制，资源占用极低 | 笨重的运行时，需要 Docker |
+| **原生** | Swift + SwiftUI，macOS 原生体验 | Web UI、Electron 套壳 |
+| **隐私** | 100% 本地，Key 存于 Keychain | Key 存放在第三方服务器 |
 
 ### 核心价值
 1.  **模型驱动路由**：在客户端直接选模型，代理自动寻找支持该模型的厂商。无需手动切换。
