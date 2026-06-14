@@ -45,6 +45,10 @@ final class ChannelServices {
         try keychain.setAPIKey(apiKey, for: channelID)
     }
 
+    func removeAPIKey(for channelID: String) throws {
+        try keychain.removeAPIKey(for: channelID)
+    }
+
     func addChannel(_ channel: Channel) {
         store.addChannel(channel)
     }
