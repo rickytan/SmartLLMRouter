@@ -9,6 +9,7 @@ final class ProxyServer: ObservableObject {
     private let modelEndpointHandler: ModelEndpointHandler
     private let filesEndpointHandler: FilesEndpointHandler
     private let auxiliaryEndpointHandler: AuxiliaryEndpointHandler
+    private let multipartEndpointHandler: MultipartEndpointHandler
     private let forwardingClient = HTTPForwardingClient()
     private let requestIDGenerator = RequestIDGenerator()
 
@@ -34,6 +35,11 @@ final class ProxyServer: ObservableObject {
             forwardingClient: forwardingClient,
             requestIDGenerator: requestIDGenerator,
             upstreamTimeout: upstreamTimeout
+        )
+        multipartEndpointHandler = MultipartEndpointHandler(
+            services: services,
+            forwardingClient: forwardingClient,
+            requestIDGenerator: requestIDGenerator
         )
         setupRoutes()
     }
@@ -124,13 +130,13 @@ final class ProxyServer: ObservableObject {
         // 4. Image edits (multipart)
         httpServer.post["/v1/images/edits"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleMultipartRequest(request, targetPath: "/v1/images/edits")
+            return self.multipartEndpointHandler.handle(request, targetPath: "/v1/images/edits")
         }
 
         // 5. Image variations (multipart)
         httpServer.post["/v1/images/variations"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleMultipartRequest(request, targetPath: "/v1/images/variations")
+            return self.multipartEndpointHandler.handle(request, targetPath: "/v1/images/variations")
         }
 
         // 6. TTS
@@ -142,13 +148,13 @@ final class ProxyServer: ObservableObject {
         // 7. Audio transcriptions (multipart)
         httpServer.post["/v1/audio/transcriptions"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleMultipartRequest(request, targetPath: "/v1/audio/transcriptions")
+            return self.multipartEndpointHandler.handle(request, targetPath: "/v1/audio/transcriptions")
         }
 
         // 8. Audio translations (multipart)
         httpServer.post["/v1/audio/translations"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleMultipartRequest(request, targetPath: "/v1/audio/translations")
+            return self.multipartEndpointHandler.handle(request, targetPath: "/v1/audio/translations")
         }
 
         // 9. Moderations
@@ -942,175 +948,6 @@ final class ProxyServer: ObservableObject {
     }
 
     // MARK: - New endpoint handlers
-
-    // MARK: 4,5,7,8. Multipart endpoints (images/edits, images/variations, audio/transcriptions, audio/translations)
-
-    /// Handles POST requests with multipart/form-data body.
-    /// Raw body bytes are forwarded directly without parsing.
-    private func handleMultipartRequest(_ request: HttpRequest, targetPath: String) -> HttpResponse {
-        let reqId = nextRequestID()
-        let startTime = Date()
-        let reqIdString = "req-\(reqId)"
-
-        Log.info("[#\(reqId)] \(request.method) \(request.path)")
-
-        // Get the raw body bytes
-        guard !request.body.isEmpty else {
-            return errorResponse(400, "Empty request body")
-        }
-        let bodyData = Data(request.body)
-
-        // Try to extract model name from multipart body (may fail for audio endpoints)
-        let modelName = extractModelNameFromMultipart(bodyData)
-
-        // Thread-safe: read routing state (may not find model, will use first channel)
-        guard let state = readRequestState(
-            request: request,
-            bodyData: bodyData,
-            reqIdString: reqIdString
-        ) else {
-            // Fallback: use first available channel, with model override applied
-            guard let fallbackChannel = getFirstAvailableChannel() else {
-                Log.error("[#\(reqId)] No available channels for \(targetPath)")
-                return errorResponse(503, "No available channel")
-            }
-            let override = readModelOverride()
-            let effectiveBody = applyModelOverride(body: bodyData, hasOverride: override.hasOverride, selectedModelID: override.selectedModelID)
-            return forwardMultipartWithChannel(
-                request: request, bodyData: effectiveBody, channel: fallbackChannel,
-                targetPath: targetPath, reqId: reqId, startTime: startTime,
-                reqIdString: reqIdString, modelName: modelName
-            )
-        }
-
-        return forwardMultipartWithChannel(
-            request: request, bodyData: bodyData, channel: state.channel,
-            targetPath: targetPath, reqId: reqId, startTime: startTime,
-            reqIdString: reqIdString, modelName: modelName
-        )
-    }
-
-    /// Forward a multipart request using a specific channel.
-    private func forwardMultipartWithChannel(
-        request: HttpRequest,
-        bodyData: Data,
-        channel: Channel,
-        targetPath: String,
-        reqId: Int64,
-        startTime: Date,
-        reqIdString: String,
-        modelName: String?
-    ) -> HttpResponse {
-        guard let apiKey = services.channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
-        else {
-            routerCompleteRequest(requestID: reqIdString)
-            return errorResponse(503, "No API key for channel")
-        }
-
-        // Determine target protocol based on channel
-        let targetProtocol: RequestForwarder.RequestProtocol
-        switch channel.protocol {
-        case .anthropic:
-            targetProtocol = .anthropic
-        case .openai, .auto:
-            targetProtocol = .openai
-        }
-
-        // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        components?.path = targetPath
-        guard let upstreamURL = components?.url else {
-            routerCompleteRequest(requestID: reqIdString)
-            return errorResponse(500, "Invalid upstream URL")
-        }
-
-        // Forward multipart body as-is, preserving content-type boundary
-        var headers = request.headers
-        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
-        headers.removeValue(forKey: "host")
-        // Keep original content-type (multipart boundary) and content-length
-        if headers["content-type"] == nil {
-            headers["content-type"] = "multipart/form-data"
-        }
-
-        let result = forwardingClient.forwardSync(
-            url: upstreamURL,
-            headers: headers,
-            body: bodyData,
-            timeout: 300  // Longer timeout for audio/image processing
-        )
-
-        switch result {
-        case let .success(data, statusCode, responseHeaders):
-            let latency = Date().timeIntervalSince(startTime)
-
-            if statusCode >= 200 && statusCode < 300 {
-                routerRecordSuccess(channelID: channel.id)
-            }
-
-            // Record usage (best effort — multipart responses may not have usage)
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
-            let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            services.usageTracker.recordUsage(
-                channelID: channel.id, channelName: channel.name,
-                model: modelName ?? channel.models.first?.identifier ?? "unknown",
-                inputTokens: usage.input, outputTokens: usage.output,
-                estimatedCost: cost, latency: latency * 1000,
-                statusCode: statusCode, isError: statusCode >= 400
-            )
-
-            routerCompleteRequest(requestID: reqIdString)
-
-            // For binary responses (audio/image), forward content-type from upstream
-            var responseContentType = "application/json"
-            if let ct = responseHeaders["content-type"]?.lowercased() {
-                if ct.contains("audio") || ct.contains("image") || ct.contains("octet-stream") {
-                    responseContentType = ct
-                }
-            }
-            var finalHeaders: [String: String] = ["content-type": responseContentType]
-            finalHeaders["content-length"] = String(data.count)
-            for (key, value) in responseHeaders {
-                if key.lowercased().hasPrefix("x-") || key.lowercased() == "retry-after" || key.lowercased() == "request-id" {
-                    finalHeaders[key] = value
-                }
-            }
-
-            return rawResponse(statusCode: statusCode, headers: finalHeaders, body: data)
-
-        case let .failure(error):
-            Log.error("[#\(reqId)] Multipart forward failed: \(error.localizedDescription)")
-            routerCompleteRequest(requestID: reqIdString)
-            return errorResponse(502, "Upstream request failed")
-        }
-    }
-
-    /// Attempt to extract model name from multipart body by scanning for 'model' field.
-    /// This is a best-effort heuristic for multipart/form-data.
-    private func extractModelNameFromMultipart(_ data: Data) -> String? {
-        guard let bodyStr = String(data: data, encoding: .utf8) else { return nil }
-        // Look for the model field in multipart form data
-        // Pattern: ...Content-Disposition: form-data; name="model"\r\n\r\n<model_name>
-        let patterns = ["name=\"model\"\r\n\r\n", "name=\"model\"\n\n"]
-        for pattern in patterns {
-            if let range = bodyStr.range(of: pattern) {
-                let afterModel = bodyStr[range.upperBound...]
-                // The value ends at the next boundary or end of string
-                let endPattern = "\r\n--"
-                if let endRange = afterModel.range(of: endPattern) {
-                    return String(afterModel[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                return String(afterModel).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-        return nil
-    }
-
-    /// Get the first available channel as fallback.
-    private func getFirstAvailableChannel() -> Channel? {
-        services.runtimeState.enabledChannelsSnapshot().first
-    }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
         ProxyEndpointSupport.errorResponse(statusCode, message)
