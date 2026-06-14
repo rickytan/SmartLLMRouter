@@ -107,13 +107,6 @@ final class ModelEndpointHandler {
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
-        let body: [String: Any] = [
-            "error": ["message": message, "type": "api_error", "code": statusCode]
-        ]
-        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
-        let bytes = [UInt8](data)
-        return HttpResponse.raw(statusCode, "OK", ["content-type": "application/json"]) { writer in
-            try writer.write(bytes)
-        }
+        ProxyEndpointSupport.errorResponse(statusCode, message)
     }
 }

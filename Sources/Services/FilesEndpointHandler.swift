@@ -47,7 +47,7 @@ final class FilesEndpointHandler {
 
         let targetProtocol = targetProtocol(for: channel)
         var headers = request.headers
-        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
+        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
 
         let bodyData: Data
@@ -77,7 +77,7 @@ final class FilesEndpointHandler {
             }
 
             let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
-            let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
+            let cost = ProxyEndpointSupport.estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
             services.usageTracker.recordUsage(
                 channelID: channel.id, channelName: channel.name,
                 model: channel.models.first?.identifier ?? "unknown",
@@ -103,12 +103,12 @@ final class FilesEndpointHandler {
                 finalHeaders[key] = value
             }
 
-            return rawResponse(statusCode: statusCode, headers: finalHeaders, body: data)
+            return ProxyEndpointSupport.rawResponse(statusCode: statusCode, headers: finalHeaders, body: data)
 
         case let .failure(error):
             Log.error("[#\(reqId)] Files API forward failed: \(error.localizedDescription)")
             services.runtimeState.completeRequest(requestID: reqIdString)
-            return errorResponse(502, "Upstream request failed")
+            return ProxyEndpointSupport.errorResponse(502, "Upstream request failed")
         }
     }
 
@@ -160,35 +160,7 @@ final class FilesEndpointHandler {
         request.params[paramName]
     }
 
-    private func setAuthHeaders(_ headers: inout [String: String], apiKey: String, protocol: RequestForwarder.RequestProtocol) {
-        switch `protocol` {
-        case .anthropic:
-            headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            headers["authorization"] = "Bearer \(apiKey)"
-        }
-    }
-
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
-        let body: [String: Any] = [
-            "error": ["message": message, "type": "api_error", "code": statusCode]
-        ]
-        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
-        return rawResponse(statusCode: statusCode, headers: ["content-type": "application/json"], body: data)
-    }
-
-    private func rawResponse(statusCode: Int, headers: [String: String], body: Data) -> HttpResponse {
-        let bytes = [UInt8](body)
-        return HttpResponse.raw(statusCode, "OK", headers) { writer in
-            try writer.write(bytes)
-        }
-    }
-
-    private func estimateCost(channel: Channel, inputTokens: Int, outputTokens: Int) -> Double {
-        guard let model = channel.models.first else { return 0.0 }
-        let inputCost = model.inputPricePer1M ?? 3.0
-        let outputCost = model.outputPricePer1M ?? 15.0
-        return (Double(inputTokens) / 1_000_000) * inputCost + (Double(outputTokens) / 1_000_000) * outputCost
+        ProxyEndpointSupport.errorResponse(statusCode, message)
     }
 }

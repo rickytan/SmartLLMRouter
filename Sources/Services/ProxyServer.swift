@@ -677,13 +677,7 @@ final class ProxyServer: ObservableObject {
     /// Set auth headers on a dictionary based on upstream protocol.
     /// Uses lowercase keys to match Swifter's lowercased header parsing.
     private func setAuthHeaders(_ headers: inout [String: String], apiKey: String, protocol: RequestForwarder.RequestProtocol) {
-        switch `protocol` {
-        case .anthropic:
-            headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
-        case .openai, .unknown:
-            headers["authorization"] = "Bearer \(apiKey)"
-        }
+        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: apiKey, protocol: `protocol`)
     }
 
     /// Extract model name from request body
@@ -1214,28 +1208,18 @@ final class ProxyServer: ObservableObject {
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
-        let body: [String: Any] = [
-            "error": ["message": message, "type": "api_error", "code": statusCode]
-        ]
-        return rawResponse(statusCode: statusCode, headers: ["content-type": "application/json"], json: body)
+        ProxyEndpointSupport.errorResponse(statusCode, message)
     }
 
     private func rawResponse(statusCode: Int, headers: [String: String], body: Data) -> HttpResponse {
-        let bytes = [UInt8](body)
-        return HttpResponse.raw(statusCode, "OK", headers) { writer in
-            try writer.write(bytes)
-        }
+        ProxyEndpointSupport.rawResponse(statusCode: statusCode, headers: headers, body: body)
     }
 
     private func rawResponse(statusCode: Int, headers: [String: String], json: [String: Any]) -> HttpResponse {
-        let body = try? JSONSerialization.data(withJSONObject: json)
-        return rawResponse(statusCode: statusCode, headers: headers, body: body ?? Data())
+        ProxyEndpointSupport.rawResponse(statusCode: statusCode, headers: headers, json: json)
     }
 
     private func estimateCost(channel: Channel, inputTokens: Int, outputTokens: Int) -> Double {
-        guard let model = channel.models.first else { return 0.0 }
-        let inputCost = model.inputPricePer1M ?? 3.0
-        let outputCost = model.outputPricePer1M ?? 15.0
-        return (Double(inputTokens) / 1_000_000) * inputCost + (Double(outputTokens) / 1_000_000) * outputCost
+        ProxyEndpointSupport.estimateCost(channel: channel, inputTokens: inputTokens, outputTokens: outputTokens)
     }
 }
