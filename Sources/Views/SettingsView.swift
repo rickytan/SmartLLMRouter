@@ -115,12 +115,10 @@ struct GeneralSettingsTab: View {
                 title: proxy.isRunning ? L10n.Settings.generalStopService : L10n.Settings.generalStartService,
                 icon: proxy.isRunning ? "stop.fill" : "play.fill"
             ) {
-                Task {
-                    if proxy.isRunning {
-                        await proxy.stop()
-                    } else {
-                        await proxy.start()
-                    }
+                if proxy.isRunning {
+                    proxy.stop()
+                } else {
+                    proxy.start()
                 }
             }
             .accessibilityIdentifier("settings.general.startStopButton")
