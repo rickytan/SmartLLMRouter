@@ -7,25 +7,27 @@ final class ProxyServer: ObservableObject {
     private let httpServer = HttpServer()
     private let services = RouterServices.shared
     private let modelEndpointHandler: ModelEndpointHandler
+    private let filesEndpointHandler: FilesEndpointHandler
     private let forwardingClient = HTTPForwardingClient()
+    private let requestIDGenerator = RequestIDGenerator()
 
     @Published var isRunning: Bool = false
     @Published var port: Int = 1897
     @Published var lastError: String?
 
     private let upstreamTimeout: TimeInterval = 120
-    private var _requestCount: Int64 = 0
-    private let requestCountLock = NSLock()
 
     private func nextRequestID() -> Int64 {
-        requestCountLock.lock()
-        defer { requestCountLock.unlock() }
-        _requestCount += 1
-        return _requestCount
+        requestIDGenerator.next()
     }
 
     private init() {
         modelEndpointHandler = ModelEndpointHandler(services: services)
+        filesEndpointHandler = FilesEndpointHandler(
+            services: services,
+            forwardingClient: forwardingClient,
+            requestIDGenerator: requestIDGenerator
+        )
         setupRoutes()
     }
 
@@ -151,11 +153,11 @@ final class ProxyServer: ObservableObject {
         // 10. Files list/upload
         httpServer.get["/v1/files"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleFilesRequest(request, method: "GET")
+            return self.filesEndpointHandler.handle(request, method: "GET")
         }
         httpServer.post["/v1/files"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleFilesRequest(request, method: "POST")
+            return self.filesEndpointHandler.handle(request, method: "POST")
         }
 
         // 11. Files detail/delete/content
@@ -163,13 +165,13 @@ final class ProxyServer: ObservableObject {
             guard let self else { return HttpResponse.internalServerError }
             let method = request.method.uppercased()
             if method == "GET" || method == "DELETE" {
-                return self.handleFilesRequest(request, method: method)
+                return self.filesEndpointHandler.handle(request, method: method)
             }
             return self.errorResponse(405, "Method not allowed")
         }
         httpServer.get["/v1/files/:fileId/content"] = { [weak self] request in
             guard let self else { return HttpResponse.internalServerError }
-            return self.handleFilesRequest(request, method: "GET", isContent: true)
+            return self.filesEndpointHandler.handle(request, method: "GET", isContent: true)
         }
     }
 
@@ -1209,155 +1211,6 @@ final class ProxyServer: ObservableObject {
     /// Get the first available channel as fallback.
     private func getFirstAvailableChannel() -> Channel? {
         services.runtimeState.enabledChannelsSnapshot().first
-    }
-
-    /// Get the first available OpenAI-protocol channel (for OpenAI-only APIs like Files).
-    private func getFirstOpenAIChannel() -> Channel? {
-        services.runtimeState.enabledChannelsSnapshot().first { channel in
-            switch channel.protocol {
-            case .openai, .auto:
-                true
-            case .anthropic:
-                false
-            }
-        }
-    }
-
-    // MARK: 10,11. Files API endpoints
-
-    /// Handles all Files API requests (list, upload, retrieve, delete, download).
-    /// Uses the first available channel — no model matching needed.
-    private func handleFilesRequest(
-        _ request: HttpRequest,
-        method: String,
-        isContent: Bool = false
-    ) -> HttpResponse {
-        let reqId = nextRequestID()
-        let startTime = Date()
-        let reqIdString = "req-\(reqId)"
-
-        Log.info("[#\(reqId)] \(request.method) \(request.path) (files)")
-
-        // Use first available OpenAI channel (Files API is OpenAI-only)
-        guard let channel = getFirstOpenAIChannel() else {
-            return errorResponse(503, "No available OpenAI channel for Files API")
-        }
-
-        guard let apiKey = services.channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
-        else {
-            return errorResponse(503, "No API key for channel")
-        }
-
-        // Build upstream URL
-        var components = URLComponents(string: channel.baseURL)
-        if isContent {
-            // /v1/files/{id}/content → /v1/files/{id}/content
-            if let fileId = extractPathParameter(from: request, named: "fileId") {
-                components?.path = "/v1/files/\(fileId)/content"
-            } else {
-                return errorResponse(400, "Missing file ID")
-            }
-        } else if request.path.hasPrefix("/v1/files/") {
-            // /v1/files/{id} → pass through path with fileId
-            if let fileId = extractPathParameter(from: request, named: "fileId") {
-                components?.path = "/v1/files/\(fileId)"
-            } else {
-                components?.path = "/v1/files"
-            }
-        } else {
-            components?.path = "/v1/files"
-        }
-
-        // Forward query parameters (e.g., ?purpose=...)
-        if !request.queryParams.isEmpty {
-            components?.queryItems = request.queryParams.map { URLQueryItem(name: $0.0, value: $0.1) }
-        }
-
-        guard let upstreamURL = components?.url else {
-            return errorResponse(500, "Invalid upstream URL")
-        }
-
-        // Determine protocol
-        let targetProtocol: RequestForwarder.RequestProtocol
-        switch channel.protocol {
-        case .anthropic:
-            targetProtocol = .anthropic
-        case .openai, .auto:
-            targetProtocol = .openai
-        }
-
-        // Build headers
-        var headers = request.headers
-        setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
-        headers.removeValue(forKey: "host")
-
-        // Body: only for POST (upload)
-        let bodyData: Data
-        if method == "POST" && !request.body.isEmpty {
-            bodyData = Data(request.body)
-            // Ensure content-type and content-length are set
-            if headers["content-length"] == nil {
-                headers["content-length"] = String(bodyData.count)
-            }
-        } else {
-            bodyData = Data()
-        }
-
-        // Forward request with method
-        let result = forwardingClient.forwardSync(
-            url: upstreamURL,
-            method: method,
-            headers: headers,
-            body: bodyData,
-            timeout: 300
-        )
-
-        switch result {
-        case let .success(data, statusCode, responseHeaders):
-            let latency = Date().timeIntervalSince(startTime)
-
-            if statusCode >= 200 && statusCode < 300 {
-                routerRecordSuccess(channelID: channel.id)
-            }
-
-            // Record usage (best effort)
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: targetProtocol == .anthropic)
-            let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
-            services.usageTracker.recordUsage(
-                channelID: channel.id, channelName: channel.name,
-                model: channel.models.first?.identifier ?? "unknown",
-                inputTokens: usage.input, outputTokens: usage.output,
-                estimatedCost: cost, latency: latency * 1000,
-                statusCode: statusCode, isError: statusCode >= 400
-            )
-
-            routerCompleteRequest(requestID: reqIdString)
-
-            // Forward upstream content-type for binary downloads
-            var responseContentType = "application/json"
-            if let ct = responseHeaders["content-type"]?.lowercased() {
-                if ct.contains("octet-stream") || ct.contains("application/octet") {
-                    responseContentType = ct
-                } else {
-                    responseContentType = responseHeaders["content-type"] ?? "application/json"
-                }
-            }
-            var finalHeaders: [String: String] = ["content-type": responseContentType]
-            finalHeaders["content-length"] = String(data.count)
-            for (key, value) in responseHeaders {
-                if key.lowercased().hasPrefix("x-") || key.lowercased() == "retry-after" || key.lowercased() == "request-id" {
-                    finalHeaders[key] = value
-                }
-            }
-
-            return rawResponse(statusCode: statusCode, headers: finalHeaders, body: data)
-
-        case let .failure(error):
-            Log.error("[#\(reqId)] Files API forward failed: \(error.localizedDescription)")
-            routerCompleteRequest(requestID: reqIdString)
-            return errorResponse(502, "Upstream request failed")
-        }
     }
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
