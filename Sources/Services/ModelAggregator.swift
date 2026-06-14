@@ -25,14 +25,7 @@ final class ModelAggregator {
     /// the ChannelStore. Triggers lazy loading on first call.
     /// This is an async function and should be called from a background context or Task.
     func fetchAllModelsIfNeeded() async {
-        // Check flag with lock
-        var shouldFetch = false
-        lock.lock()
-        if !hasInitialized {
-            hasInitialized = true
-            shouldFetch = true
-        }
-        lock.unlock()
+        let shouldFetch = markInitializedIfNeeded()
 
         guard shouldFetch else { return }
 
@@ -131,10 +124,7 @@ final class ModelAggregator {
                     }
                 }
 
-                // Update cache
-                lock.lock()
-                cachedModels[channel.id] = models
-                lock.unlock()
+                cache(models, for: channel.id)
                 
                 Log.info("[ModelAggregator] Channel '\(channel.name)': \(models.count) models fetched")
             } else {
@@ -154,6 +144,22 @@ final class ModelAggregator {
 
         let totalUnique = allUniqueModels.count
         Log.info("[ModelAggregator] Aggregation complete: \(totalUnique) unique models from \(updates.count) channels")
+    }
+
+    private func markInitializedIfNeeded() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !hasInitialized else { return false }
+        hasInitialized = true
+        return true
+    }
+
+    private func cache(_ models: [ModelEntry], for channelID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        cachedModels[channelID] = models
     }
 
     /// Fetches models from a single channel with appropriate auth headers

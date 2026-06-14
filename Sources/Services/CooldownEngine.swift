@@ -157,7 +157,9 @@ final class CooldownEngine: ObservableObject {
 
     private func startCleanupTimer() {
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            self?.cleanupExpiredCooldowns()
+            Task { @MainActor in
+                self?.cleanupExpiredCooldowns()
+            }
         }
     }
 
