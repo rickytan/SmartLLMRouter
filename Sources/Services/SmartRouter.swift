@@ -472,9 +472,6 @@ final class SmartRouter: ObservableObject {
     @Published var smartFallbackEnabled: Bool = false
     @Published var maxFallbackCost: Double = 2.0
 
-    private var retryCounter: [String: Int] = [:]
-    private var requestToChannel: [String: String] = [:]
-
     private let services = RouterServices.shared
 
     /// Circuit breaker instance (replaces CooldownEngine)
@@ -519,6 +516,10 @@ final class SmartRouter: ObservableObject {
     }
 
     private func syncRuntimeSettings() {
+        services.runtimeState.updateChannels(
+            services.channelServices.channels,
+            activeChannelID: services.channelServices.store.activeChannelID
+        )
         services.runtimeState.updateSettings(
             mode: mode,
             maxRetries: maxRetries,
@@ -531,232 +532,20 @@ final class SmartRouter: ObservableObject {
 
     /// Select the best available channel for a request
     func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
-        let channels = services.channelServices.enabledChannels
-
-        let sortedChannels = channels.sorted { $0.priority < $1.priority }
-
-        // Use CircuitBreaker instead of CooldownEngine
-        let availableChannels = sortedChannels.filter { channel in
-            circuitBreaker.isAvailable(channelID: channel.id)
-        }
-
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
-        }
-
-        let selectedChannel: Channel?
-        var effectiveModel = modelName
-        if let model = modelName, compatibleChannels.isEmpty {
-            selectedChannel = availableChannels.first
-            if let selectedChannel {
-                effectiveModel = selectedChannel.models.first { $0.isEnabled }?.identifier
-                Log.info("No exact channel match for model '\(model)'; using \(effectiveModel ?? "default model") via \(selectedChannel.name)")
-            }
-        } else {
-            selectedChannel = compatibleChannels.first
-            if let model = modelName, let channel = selectedChannel {
-                if let matched = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }) {
-                    effectiveModel = matched.identifier
-                }
-            }
-        }
-
-        guard let selectedChannel else {
-            Log.warn("No available channels for routing")
-            return nil
-        }
-
-        requestToChannel[requestID] = selectedChannel.id
-
-        return RoutingDecision(
-            channel: selectedChannel,
-            isRetry: false,
-            previousChannelID: nil,
-            retryCount: 0,
-            originalModel: modelName,
-            effectiveModel: effectiveModel
-        )
+        syncRuntimeSettings()
+        return services.runtimeState.selectChannel(requestID: requestID, modelName: modelName)
     }
 
     /// Handle an error and decide if we should retry with another channel
     func handleError(requestID: String, statusCode: Int, modelName: String? = nil, errorBody: Data? = nil, requestProtocol: RequestForwarder.RequestProtocol? = nil) -> RoutingDecision? {
-        let errorType = RouterErrorType(statusCode: statusCode, errorBody: errorBody)
-
-        Log.info("Handling error \(statusCode) for request \(requestID)")
-
-        if mode == .manual {
-            Log.info("Manual mode - no retry")
-            return nil
-        }
-
-        // 403: hard block — permission issue, failover won't help
-        if errorType == .forbidden403 {
-            Log.info("Error type \(errorType) does not trigger failover")
-            return nil
-        }
-        // 401: may be credential issue OR model-not-supported.
-        // Try next channel; if all fail, maxRetries will stop the loop.
-
-        if !errorType.shouldFailover {
-            Log.info("Error type \(errorType) does not trigger failover")
-            return nil
-        }
-
-        let currentRetryCount = retryCounter[requestID] ?? 0
-
-        if currentRetryCount >= maxRetries {
-            Log.warn("Max retries exceeded for request \(requestID)")
-            return nil
-        }
-
-        let previousChannelID = requestToChannel[requestID]
-
-        // Use SwitchLock to prevent race conditions in state changes
-        services.switchLock.execute {
-            if let prevID = previousChannelID {
-                self.circuitBreaker.recordFailure(channelID: prevID)
-            }
-        }
-
-        retryCounter[requestID] = currentRetryCount + 1
-
-        let channels = services.channelServices.enabledChannels
-
-        let sortedChannels = channels.sorted { $0.priority < $1.priority }
-        let availableChannels = sortedChannels.filter { channel in
-            channel.id != previousChannelID &&
-                circuitBreaker.isAvailable(channelID: channel.id)
-        }
-
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
-        }
-
-        // For context_length_exceeded: first try same-model channel downgrade, then smart fallback
-        if errorType == .contextLengthExceeded {
-            // Step 1: Try standard downgrade — find same model on another available channel
-            if let nextChannel = compatibleChannels.first {
-                requestToChannel[requestID] = nextChannel.id
-
-                Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
-
-                return RoutingDecision(
-                    channel: nextChannel,
-                    isRetry: true,
-                    previousChannelID: previousChannelID,
-                    retryCount: currentRetryCount + 1,
-                    originalModel: modelName,
-                    effectiveModel: modelName
-                )
-            }
-
-            // Step 2: No same-model channel — try smart fallback (only if enabled)
-            if smartFallbackEnabled {
-                let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-                let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
-
-                if let fallback = selectFallbackModel(
-                    requestID: requestID,
-                    originalModel: modelName ?? "unknown",
-                    actualTokensUsed: actualTokensUsed,
-                    errorType: errorType,
-                    apiProtocol: protocolType,
-                    excludedChannelID: previousChannelID
-                ) {
-                    let fallbackContext = fallback.channel.models
-                        .first { $0.identifier == fallback.fallbackModel }?
-                        .contextLength
-                        .map(formatContextLength) ?? "N/A"
-
-                    Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                    Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
-                    Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                    Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                    Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                    requestToChannel[requestID] = fallback.channel.id
-
-                    return RoutingDecision(
-                        channel: fallback.channel,
-                        isRetry: true,
-                        previousChannelID: previousChannelID,
-                        retryCount: currentRetryCount + 1,
-                        originalModel: fallback.originalModel,
-                        effectiveModel: fallback.fallbackModel
-                    )
-                }
-            }
-
-            // Step 3: Both standard downgrade and smart fallback failed
-            Log.warn("No suitable channel or fallback for context_length_exceeded on request \(requestID)")
-            return nil
-        }
-
-        // For 429/5xx: first try same-model channel, then fallback
-        if let nextChannel = compatibleChannels.first {
-            requestToChannel[requestID] = nextChannel.id
-
-            Log.info("Retrying with channel \(nextChannel.name) (retry #\(currentRetryCount + 1))")
-
-            return RoutingDecision(
-                channel: nextChannel,
-                isRetry: true,
-                previousChannelID: previousChannelID,
-                retryCount: currentRetryCount + 1,
-                originalModel: modelName,
-                effectiveModel: modelName
-            )
-        }
-
-        // No same-model channel available — try smart fallback
-        if smartFallbackEnabled {
-            let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-            let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
-
-            if let fallback = selectFallbackModel(
-                requestID: requestID,
-                originalModel: modelName ?? "unknown",
-                actualTokensUsed: actualTokensUsed,
-                errorType: errorType,
-                apiProtocol: protocolType,
-                excludedChannelID: previousChannelID
-            ) {
-                let fallbackContext = fallback.channel.models
-                    .first { $0.identifier == fallback.fallbackModel }?
-                    .contextLength
-                    .map(formatContextLength) ?? "N/A"
-
-                Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
-                Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                requestToChannel[requestID] = fallback.channel.id
-
-                return RoutingDecision(
-                    channel: fallback.channel,
-                    isRetry: true,
-                    previousChannelID: previousChannelID,
-                    retryCount: currentRetryCount + 1,
-                    originalModel: fallback.originalModel,
-                    effectiveModel: fallback.fallbackModel
-                )
-            }
-        }
-
-        Log.warn("No alternative channels available for retry")
-        return nil
+        syncRuntimeSettings()
+        return services.runtimeState.handleError(
+            requestID: requestID,
+            statusCode: statusCode,
+            modelName: modelName,
+            errorBody: errorBody,
+            requestProtocol: requestProtocol
+        )
     }
 
     // MARK: - Smart Fallback
@@ -925,7 +714,7 @@ final class SmartRouter: ObservableObject {
 
     /// Record a successful request for the channel (closes circuit if half-open)
     func recordSuccess(channelID: String) {
-        circuitBreaker.recordSuccess(channelID: channelID)
+        services.runtimeState.recordSuccess(channelID: channelID)
     }
 
     /// Start cooldown for a channel based on error type (now uses CircuitBreaker)
@@ -937,8 +726,7 @@ final class SmartRouter: ObservableObject {
 
     /// Clear retry tracking for a completed request
     func completeRequest(requestID: String) {
-        retryCounter.removeValue(forKey: requestID)
-        requestToChannel.removeValue(forKey: requestID)
+        services.runtimeState.completeRequest(requestID: requestID)
     }
 
     /// Get cooldown duration for an error type
