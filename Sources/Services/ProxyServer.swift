@@ -7,6 +7,7 @@ final class ProxyServer: ObservableObject {
     private let httpServer = HttpServer()
     private let services = RouterServices.shared
     private let modelEndpointHandler: ModelEndpointHandler
+    private let forwardingClient = HTTPForwardingClient()
 
     @Published var isRunning: Bool = false
     @Published var port: Int = 1897
@@ -352,8 +353,7 @@ final class ProxyServer: ObservableObject {
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request via URLSession
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
@@ -592,8 +592,7 @@ final class ProxyServer: ObservableObject {
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
@@ -683,70 +682,6 @@ final class ProxyServer: ObservableObject {
         case .openai, .unknown:
             headers["authorization"] = "Bearer \(apiKey)"
         }
-    }
-
-    /// Forward request synchronously
-    private func forwardRequestSync(
-        reqId _: Int64,
-        url: URL,
-        method: String = "POST",
-        headers: [String: String],
-        body: Data,
-        timeout: TimeInterval
-    ) -> ForwardResult {
-        var resultData: Data?
-        var resultStatusCode = 200
-        var resultHeaders: [String: String] = [:]
-        var forwardErr: Error?
-        let group = DispatchGroup()
-        group.enter()
-
-        Task {
-            do {
-                var urlRequest = URLRequest(url: url)
-                urlRequest.httpMethod = method
-                if !body.isEmpty {
-                    urlRequest.httpBody = body
-                }
-                urlRequest.timeoutInterval = timeout
-                for (k, v) in headers {
-                    urlRequest.setValue(v, forHTTPHeaderField: k)
-                }
-
-                let (responseData, urlResponse) = try await URLSession.shared.data(for: urlRequest)
-                let httpResponse = urlResponse as? HTTPURLResponse
-
-                let rHeaders: [String: String] = (httpResponse?.allHeaderFields ?? [:])
-                    .reduce(into: [:]) { dict, pair in
-                        if let key = pair.key as? String, let value = pair.value as? String {
-                            dict[key] = value
-                        }
-                    }
-
-                resultData = responseData
-                resultStatusCode = httpResponse?.statusCode ?? 200
-                resultHeaders = rHeaders
-            } catch {
-                forwardErr = error
-            }
-            group.leave()
-        }
-
-        _ = group.wait(timeout: .now() + timeout + 5)
-
-        if let forwardErr {
-            return .failure(forwardErr)
-        }
-
-        guard let data = resultData else {
-            return .failure(NSError(
-                domain: "ProxyServer",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "No response data"]
-            ))
-        }
-
-        return .success(data: data, statusCode: resultStatusCode, headers: resultHeaders)
     }
 
     /// Extract model name from request body
@@ -862,8 +797,7 @@ final class ProxyServer: ObservableObject {
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
@@ -994,12 +928,6 @@ final class ProxyServer: ObservableObject {
         return rawResponse(statusCode: statusCode, headers: responseHeaders, body: body)
     }
 
-    /// Result of forwarding a request
-    private enum ForwardResult {
-        case success(data: Data, statusCode: Int, headers: [String: String])
-        case failure(Error)
-    }
-
     // MARK: - Route parameter extraction
 
     /// Extract a path parameter value from a Swifter request.
@@ -1071,8 +999,7 @@ final class ProxyServer: ObservableObject {
         headers.removeValue(forKey: "host")
 
         // Forward request
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             headers: headers,
             body: effectiveBody,
@@ -1206,8 +1133,7 @@ final class ProxyServer: ObservableObject {
             headers["content-type"] = "multipart/form-data"
         }
 
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             headers: headers,
             body: bodyData,
@@ -1379,8 +1305,7 @@ final class ProxyServer: ObservableObject {
         }
 
         // Forward request with method
-        let result = forwardRequestSync(
-            reqId: reqId,
+        let result = forwardingClient.forwardSync(
             url: upstreamURL,
             method: method,
             headers: headers,
