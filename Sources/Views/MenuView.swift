@@ -3,15 +3,26 @@ import SwiftUI
 // MARK: - MenuView
 
 struct MenuView: View {
-    @ObservedObject private var proxy = ProxyServer.shared
-    @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var usage = UsageTracker.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
-    @ObservedObject private var modelSwitcher = ModelSwitcher.shared
+    @ObservedObject private var proxy: ProxyServer
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var usage: UsageTracker
+    @ObservedObject private var channelManager: ChannelManager
+    @ObservedObject private var modelSwitcher: ModelSwitcher
     // Timer to refresh relative timestamps ("X minutes ago")
     @State private var now = Date()
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _proxy = ObservedObject(wrappedValue: services.proxyServer)
+        _appState = ObservedObject(wrappedValue: services.appState)
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _usage = ObservedObject(wrappedValue: services.usageTracker)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        _modelSwitcher = ObservedObject(wrappedValue: services.modelSwitcher)
+    }
 
     var body: some View {
         VStack(spacing: .zero) {

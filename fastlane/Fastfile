@@ -38,6 +38,33 @@ def app_version
   yml[/MARKETING_VERSION:\s*(\S+)/, 1] || "0.0.0"
 end
 
+def code_sign_identity
+  ENV["CODE_SIGN_IDENTITY"] || ENV["CODE_SIGN_IDENTITY_NAME"] || ENV["DEVELOPER_ID_APPLICATION"]
+end
+
+def signed_build?
+  identity = code_sign_identity
+  identity && !identity.empty? && identity != "-"
+end
+
+def developer_id_xcargs
+  identity = code_sign_identity
+  team_id = ENV["APPLE_TEAM_ID"]
+  UI.user_error!("Missing CODE_SIGN_IDENTITY / CODE_SIGN_IDENTITY_NAME / DEVELOPER_ID_APPLICATION") if identity.nil? || identity.empty?
+  UI.user_error!("Missing APPLE_TEAM_ID") if team_id.nil? || team_id.empty?
+
+  [
+    "CODE_SIGN_STYLE=Manual",
+    "DEVELOPMENT_TEAM=#{Shellwords.escape(team_id)}",
+    "CODE_SIGN_IDENTITY=#{Shellwords.escape(identity)}",
+    "CODE_SIGNING_ALLOWED=YES",
+    "CODE_SIGNING_REQUIRED=YES",
+    "ENABLE_HARDENED_RUNTIME=YES",
+    "OTHER_CODE_SIGN_FLAGS=--timestamp",
+    "ONLY_ACTIVE_ARCH=NO"
+  ].join(" ")
+end
+
 def is_prerelease?
   app_version.match?(/alpha|beta|rc/i)
 end
@@ -59,8 +86,8 @@ lane :build do
   end
 
   # match fetches Developer ID cert from git repo (if configured)
-  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
-  if identity && identity != "-"
+  if signed_build?
+    identity = code_sign_identity
     match(type: "developer_id", app_identifier: "com.smartllmrouter.app", readonly: true)
     UI.header("Building #{PROJECT_NAME} (signing: #{identity})")
     gym(
@@ -71,7 +98,7 @@ lane :build do
       skip_package_ipa: true,
       skip_archive: true,
       export_method: "developer-id",
-      xcargs: "ONLY_ACTIVE_ARCH=NO",
+      xcargs: developer_id_xcargs,
       output_directory: "build",
       silent: false
     )
@@ -140,7 +167,7 @@ lane :dmg do
   run("hdiutil", "create", "-volname", "#{PROJECT_NAME} #{version}",
       "-srcfolder", staging, "-ov", "-format", "UDZO", dmg_path)
 
-  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"] || "-"
+  identity = code_sign_identity || "-"
   run("codesign", "--force", "--sign", identity, dmg_path)
   run("codesign", "--verify", "--verbose", dmg_path)
 
@@ -214,9 +241,7 @@ end
 
 # ── Full Release ──
 lane :release do
-  identity = ENV["CODE_SIGN_IDENTITY"] || ENV["DEVELOPER_ID_APPLICATION"]
-
-  if identity && identity != "-"
+  if signed_build?
     # match fetches Developer ID cert from git repo
     match(type: "developer_id", app_identifier: "com.smartllmrouter.app", readonly: true)
   end
@@ -225,7 +250,7 @@ lane :release do
 
   dmg
 
-  if identity && identity != "-"
+  if signed_build?
     notarize_dmg
   else
     UI.important("Skipping notarization (ad-hoc build)")
@@ -233,7 +258,7 @@ lane :release do
 
   if is_prerelease?
     UI.important("Skipping Appcast generation (prerelease: #{app_version})")
-  elsif identity && identity != "-"
+  elsif signed_build?
     appcast
   end
 

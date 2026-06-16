@@ -137,9 +137,15 @@ final class RouterRuntimeState {
     private var requestToChannel: [String: String] = [:]
     private var channels: [Channel] = []
     private var activeChannelID: String?
-    private let circuitBreaker = CircuitBreaker.shared
+    private let circuitBreaker: CircuitBreaker
+    private let switchLock: SwitchLock
 
-    private init() {
+    private init(
+        circuitBreaker: CircuitBreaker = .shared,
+        switchLock: SwitchLock = .shared
+    ) {
+        self.circuitBreaker = circuitBreaker
+        self.switchLock = switchLock
         let defaults = UserDefaults.standard
         mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
         let savedMaxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
@@ -262,7 +268,7 @@ final class RouterRuntimeState {
 
         let previousChannelID = requestToChannel[requestID]
         if let previousChannelID {
-            _ = SwitchLock.shared.execute {
+            _ = switchLock.execute {
                 self.circuitBreaker.recordFailure(channelID: previousChannelID)
             }
         }
@@ -466,11 +472,7 @@ final class SmartRouter: ObservableObject {
     @Published var smartFallbackEnabled: Bool = false
     @Published var maxFallbackCost: Double = 2.0
 
-    private var retryCounter: [String: Int] = [:]
-    private var requestToChannel: [String: String] = [:]
-
-    /// Circuit breaker instance (replaces CooldownEngine)
-    private var circuitBreaker: CircuitBreaker { CircuitBreaker.shared }
+    private let services = RouterServices.shared
 
     private init() {
         loadSettings()
@@ -511,7 +513,11 @@ final class SmartRouter: ObservableObject {
     }
 
     private func syncRuntimeSettings() {
-        RouterRuntimeState.shared.updateSettings(
+        services.runtimeState.updateChannels(
+            services.channelServices.channels,
+            activeChannelID: services.channelServices.store.activeChannelID
+        )
+        services.runtimeState.updateSettings(
             mode: mode,
             maxRetries: maxRetries,
             smartFallbackEnabled: smartFallbackEnabled,
@@ -523,414 +529,30 @@ final class SmartRouter: ObservableObject {
 
     /// Select the best available channel for a request
     func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
-        let channels = ChannelStore.shared.enabledChannels
-
-        let sortedChannels = channels.sorted { $0.priority < $1.priority }
-
-        // Use CircuitBreaker instead of CooldownEngine
-        let availableChannels = sortedChannels.filter { channel in
-            circuitBreaker.isAvailable(channelID: channel.id)
-        }
-
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
-        }
-
-        let selectedChannel: Channel?
-        var effectiveModel = modelName
-        if let model = modelName, compatibleChannels.isEmpty {
-            selectedChannel = availableChannels.first
-            if let selectedChannel {
-                effectiveModel = selectedChannel.models.first { $0.isEnabled }?.identifier
-                Log.info("No exact channel match for model '\(model)'; using \(effectiveModel ?? "default model") via \(selectedChannel.name)")
-            }
-        } else {
-            selectedChannel = compatibleChannels.first
-            if let model = modelName, let channel = selectedChannel {
-                if let matched = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }) {
-                    effectiveModel = matched.identifier
-                }
-            }
-        }
-
-        guard let selectedChannel else {
-            Log.warn("No available channels for routing")
-            return nil
-        }
-
-        requestToChannel[requestID] = selectedChannel.id
-
-        return RoutingDecision(
-            channel: selectedChannel,
-            isRetry: false,
-            previousChannelID: nil,
-            retryCount: 0,
-            originalModel: modelName,
-            effectiveModel: effectiveModel
-        )
+        syncRuntimeSettings()
+        return services.runtimeState.selectChannel(requestID: requestID, modelName: modelName)
     }
 
     /// Handle an error and decide if we should retry with another channel
     func handleError(requestID: String, statusCode: Int, modelName: String? = nil, errorBody: Data? = nil, requestProtocol: RequestForwarder.RequestProtocol? = nil) -> RoutingDecision? {
-        let errorType = RouterErrorType(statusCode: statusCode, errorBody: errorBody)
-
-        Log.info("Handling error \(statusCode) for request \(requestID)")
-
-        if mode == .manual {
-            Log.info("Manual mode - no retry")
-            return nil
-        }
-
-        // 403: hard block — permission issue, failover won't help
-        if errorType == .forbidden403 {
-            Log.info("Error type \(errorType) does not trigger failover")
-            return nil
-        }
-        // 401: may be credential issue OR model-not-supported.
-        // Try next channel; if all fail, maxRetries will stop the loop.
-
-        if !errorType.shouldFailover {
-            Log.info("Error type \(errorType) does not trigger failover")
-            return nil
-        }
-
-        let currentRetryCount = retryCounter[requestID] ?? 0
-
-        if currentRetryCount >= maxRetries {
-            Log.warn("Max retries exceeded for request \(requestID)")
-            return nil
-        }
-
-        let previousChannelID = requestToChannel[requestID]
-
-        // Use SwitchLock to prevent race conditions in state changes
-        SwitchLock.shared.execute {
-            if let prevID = previousChannelID {
-                self.circuitBreaker.recordFailure(channelID: prevID)
-            }
-        }
-
-        retryCounter[requestID] = currentRetryCount + 1
-
-        let channels = ChannelStore.shared.enabledChannels
-
-        let sortedChannels = channels.sorted { $0.priority < $1.priority }
-        let availableChannels = sortedChannels.filter { channel in
-            channel.id != previousChannelID &&
-                circuitBreaker.isAvailable(channelID: channel.id)
-        }
-
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
-        }
-
-        // For context_length_exceeded: first try same-model channel downgrade, then smart fallback
-        if errorType == .contextLengthExceeded {
-            // Step 1: Try standard downgrade — find same model on another available channel
-            if let nextChannel = compatibleChannels.first {
-                requestToChannel[requestID] = nextChannel.id
-
-                Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
-
-                return RoutingDecision(
-                    channel: nextChannel,
-                    isRetry: true,
-                    previousChannelID: previousChannelID,
-                    retryCount: currentRetryCount + 1,
-                    originalModel: modelName,
-                    effectiveModel: modelName
-                )
-            }
-
-            // Step 2: No same-model channel — try smart fallback (only if enabled)
-            if smartFallbackEnabled {
-                let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-                let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
-
-                if let fallback = selectFallbackModel(
-                    requestID: requestID,
-                    originalModel: modelName ?? "unknown",
-                    actualTokensUsed: actualTokensUsed,
-                    errorType: errorType,
-                    apiProtocol: protocolType,
-                    excludedChannelID: previousChannelID
-                ) {
-                    let fallbackContext = fallback.channel.models
-                        .first { $0.identifier == fallback.fallbackModel }?
-                        .contextLength
-                        .map(formatContextLength) ?? "N/A"
-
-                    Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                    Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                    Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
-                    Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                    Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                    Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                    requestToChannel[requestID] = fallback.channel.id
-
-                    return RoutingDecision(
-                        channel: fallback.channel,
-                        isRetry: true,
-                        previousChannelID: previousChannelID,
-                        retryCount: currentRetryCount + 1,
-                        originalModel: fallback.originalModel,
-                        effectiveModel: fallback.fallbackModel
-                    )
-                }
-            }
-
-            // Step 3: Both standard downgrade and smart fallback failed
-            Log.warn("No suitable channel or fallback for context_length_exceeded on request \(requestID)")
-            return nil
-        }
-
-        // For 429/5xx: first try same-model channel, then fallback
-        if let nextChannel = compatibleChannels.first {
-            requestToChannel[requestID] = nextChannel.id
-
-            Log.info("Retrying with channel \(nextChannel.name) (retry #\(currentRetryCount + 1))")
-
-            return RoutingDecision(
-                channel: nextChannel,
-                isRetry: true,
-                previousChannelID: previousChannelID,
-                retryCount: currentRetryCount + 1,
-                originalModel: modelName,
-                effectiveModel: modelName
-            )
-        }
-
-        // No same-model channel available — try smart fallback
-        if smartFallbackEnabled {
-            let actualTokensUsed = parseActualTokensUsed(from: errorBody, modelName: modelName) ?? 0
-            let protocolType = resolveRequestProtocol(requestProtocol: requestProtocol)
-
-            if let fallback = selectFallbackModel(
-                requestID: requestID,
-                originalModel: modelName ?? "unknown",
-                actualTokensUsed: actualTokensUsed,
-                errorType: errorType,
-                apiProtocol: protocolType,
-                excludedChannelID: previousChannelID
-            ) {
-                let fallbackContext = fallback.channel.models
-                    .first { $0.identifier == fallback.fallbackModel }?
-                    .contextLength
-                    .map(formatContextLength) ?? "N/A"
-
-                Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
-                Log.info("  Original model: \(fallback.originalModel) (Channel: \(fallback.previousChannel.name), Error: \(errorType))")
-                Log.info("  Fallback model: \(fallback.fallbackModel) (Channel: \(fallback.channel.name), Context: \(fallbackContext))")
-                Log.info("  Protocol: \(protocolLabel(protocolType)) (same protocol)")
-                Log.info("  Estimated cost: $\(String(format: "%.3f", fallback.estimatedCost)) (limit: $\(String(format: "%.2f", maxFallbackCost)))")
-                Log.info("  Retry attempt: \(currentRetryCount + 1)/\(maxRetries)")
-
-                requestToChannel[requestID] = fallback.channel.id
-
-                return RoutingDecision(
-                    channel: fallback.channel,
-                    isRetry: true,
-                    previousChannelID: previousChannelID,
-                    retryCount: currentRetryCount + 1,
-                    originalModel: fallback.originalModel,
-                    effectiveModel: fallback.fallbackModel
-                )
-            }
-        }
-
-        Log.warn("No alternative channels available for retry")
-        return nil
-    }
-
-    // MARK: - Smart Fallback
-
-    /// Result of a fallback decision
-    struct FallbackDecision {
-        let channel: Channel
-        let previousChannel: Channel
-        let originalModel: String
-        let fallbackModel: String
-        let estimatedCost: Double
-    }
-
-    /// Select the best fallback model based on constraints
-    func selectFallbackModel(
-        requestID: String,
-        originalModel: String,
-        actualTokensUsed: Int,
-        errorType: RouterErrorType,
-        apiProtocol: RequestForwarder.RequestProtocol,
-        excludedChannelID: String?
-    ) -> FallbackDecision? {
-        let channels = ChannelStore.shared.enabledChannels
-
-        // 1. Get all channels NOT in circuit open state and NOT the excluded channel
-        let availableChannels = channels.filter { channel in
-            channel.id != excludedChannelID &&
-                circuitBreaker.isAvailable(channelID: channel.id)
-        }
-
-        // 2. Build candidate list
-        var candidates: [(channel: Channel, model: ModelEntry)] = []
-
-        for channel in availableChannels {
-            for model in channel.models where model.isEnabled {
-                // Must have context length info
-                guard let contextLength = model.contextLength else { continue }
-
-                // 2a. Protocol consistency check
-                let modelProtocol: RequestForwarder.RequestProtocol = switch channel.protocol {
-                case .openai: .openai
-                case .anthropic: .anthropic
-                case .auto: .openai // .auto defaults to OpenAI
-                }
-
-                if modelProtocol != apiProtocol { continue }
-
-                // 2b. Larger context check
-                if contextLength <= actualTokensUsed { continue }
-
-                // 2c. Cost check
-                let pricePer1M = model.outputPricePer1M ?? model.inputPricePer1M ?? 0.0
-                let cost = estimatedFallbackCost(
-                    inputTokens: actualTokensUsed,
-                    outputTokensEstimate: 5000,
-                    pricePer1M: pricePer1M
-                )
-
-                if cost > maxFallbackCost { continue }
-
-                candidates.append((channel: channel, model: model))
-            }
-        }
-
-        // 3. Sort by context length descending (largest context first)
-        candidates.sort { ($0.model.contextLength ?? 0) > ($1.model.contextLength ?? 0) }
-
-        guard let best = candidates.first else {
-            Log.warn("No suitable fallback model found for request \(requestID)")
-            return nil
-        }
-
-        // Get the previous channel for logging
-        let prevChannel = channels.first { $0.id == excludedChannelID } ?? Channel(name: "Unknown", baseURL: "")
-
-        return FallbackDecision(
-            channel: best.channel,
-            previousChannel: prevChannel,
-            originalModel: originalModel,
-            fallbackModel: best.model.identifier,
-            estimatedCost: estimatedFallbackCost(
-                inputTokens: actualTokensUsed,
-                outputTokensEstimate: 5000,
-                pricePer1M: best.model.outputPricePer1M ?? best.model.inputPricePer1M ?? 0.0
-            )
+        syncRuntimeSettings()
+        return services.runtimeState.handleError(
+            requestID: requestID,
+            statusCode: statusCode,
+            modelName: modelName,
+            errorBody: errorBody,
+            requestProtocol: requestProtocol
         )
-    }
-
-    /// Estimate the cost of a fallback request
-    func estimatedFallbackCost(inputTokens: Int, outputTokensEstimate: Int, pricePer1M: Double) -> Double {
-        return Double(inputTokens + outputTokensEstimate) * pricePer1M / 1_000_000.0
-    }
-
-    /// Parse actual tokens used from error response body
-    private func parseActualTokensUsed(from body: Data?, modelName: String?) -> Int? {
-        guard let body,
-              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
-        else {
-            return estimateTokensFromModel(modelName)
-        }
-
-        // Anthropic: response.usage.input_tokens
-        if let usage = json["usage"] as? [String: Any] {
-            if let inputTokens = usage["input_tokens"] as? Int {
-                return inputTokens
-            }
-            // OpenAI: response.usage.prompt_tokens
-            if let promptTokens = usage["prompt_tokens"] as? Int {
-                return promptTokens
-            }
-        }
-
-        // Nested error body: check if usage is inside error object
-        if let error = json["error"] as? [String: Any],
-           let usage = error["usage"] as? [String: Any] {
-            if let inputTokens = usage["input_tokens"] as? Int {
-                return inputTokens
-            }
-            if let promptTokens = usage["prompt_tokens"] as? Int {
-                return promptTokens
-            }
-        }
-
-        return estimateTokensFromModel(modelName)
-    }
-
-    /// Estimate tokens based on original model's context length (fallback guess)
-    private func estimateTokensFromModel(_ modelName: String?) -> Int? {
-        guard let modelName else { return nil }
-        let channels = ChannelStore.shared.enabledChannels
-        for channel in channels {
-            for model in channel.models where ModelSwitcher.modelMatches(requested: modelName, stored: model.identifier) {
-                if let contextLength = model.contextLength {
-                    // Use 80% of context as estimate
-                    return Int(Double(contextLength) * 0.8)
-                }
-            }
-        }
-        return nil
-    }
-
-    /// Resolve the request protocol from the proxy's target protocol
-    private func resolveRequestProtocol(requestProtocol: RequestForwarder.RequestProtocol?) -> RequestForwarder.RequestProtocol {
-        guard let requestProtocol else { return .openai }
-        return requestProtocol
-    }
-
-    /// Format context length for display
-    private func formatContextLength(_ length: Int) -> String {
-        if length >= 1_000_000 {
-            return "\(length / 1_000_000)M tokens"
-        } else if length >= 1_000 {
-            return "\(length / 1_000)K tokens"
-        }
-        return "\(length) tokens"
-    }
-
-    /// Convert RequestProtocol to human-readable label
-    private func protocolLabel(_ p: RequestForwarder.RequestProtocol) -> String {
-        switch p {
-        case .openai: return "OpenAI"
-        case .anthropic: return "Anthropic"
-        case .unknown: return "Unknown"
-        }
     }
 
     /// Record a successful request for the channel (closes circuit if half-open)
     func recordSuccess(channelID: String) {
-        circuitBreaker.recordSuccess(channelID: channelID)
-    }
-
-    /// Start cooldown for a channel based on error type (now uses CircuitBreaker)
-    private func startCooldown(channelID: String, errorType _: RouterErrorType) {
-        // CircuitBreaker handles state internally via recordFailure
-        // This method is kept for backward compatibility
-        circuitBreaker.recordFailure(channelID: channelID)
+        services.runtimeState.recordSuccess(channelID: channelID)
     }
 
     /// Clear retry tracking for a completed request
     func completeRequest(requestID: String) {
-        retryCounter.removeValue(forKey: requestID)
-        requestToChannel.removeValue(forKey: requestID)
+        services.runtimeState.completeRequest(requestID: requestID)
     }
 
     /// Get cooldown duration for an error type

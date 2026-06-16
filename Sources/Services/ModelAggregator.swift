@@ -25,14 +25,7 @@ final class ModelAggregator {
     /// the ChannelStore. Triggers lazy loading on first call.
     /// This is an async function and should be called from a background context or Task.
     func fetchAllModelsIfNeeded() async {
-        // Check flag with lock
-        var shouldFetch = false
-        lock.lock()
-        if !hasInitialized {
-            hasInitialized = true
-            shouldFetch = true
-        }
-        lock.unlock()
+        let shouldFetch = markInitializedIfNeeded()
 
         guard shouldFetch else { return }
 
@@ -42,6 +35,14 @@ final class ModelAggregator {
     /// Force-refresh models from all channels regardless of cache state.
     func refreshAllModels() async {
         await fetchAndMergeAllChannels()
+    }
+
+    /// Clears cached aggregation so the next request reflects current channel state.
+    func invalidateCache() {
+        lock.lock()
+        cachedModels = [:]
+        hasInitialized = false
+        lock.unlock()
     }
 
     /// Returns the aggregated, deduplicated list of all known model entries
@@ -57,7 +58,7 @@ final class ModelAggregator {
 
         // Gather from cache first
         for models in cacheSnapshot.values {
-            for model in models {
+            for model in models where model.isEnabled {
                 if !seen.contains(model.identifier) {
                     seen.insert(model.identifier)
                     result.append(model)
@@ -82,7 +83,7 @@ final class ModelAggregator {
     /// and updates each channel's model list in ChannelStore.
     private func fetchAndMergeAllChannels() async {
         let channels = await MainActor.run {
-            return ChannelStore.shared.enabledChannels
+            return ChannelServices.shared.enabledChannels
         }
         
         guard !channels.isEmpty else {
@@ -123,10 +124,7 @@ final class ModelAggregator {
                     }
                 }
 
-                // Update cache
-                lock.lock()
-                cachedModels[channel.id] = models
-                lock.unlock()
+                cache(models, for: channel.id)
                 
                 Log.info("[ModelAggregator] Channel '\(channel.name)': \(models.count) models fetched")
             } else {
@@ -139,22 +137,36 @@ final class ModelAggregator {
         let finalUpdates = updates
         await MainActor.run {
             for update in finalUpdates {
-                if let index = ChannelStore.shared.channels.firstIndex(where: { $0.id == update.id }) {
-                    ChannelStore.shared.channels[index].models = update.models
-                }
+                ChannelServices.shared.updateModels(update.models, for: update.id)
             }
-            ChannelStore.shared.saveChannels()
+            ChannelServices.shared.saveChannels()
         }
 
         let totalUnique = allUniqueModels.count
         Log.info("[ModelAggregator] Aggregation complete: \(totalUnique) unique models from \(updates.count) channels")
     }
 
+    private func markInitializedIfNeeded() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !hasInitialized else { return false }
+        hasInitialized = true
+        return true
+    }
+
+    private func cache(_ models: [ModelEntry], for channelID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        cachedModels[channelID] = models
+    }
+
     /// Fetches models from a single channel with appropriate auth headers
     /// and a 5-second timeout.
     private func fetchModelsForChannel(_ channel: Channel) async -> [ModelEntry] {
         let apiKey = await MainActor.run {
-            return KeychainManager.shared.getAPIKey(for: channel.id)
+            return ChannelServices.shared.apiKey(for: channel.id)
         }
         
         guard let apiKey = apiKey, !apiKey.isEmpty else {

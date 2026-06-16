@@ -29,6 +29,7 @@ final class ModelSwitcher: ObservableObject {
     static let shared = ModelSwitcher()
 
     private let selectedModelKey = "smartllm_selected_model"
+    private let channelServices: ChannelServices
 
     /// Currently selected model ID. Nil means "Default/Passthrough".
     @Published var selectedModelID: String? {
@@ -58,7 +59,7 @@ final class ModelSwitcher: ObservableObject {
 
     /// List of models available on the active channel
     var availableModels: [ModelEntry] {
-        guard let channel = ChannelStore.shared.activeChannel else {
+        guard let channel = channelServices.activeChannel else {
             return []
         }
         return channel.models.filter { $0.isEnabled }
@@ -66,7 +67,7 @@ final class ModelSwitcher: ObservableObject {
 
     /// List of all models across all channels (for global mode)
     var allAvailableModels: [ModelEntry] {
-        let channels = ChannelStore.shared.enabledChannels
+        let channels = channelServices.enabledChannels
         var seen = Set<String>()
         var result: [ModelEntry] = []
 
@@ -87,6 +88,7 @@ final class ModelSwitcher: ObservableObject {
     }
 
     private init() {
+        channelServices = .shared
         selectedModelID = UserDefaults.standard.string(forKey: selectedModelKey)
         if selectedModelID == "Default" || selectedModelID?.isEmpty == true {
             selectedModelID = nil
@@ -95,8 +97,8 @@ final class ModelSwitcher: ObservableObject {
 
         // Validate that the stored model still exists on any channel
         if let modelID = selectedModelID {
-            let exists = ChannelStore.shared.enabledChannels.contains { channel in
-                channel.models.contains { Self.modelMatches(requested: modelID, stored: $0.identifier) }
+            let exists = channelServices.enabledChannels.contains { channel in
+                channel.models.contains { $0.isEnabled && Self.modelMatches(requested: modelID, stored: $0.identifier) }
             }
             if !exists {
                 selectedModelID = nil
@@ -112,6 +114,20 @@ final class ModelSwitcher: ObservableObject {
     /// Reset to default passthrough
     func resetToDefault() {
         selectedModelID = nil
+    }
+
+    /// Clears the selection if it no longer exists on an enabled channel.
+    func validateSelection() {
+        guard let modelID = selectedModelID else {
+            return
+        }
+
+        let exists = channelServices.enabledChannels.contains { channel in
+            channel.models.contains { $0.isEnabled && Self.modelMatches(requested: modelID, stored: $0.identifier) }
+        }
+        if !exists {
+            selectedModelID = nil
+        }
     }
 
     // MARK: - Persistence

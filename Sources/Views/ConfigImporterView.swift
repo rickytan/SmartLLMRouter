@@ -3,13 +3,19 @@ import SwiftUI
 /// View for importing channel configurations from CC Switch / Claude Desktop
 struct ConfigImporterView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var channelStore = ChannelStore.shared
+    @ObservedObject private var channelStore: ChannelStore
 
     @State private var isScanning = false
     @State private var discoveredChannels: [ImportedChannel] = []
     @State private var importAlertMessage: String?
     @State private var showingImportSuccess = false
     @State private var importCount = 0
+
+    @MainActor
+    init(services: AppServices? = nil) {
+        let services = services ?? .shared
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+    }
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.lg) {

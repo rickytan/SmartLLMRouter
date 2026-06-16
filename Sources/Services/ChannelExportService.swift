@@ -193,6 +193,7 @@ final class ChannelExportService {
 
     /// Export selected channels to a JSON file
     func exportChannels(_ channels: [Channel], password: String? = nil) throws -> Data {
+        let channelServices = ChannelServices.shared
         var exportedChannels: [ExportedChannel] = []
         let useEncryption = password != nil && !(password?.isEmpty ?? true)
 
@@ -208,7 +209,7 @@ final class ChannelExportService {
         }
 
         for channel in channels {
-            guard let apiKey = KeychainManager.shared.getAPIKey(for: channel.id) else {
+            guard let apiKey = channelServices.apiKey(for: channel.id) else {
                 Log.warn("[ChannelExport] No API key for channel \(channel.name), skipping")
                 continue
             }
@@ -329,6 +330,7 @@ final class ChannelExportService {
     ///   and keychain/decryption failures — users would see "Imported 4
     ///   channels" when only 2 actually made it in.
     func importChannels(_ exportedChannels: [ExportedChannel], exportFile: ExportFile, password: String? = nil) -> ImportResult {
+        let channelServices = ChannelServices.shared
         var imported = 0
         var skipped: [ImportResult.Issue] = []
         var failed: [ImportResult.Issue] = []
@@ -351,7 +353,7 @@ final class ChannelExportService {
 
         for exported in exportedChannels {
             // Check for duplicate baseURL
-            if ChannelStore.shared.channels.contains(where: { $0.baseURL.lowercased() == exported.baseURL.lowercased() }) {
+            if channelServices.channels.contains(where: { $0.baseURL.lowercased() == exported.baseURL.lowercased() }) {
                 Log.info("[ChannelExport] Skipping duplicate channel: \(exported.baseURL)")
                 skipped.append(ImportResult.Issue(
                     channelName: exported.name,
@@ -406,7 +408,7 @@ final class ChannelExportService {
 
             // Save API key
             do {
-                try KeychainManager.shared.setAPIKey(apiKey, for: channel.id)
+                try channelServices.setAPIKey(apiKey, for: channel.id)
             } catch {
                 Log.error("[ChannelExport] Failed to save API key for \(exported.name): \(error.localizedDescription)")
                 failed.append(ImportResult.Issue(
@@ -417,7 +419,7 @@ final class ChannelExportService {
             }
 
             // Add channel
-            ChannelStore.shared.addChannel(channel)
+            channelServices.addChannel(channel)
             imported += 1
         }
 

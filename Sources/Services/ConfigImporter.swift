@@ -74,10 +74,11 @@ final class ConfigImporter {
     /// Import channels into the ChannelStore
     @MainActor
     static func `import`(channels: [ImportedChannel]) throws -> Int {
+        let channelServices = ChannelServices.shared
         var importedCount = 0
 
         for imported in channels where imported.isSelected {
-            let existing = ChannelStore.shared.channels.first { channel in
+            let existing = channelServices.channels.first { channel in
                 channel.baseURL == imported.baseURL
             }
 
@@ -92,10 +93,10 @@ final class ConfigImporter {
                 protocol: imported.protocol
             )
 
-            ChannelStore.shared.addChannel(channel)
+            channelServices.addChannel(channel)
 
             if !imported.apiKey.isEmpty {
-                try KeychainManager.shared.setAPIKey(imported.apiKey, for: channel.id)
+                try channelServices.setAPIKey(imported.apiKey, for: channel.id)
             }
 
             importedCount += 1

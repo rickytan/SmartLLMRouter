@@ -8,10 +8,20 @@ struct OnboardingView: View {
     @State private var currentStep: OnboardingStep = .welcome
     @State private var shellConfigResult: ShellConfigResult?
 
-    @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
-    @ObservedObject private var shellConfig = ShellConfigManager.shared
-    @ObservedObject private var channelStore = ChannelStore.shared
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var channelManager: ChannelManager
+    @ObservedObject private var shellConfig: ShellConfigManager
+    @ObservedObject private var channelStore: ChannelStore
+
+    @MainActor
+    init(services: AppServices? = nil, onComplete: @escaping () -> Void) {
+        let services = services ?? .shared
+        self.onComplete = onComplete
+        _appState = ObservedObject(wrappedValue: services.appState)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        _shellConfig = ObservedObject(wrappedValue: services.shellConfigManager)
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+    }
 
     enum OnboardingStep: String, CaseIterable {
         case welcome
@@ -270,7 +280,7 @@ struct OnboardingView: View {
 
     @MainActor
     private func removeChannel(_ channel: Channel) {
-        ChannelStore.shared.removeChannel(id: channel.id)
+        channelStore.removeChannel(id: channel.id)
     }
 
     // MARK: - Shell Config Step
@@ -457,7 +467,7 @@ struct OnboardingView: View {
     }
 
     private var successCount: Int {
-        ChannelStore.shared.channels.count
+        channelStore.channels.count
     }
 
     private var nextButtonTitle: String {

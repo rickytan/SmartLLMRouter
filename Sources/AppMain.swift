@@ -15,6 +15,8 @@ struct SmartLLMRouterApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor private let services = AppServices.shared
+
     private lazy var updaterController: SPUStandardUpdaterController = {
         SPUStandardUpdaterController(
             startingUpdater: true,
@@ -35,14 +37,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup menu bar using native NSStatusItem (reliable on macOS 13)
         // The strong reference to statusItem keeps the app alive after all windows close
-        MenuBarManager.shared.updateIcon(isRunning: false)
-        MenuBarManager.shared.buildMenu(isRunning: false, port: AppState.shared.port)
+        services.menuBarManager.updateIcon(isRunning: false)
+        services.menuBarManager.buildMenu(isRunning: false, port: services.appState.port)
 
         // Start proxy server
         startProxy()
 
         // Show onboarding if not completed — via NSWindow, no SwiftUI Window scene
-        if !AppState.shared.onboardingCompleted {
+        if !services.appState.onboardingCompleted {
             showOnboardingWindow()
         }
 
@@ -59,11 +61,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showOnboardingWindow() {
         let hostingView = NSHostingView(rootView: OnboardingView(onComplete: { [weak self] in
             Task { @MainActor in
-                AppState.shared.completeOnboarding()
+                self?.services.appState.completeOnboarding()
                 self?.onboardingWindow?.close()
                 self?.onboardingWindow = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    MenuBarManager.shared.showPopover()
+                    self?.services.menuBarManager.showPopover()
                 }
             }
         }))
@@ -87,11 +89,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func startProxy() {
-        guard !ProxyServer.shared.isRunning else { return }
-        let port = AppState.shared.port
-        ProxyServer.shared.start(port: port)
+        guard !services.proxyServer.isRunning else { return }
+        let port = services.appState.port
+        services.proxyServer.start(port: port)
         Log.info("Proxy server started on port \(port)")
-        MenuBarManager.shared.updateIcon(isRunning: true)
-        MenuBarManager.shared.buildMenu(isRunning: true, port: port)
+        services.menuBarManager.updateIcon(isRunning: true)
+        services.menuBarManager.buildMenu(isRunning: true, port: port)
     }
 }

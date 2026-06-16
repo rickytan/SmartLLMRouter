@@ -4,8 +4,9 @@ import SwiftUI
 
 struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var channelStore = ChannelStore.shared
-    @ObservedObject private var channelManager = ChannelManager.shared
+    @ObservedObject private var channelStore: ChannelStore
+    @ObservedObject private var channelManager: ChannelManager
+    private let channelServices: ChannelServices
 
     let editingChannel: Channel?
 
@@ -33,8 +34,13 @@ struct AddChannelView: View {
     // Search (for provider picker)
     @State private var searchQuery: String = ""
 
-    init(editingChannel: Channel? = nil) {
+    @MainActor
+    init(editingChannel: Channel? = nil, services: AppServices? = nil) {
+        let services = services ?? .shared
         self.editingChannel = editingChannel
+        _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        channelServices = services.channelServices
     }
 
     var body: some View {
@@ -99,7 +105,7 @@ struct AddChannelView: View {
                     channelManager.providerTemplates.contains(where: { $0.id == id }) ? id : nil
                 }
                 selectedProviderId = knownProvider
-                apiKey = KeychainManager.shared.getAPIKey(for: channel.id) ?? ""
+                apiKey = channelServices.apiKey(for: channel.id) ?? ""
                 isCustomProvider = (knownProvider == nil)
                 if isCustomProvider {
                     customProviderName = channel.name
@@ -282,13 +288,13 @@ struct AddChannelView: View {
         )
 
         do {
-            try KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+            try channelServices.setAPIKey(apiKey, for: tempChannel.id)
         } catch {
             Log.error("Failed to set test API key: \(error.localizedDescription)")
         }
         defer {
             do {
-                try KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+                try channelServices.removeAPIKey(for: tempChannel.id)
             } catch {
                 Log.error("Failed to remove test API key: \(error.localizedDescription)")
             }
@@ -477,9 +483,9 @@ struct AddChannelView: View {
             models: models
         )
 
-        try? KeychainManager.shared.setAPIKey(apiKey, for: tempChannel.id)
+        try? channelServices.setAPIKey(apiKey, for: tempChannel.id)
         let fetchedModels = await channelManager.fetchModels(channel: tempChannel)
-        try? KeychainManager.shared.removeAPIKey(for: tempChannel.id)
+        try? channelServices.removeAPIKey(for: tempChannel.id)
 
         if fetchedModels.isEmpty {
             errorMessage = "No models returned"
@@ -550,7 +556,7 @@ struct AddChannelView: View {
                 updated.models = models
                 updated.providerId = isCustomProvider ? "custom" : selectedProviderId
 
-                try KeychainManager.shared.setAPIKey(apiKey, for: existingChannel.id)
+                try channelServices.setAPIKey(apiKey, for: existingChannel.id)
                 channelStore.updateChannel(updated)
             } else {
                 let providerId = isCustomProvider ? "custom" : selectedProviderId
@@ -564,7 +570,7 @@ struct AddChannelView: View {
                     models: models.isEmpty ? defaultModelsForProvider() : models
                 )
 
-                try KeychainManager.shared.setAPIKey(apiKey, for: newChannel.id)
+                try channelServices.setAPIKey(apiKey, for: newChannel.id)
                 channelStore.addChannel(newChannel)
             }
 
