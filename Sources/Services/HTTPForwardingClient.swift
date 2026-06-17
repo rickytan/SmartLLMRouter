@@ -6,6 +6,13 @@ final class HTTPForwardingClient {
         case failure(Error)
     }
 
+    private final class ResultBox: @unchecked Sendable {
+        var data: Data?
+        var statusCode = 200
+        var headers: [String: String] = [:]
+        var error: Error?
+    }
+
     func forwardSync(
         url: URL,
         method: String = "POST",
@@ -13,12 +20,8 @@ final class HTTPForwardingClient {
         body: Data,
         timeout: TimeInterval
     ) -> Result {
-        var resultData: Data?
-        var resultStatusCode = 200
-        var resultHeaders: [String: String] = [:]
-        var forwardErr: Error?
-        let group = DispatchGroup()
-        group.enter()
+        let resultBox = ResultBox()
+        let semaphore = DispatchSemaphore(value: 0)
 
         Task {
             do {
@@ -42,22 +45,22 @@ final class HTTPForwardingClient {
                         }
                     }
 
-                resultData = responseData
-                resultStatusCode = httpResponse?.statusCode ?? 200
-                resultHeaders = responseHeaders
+                resultBox.data = responseData
+                resultBox.statusCode = httpResponse?.statusCode ?? 200
+                resultBox.headers = responseHeaders
             } catch {
-                forwardErr = error
+                resultBox.error = error
             }
-            group.leave()
+            semaphore.signal()
         }
 
-        _ = group.wait(timeout: .now() + timeout + 5)
+        _ = semaphore.wait(timeout: .now() + timeout + 5)
 
-        if let forwardErr {
-            return .failure(forwardErr)
+        if let error = resultBox.error {
+            return .failure(error)
         }
 
-        guard let data = resultData else {
+        guard let data = resultBox.data else {
             return .failure(NSError(
                 domain: "HTTPForwardingClient",
                 code: -1,
@@ -65,6 +68,6 @@ final class HTTPForwardingClient {
             ))
         }
 
-        return .success(data: data, statusCode: resultStatusCode, headers: resultHeaders)
+        return .success(data: data, statusCode: resultBox.statusCode, headers: resultBox.headers)
     }
 }
