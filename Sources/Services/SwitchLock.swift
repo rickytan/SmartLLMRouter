@@ -9,7 +9,7 @@ final class SwitchLock {
     /// Serial queue that serializes all failover/state-change operations
     private let queue = DispatchQueue(label: "com.smartllmrouter.switchlock", qos: .userInitiated)
 
-    private init() {}
+    init() {}
 
     /// Execute a critical section. Only one caller can execute at a time.
     /// - Parameter operation: The operation to execute atomically

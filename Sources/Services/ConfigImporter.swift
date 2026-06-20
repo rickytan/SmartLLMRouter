@@ -73,8 +73,10 @@ final class ConfigImporter {
 
     /// Import channels into the ChannelStore
     @MainActor
-    static func `import`(channels: [ImportedChannel]) throws -> Int {
-        let channelServices = ChannelServices.shared
+    static func `import`(
+        channels: [ImportedChannel],
+        channelServices: ChannelServices
+    ) throws -> Int {
         var importedCount = 0
 
         for imported in channels where imported.isSelected {

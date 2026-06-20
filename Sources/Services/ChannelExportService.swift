@@ -6,9 +6,12 @@ import CommonCrypto
 /// Service for exporting and importing channel configurations
 @MainActor
 final class ChannelExportService {
-    static let shared = ChannelExportService()
+    static let shared = ChannelExportService(channelServices: .shared)
+    private let channelServices: ChannelServices
 
-    private init() {}
+    init(channelServices: ChannelServices) {
+        self.channelServices = channelServices
+    }
 
     // MARK: - Import Result
 
@@ -193,7 +196,6 @@ final class ChannelExportService {
 
     /// Export selected channels to a JSON file
     func exportChannels(_ channels: [Channel], password: String? = nil) throws -> Data {
-        let channelServices = ChannelServices.shared
         var exportedChannels: [ExportedChannel] = []
         let useEncryption = password != nil && !(password?.isEmpty ?? true)
 
@@ -330,7 +332,6 @@ final class ChannelExportService {
     ///   and keychain/decryption failures — users would see "Imported 4
     ///   channels" when only 2 actually made it in.
     func importChannels(_ exportedChannels: [ExportedChannel], exportFile: ExportFile, password: String? = nil) -> ImportResult {
-        let channelServices = ChannelServices.shared
         var imported = 0
         var skipped: [ImportResult.Issue] = []
         var failed: [ImportResult.Issue] = []

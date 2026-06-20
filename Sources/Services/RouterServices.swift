@@ -6,8 +6,25 @@ import Foundation
 /// handling so routing code does not directly reach into unrelated singletons.
 @MainActor
 final class RouterServices {
-    static let shared = RouterServices()
+    static let shared: RouterServices = {
+        let channelServices = ChannelServices.shared
+        let modelOverrideState = ModelOverrideRuntimeState.shared
+        return RouterServices(
+            channelServices: channelServices,
+            runtimeState: .shared,
+            modelOverrideState: modelOverrideState,
+            circuitBreaker: .shared,
+            switchLock: .shared,
+            modelAggregator: ModelAggregator.shared,
+            modelSwitcher: ModelSwitcher(
+                channelServices: channelServices,
+                modelOverrideState: modelOverrideState
+            ),
+            usageTracker: .shared
+        )
+    }()
 
+    let channelServices: ChannelServices
     let runtimeState: RouterRuntimeState
     let modelOverrideState: ModelOverrideRuntimeState
     let circuitBreaker: CircuitBreaker
@@ -16,17 +33,23 @@ final class RouterServices {
     let modelSwitcher: ModelSwitcher
     let usageTracker: UsageTracker
 
-    private init() {
-        runtimeState = .shared
-        modelOverrideState = .shared
-        circuitBreaker = .shared
-        switchLock = .shared
-        modelAggregator = .shared
-        modelSwitcher = .shared
-        usageTracker = .shared
-    }
-
-    var channelServices: ChannelServices {
-        .shared
+    init(
+        channelServices: ChannelServices,
+        runtimeState: RouterRuntimeState = .shared,
+        modelOverrideState: ModelOverrideRuntimeState = .shared,
+        circuitBreaker: CircuitBreaker = .shared,
+        switchLock: SwitchLock = .shared,
+        modelAggregator: ModelAggregator,
+        modelSwitcher: ModelSwitcher,
+        usageTracker: UsageTracker = .shared
+    ) {
+        self.channelServices = channelServices
+        self.runtimeState = runtimeState
+        self.modelOverrideState = modelOverrideState
+        self.circuitBreaker = circuitBreaker
+        self.switchLock = switchLock
+        self.modelAggregator = modelAggregator
+        self.modelSwitcher = modelSwitcher
+        self.usageTracker = usageTracker
     }
 }

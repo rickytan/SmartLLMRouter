@@ -19,7 +19,7 @@ final class ShellConfigManager: ObservableObject {
     private let openaiBaseURL = "OPENAI_BASE_URL"
     private let anthropicBaseURL = "ANTHROPIC_BASE_URL"
     
-    private init() {
+    init() {
         checkConfigurationStatus()
     }
     

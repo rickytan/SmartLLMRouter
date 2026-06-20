@@ -5,14 +5,17 @@ import SwiftUI
 /// Uses MenuView as the popover content for rich UI.
 @MainActor
 final class MenuBarManager: NSObject {
-    static let shared = MenuBarManager()
+    static let shared = MenuBarManager(services: .shared)
+
+    private let services: AppServices
 
     /// Strong reference — this keeps the status item (and the app) alive
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var popoverHostingView: NSHostingView<MenuView>!
 
-    private override init() {
+    init(services: AppServices) {
+        self.services = services
         super.init()
         setup()
     }
@@ -29,7 +32,7 @@ final class MenuBarManager: NSObject {
         popover.animates = true
 
         // Create hosting view with MenuView
-        popoverHostingView = NSHostingView(rootView: MenuView(services: AppServices.shared))
+        popoverHostingView = NSHostingView(rootView: MenuView(services: services))
         popover.contentViewController = NSViewController()
         popover.contentViewController?.view = popoverHostingView
     }
@@ -55,7 +58,7 @@ final class MenuBarManager: NSObject {
 
     /// Refresh the popover content (called when state changes)
     func refreshPopoverContent() {
-        popoverHostingView = NSHostingView(rootView: MenuView(services: AppServices.shared))
+        popoverHostingView = NSHostingView(rootView: MenuView(services: services))
         popover.contentViewController?.view = popoverHostingView
     }
 

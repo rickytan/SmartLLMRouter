@@ -140,7 +140,7 @@ final class RouterRuntimeState {
     private let circuitBreaker: CircuitBreaker
     private let switchLock: SwitchLock
 
-    private init(
+    init(
         circuitBreaker: CircuitBreaker = .shared,
         switchLock: SwitchLock = .shared
     ) {
@@ -444,6 +444,8 @@ final class ModelOverrideRuntimeState {
     private let lock = NSLock()
     private var selectedModelID: String?
 
+    init() {}
+
     func update(selectedModelID: String?) {
         lock.lock()
         self.selectedModelID = selectedModelID
@@ -460,7 +462,7 @@ final class ModelOverrideRuntimeState {
 /// Smart routing engine for channel selection and failover
 @MainActor
 final class SmartRouter: ObservableObject {
-    static let shared = SmartRouter()
+    static let shared = SmartRouter(services: .shared)
 
     @Published var mode: RoutingMode = .auto
     @Published var maxRetries: Int = 3
@@ -472,9 +474,10 @@ final class SmartRouter: ObservableObject {
     @Published var smartFallbackEnabled: Bool = false
     @Published var maxFallbackCost: Double = 2.0
 
-    private let services = RouterServices.shared
+    private let services: RouterServices
 
-    private init() {
+    init(services: RouterServices) {
+        self.services = services
         loadSettings()
         syncRuntimeSettings()
     }

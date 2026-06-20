@@ -6,7 +6,9 @@ import Foundation
 /// NOTE: This class is NOT @MainActor. Network requests run in the background.
 /// Only updates to ChannelStore happen on MainActor.
 final class ModelAggregator {
-    static let shared = ModelAggregator()
+    @MainActor
+    static let shared = ModelAggregator(channelServices: .shared)
+    private let channelServices: ChannelServices
 
     /// In-memory cache of aggregated model entries, keyed by channel ID.
     private var cachedModels: [String: [ModelEntry]] = [:]
@@ -17,7 +19,10 @@ final class ModelAggregator {
     /// Lock to protect `hasInitialized` and `cachedModels` access.
     private let lock = NSLock()
 
-    private init() {}
+    @MainActor
+    init(channelServices: ChannelServices) {
+        self.channelServices = channelServices
+    }
 
     // MARK: - Public API
 
@@ -83,7 +88,7 @@ final class ModelAggregator {
     /// and updates each channel's model list in ChannelStore.
     private func fetchAndMergeAllChannels() async {
         let channels = await MainActor.run {
-            return ChannelServices.shared.enabledChannels
+            return self.channelServices.enabledChannels
         }
         
         guard !channels.isEmpty else {
@@ -137,9 +142,9 @@ final class ModelAggregator {
         let finalUpdates = updates
         await MainActor.run {
             for update in finalUpdates {
-                ChannelServices.shared.updateModels(update.models, for: update.id)
+                self.channelServices.updateModels(update.models, for: update.id)
             }
-            ChannelServices.shared.saveChannels()
+            self.channelServices.saveChannels()
         }
 
         let totalUnique = allUniqueModels.count
@@ -166,7 +171,7 @@ final class ModelAggregator {
     /// and a 5-second timeout.
     private func fetchModelsForChannel(_ channel: Channel) async -> [ModelEntry] {
         let apiKey = await MainActor.run {
-            return ChannelServices.shared.apiKey(for: channel.id)
+            return self.channelServices.apiKey(for: channel.id)
         }
         
         guard let apiKey = apiKey, !apiKey.isEmpty else {
