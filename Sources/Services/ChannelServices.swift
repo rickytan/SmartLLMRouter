@@ -7,18 +7,45 @@ import Foundation
 /// through model fetching, switching, and connection testing code.
 @MainActor
 final class ChannelServices {
-    static let shared = ChannelServices()
+    static let shared = ChannelServices(
+        storeProvider: { .shared },
+        keychainProvider: { .shared }
+    )
 
-    lazy var cooldownEngine: CooldownEngine = .shared
-
-    private init() {}
+    private let storeProvider: () -> ChannelStore
+    private let keychainProvider: () -> KeychainManager
+    private let providedCooldownEngine: CooldownEngine?
+    private lazy var dynamicCooldownEngine = CooldownEngine(channelStore: store)
 
     var store: ChannelStore {
-        .shared
+        storeProvider()
     }
 
     var keychain: KeychainManager {
-        .shared
+        keychainProvider()
+    }
+
+    var cooldownEngine: CooldownEngine {
+        providedCooldownEngine ?? dynamicCooldownEngine
+    }
+
+    init(
+        store: ChannelStore,
+        keychain: KeychainManager,
+        cooldownEngine: CooldownEngine? = nil
+    ) {
+        providedCooldownEngine = cooldownEngine ?? CooldownEngine(channelStore: store)
+        storeProvider = { store }
+        keychainProvider = { keychain }
+    }
+
+    private init(
+        storeProvider: @escaping () -> ChannelStore,
+        keychainProvider: @escaping () -> KeychainManager
+    ) {
+        self.storeProvider = storeProvider
+        self.keychainProvider = keychainProvider
+        providedCooldownEngine = nil
     }
 
     var channels: [Channel] {

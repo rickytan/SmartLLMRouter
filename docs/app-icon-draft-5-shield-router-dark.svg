@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="104" y1="80" x2="920" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#132033"/>
+      <stop offset="0.52" stop-color="#0B1422"/>
+      <stop offset="1" stop-color="#070B14"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="326" y1="180" x2="704" y2="842" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#29F2B4"/>
+      <stop offset="0.5" stop-color="#1A8CFF"/>
+      <stop offset="1" stop-color="#675CFF"/>
+    </linearGradient>
+    <linearGradient id="route" x1="178" y1="512" x2="862" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2EF09B"/>
+      <stop offset="0.46" stop-color="#1A8CFF"/>
+      <stop offset="1" stop-color="#9B5CFF"/>
+    </linearGradient>
+    <radialGradient id="nodeGreen" cx="0.34" cy="0.28" r="0.74">
+      <stop offset="0" stop-color="#6DFF8B"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </radialGradient>
+    <radialGradient id="nodeBlue" cx="0.34" cy="0.28" r="0.74">
+      <stop offset="0" stop-color="#72B8FF"/>
+      <stop offset="1" stop-color="#0A84FF"/>
+    </radialGradient>
+    <radialGradient id="nodeOrange" cx="0.34" cy="0.28" r="0.74">
+      <stop offset="0" stop-color="#FFD76A"/>
+      <stop offset="1" stop-color="#FF9F0A"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="34" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <filter id="nodeShadow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+    <clipPath id="clip">
+      <rect width="1024" height="1024" rx="230"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <g clip-path="url(#clip)">
+    <circle cx="158" cy="170" r="170" fill="#1A8CFF" opacity="0.20"/>
+    <circle cx="870" cy="836" r="220" fill="#2EF09B" opacity="0.13"/>
+    <circle cx="846" cy="172" r="176" fill="#9B5CFF" opacity="0.18"/>
+  </g>
+
+  <g stroke="url(#route)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#shadow)">
+    <path d="M198 340 C326 340 370 402 448 472"/>
+    <path d="M198 512 H430"/>
+    <path d="M198 684 C328 684 378 622 456 566"/>
+    <path d="M596 512 H804"/>
+    <path d="M584 452 C656 388 706 340 804 340" opacity="0.84"/>
+    <path d="M584 584 C656 646 706 684 804 684" opacity="0.92"/>
+  </g>
+
+  <g filter="url(#nodeShadow)">
+    <circle cx="198" cy="340" r="56" fill="#F6FAFF"/>
+    <circle cx="198" cy="512" r="56" fill="#F6FAFF"/>
+    <circle cx="198" cy="684" r="56" fill="#F6FAFF"/>
+    <circle cx="198" cy="340" r="31" fill="url(#nodeGreen)"/>
+    <circle cx="198" cy="512" r="31" fill="url(#nodeBlue)"/>
+    <circle cx="198" cy="684" r="31" fill="url(#nodeOrange)"/>
+  </g>
+
+  <g filter="url(#shadow)" transform="translate(512 503) scale(0.7) translate(-512 -503)">
+    <path d="M512 214 C608 270 686 292 754 300 V482 C754 628 660 734 512 792 C364 734 270 628 270 482 V300 C338 292 416 270 512 214 Z" fill="url(#shield)"/>
+    <path d="M512 278 C584 320 644 338 696 346 V488 C696 592 632 676 512 728 C392 676 328 592 328 488 V346 C380 338 440 320 512 278 Z" fill="#FFFFFF" opacity="0.18"/>
+    <path d="M402 408 H622" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" opacity="0.9"/>
+    <path d="M420 502 H542 C586 502 616 532 616 576 V636" fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M574 626 L616 668 L658 626" fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="394" cy="502" r="23" fill="#FFFFFF"/>
+  </g>
+
+  <g filter="url(#nodeShadow)">
+    <path d="M790 298 L880 340 L790 382 Z" fill="#7C3AED"/>
+    <path d="M790 470 L880 512 L790 554 Z" fill="#0A84FF"/>
+    <path d="M790 642 L880 684 L790 726 Z" fill="#22C55E"/>
+  </g>
+
+  <rect x="1" y="1" width="1022" height="1022" rx="229" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.12"/>
+</svg>

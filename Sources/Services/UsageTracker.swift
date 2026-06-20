@@ -48,7 +48,7 @@ final class UsageTracker: ObservableObject {
     /// Serial queue for thread-safe record mutations
     private let queue = DispatchQueue(label: "cn.rickytan.smartLLMRouter.usage-tracker", qos: .utility)
 
-    private init() {
+    init() {
         loadRecords()
     }
 

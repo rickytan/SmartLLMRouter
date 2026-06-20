@@ -41,6 +41,9 @@ final class ChannelStore: ObservableObject {
 
     let defaults: UserDefaults
     let persistence: ChannelsPersistence
+    private let runtimeState: RouterRuntimeState
+    var invalidateModelCache: (() -> Void)?
+    var validateModelSelection: (() -> Void)?
 
     /// Designated initializer.
     /// - Parameters:
@@ -51,17 +54,19 @@ final class ChannelStore: ObservableObject {
     ///     instance; tests can inject a temporary file URL or `nil` (no file).
     init(
         defaults: UserDefaults = .standard,
-        persistence: ChannelsPersistence = ChannelsPersistence()
+        persistence: ChannelsPersistence = ChannelsPersistence(),
+        runtimeState: RouterRuntimeState = .shared
     ) {
         self.defaults = defaults
         self.persistence = persistence
+        self.runtimeState = runtimeState
         loadChannels()
     }
 
     func saveChannels() {
         let channelsSnapshot = channels
         let activeSnapshot = activeChannelID
-        RouterRuntimeState.shared.updateChannels(channelsSnapshot, activeChannelID: activeSnapshot)
+        runtimeState.updateChannels(channelsSnapshot, activeChannelID: activeSnapshot)
 
         // 1. File is the source of truth — write it first. If it fails we
         //    still try the UserDefaults cache so the data is at least in
@@ -91,7 +96,7 @@ final class ChannelStore: ObservableObject {
         case .loaded(let decoded, let activeID):
             channels = decoded
             activeChannelID = activeID
-            RouterRuntimeState.shared.updateChannels(decoded, activeChannelID: activeID)
+            runtimeState.updateChannels(decoded, activeChannelID: activeID)
             Log.info("[ChannelStore] Loaded \(decoded.count) channels from file")
             return
         case .corrupted(let reason):
@@ -103,7 +108,7 @@ final class ChannelStore: ObservableObject {
         // 2. Current UserDefaults (cache, scoped to bundle ID).
         if loadFromDefaults(defaults) { return }
 
-        RouterRuntimeState.shared.updateChannels(channels, activeChannelID: activeChannelID)
+        runtimeState.updateChannels(channels, activeChannelID: activeChannelID)
         Log.info("[ChannelStore] No channel data found in any source")
     }
 
@@ -116,7 +121,7 @@ final class ChannelStore: ObservableObject {
         else { return false }
         channels = decoded
         activeChannelID = source.string(forKey: Self.activeChannelDefaultsKey)
-        RouterRuntimeState.shared.updateChannels(channels, activeChannelID: activeChannelID)
+        runtimeState.updateChannels(channels, activeChannelID: activeChannelID)
         return true
     }
 
@@ -129,14 +134,14 @@ final class ChannelStore: ObservableObject {
 
         channels.append(channel)
         if activeChannelID == nil, channel.isEnabled { activeChannelID = channel.id }
-        ModelAggregator.shared.invalidateCache()
+        invalidateModelCache?()
         saveChannels()
     }
 
     func removeChannel(id: String) {
         channels.removeAll { $0.id == id }
         if activeChannelID == id { activeChannelID = enabledChannels.first?.id }
-        ModelAggregator.shared.invalidateCache()
+        invalidateModelCache?()
         saveChannels()
     }
 
@@ -145,7 +150,7 @@ final class ChannelStore: ObservableObject {
             let previousChannel = channels[index]
             channels[index] = channel
             if previousChannel.isEnabled != channel.isEnabled || previousChannel.models != channel.models {
-                ModelAggregator.shared.invalidateCache()
+                invalidateModelCache?()
             }
             saveChannels()
         }
@@ -170,8 +175,8 @@ final class ChannelStore: ObservableObject {
         } else if isEnabled, activeChannelID == nil {
             activeChannelID = id
         }
-        ModelAggregator.shared.invalidateCache()
-        ModelSwitcher.shared.validateSelection()
+        invalidateModelCache?()
+        validateModelSelection?()
         saveChannels()
     }
 

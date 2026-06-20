@@ -4,6 +4,7 @@ import SwiftUI
 struct ConfigImporterView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var channelStore: ChannelStore
+    private let channelServices: ChannelServices
 
     @State private var isScanning = false
     @State private var discoveredChannels: [ImportedChannel] = []
@@ -15,6 +16,7 @@ struct ConfigImporterView: View {
     init(services: AppServices? = nil) {
         let services = services ?? .shared
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
+        channelServices = services.channelServices
     }
 
     var body: some View {
@@ -245,7 +247,10 @@ struct ConfigImporterView: View {
 
         let count: Int
         do {
-            count = try ConfigImporter.import(channels: selected)
+            count = try ConfigImporter.import(
+                channels: selected,
+                channelServices: channelServices
+            )
         } catch {
             importAlertMessage = error.localizedDescription
             showingImportSuccess = true

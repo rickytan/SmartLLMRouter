@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="130" y1="70" x2="900" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FBFF"/>
+      <stop offset="0.52" stop-color="#EEF6FF"/>
+      <stop offset="1" stop-color="#DCEBFF"/>
+    </linearGradient>
+    <linearGradient id="route" x1="208" y1="512" x2="816" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22C55E"/>
+      <stop offset="0.5" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="core" x1="360" y1="320" x2="650" y2="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#0056D6"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.32" cy="0.24" r="0.7">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#0A3A7A" flood-opacity="0.18"/>
+    </filter>
+    <clipPath id="clip">
+      <rect width="1024" height="1024" rx="230"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <g clip-path="url(#clip)">
+    <circle cx="184" cy="164" r="170" fill="#0A84FF" opacity="0.08"/>
+    <circle cx="836" cy="858" r="220" fill="#22C55E" opacity="0.09"/>
+  </g>
+
+  <g filter="url(#softShadow)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M246 352 C350 352 394 426 458 512 C522 598 586 672 778 672" fill="none" stroke="url(#route)" stroke-width="42"/>
+    <path d="M246 512 H450 C526 512 554 512 622 512 H778" fill="none" stroke="url(#route)" stroke-width="42" opacity="0.9"/>
+    <path d="M246 672 C352 672 394 598 458 512 C522 426 586 352 778 352" fill="none" stroke="url(#route)" stroke-width="42" opacity="0.72"/>
+
+    <g fill="#FFFFFF" stroke="#0A84FF" stroke-width="18">
+      <circle cx="246" cy="352" r="54"/>
+      <circle cx="246" cy="512" r="54"/>
+      <circle cx="246" cy="672" r="54"/>
+    </g>
+    <circle cx="246" cy="352" r="28" fill="#22C55E"/>
+    <circle cx="246" cy="512" r="28" fill="#0A84FF"/>
+    <circle cx="246" cy="672" r="28" fill="#FF9F0A"/>
+
+    <g transform="translate(512 512)">
+      <path d="M0 -172 L172 0 L0 172 L-172 0 Z" fill="url(#core)"/>
+      <path d="M0 -172 L172 0 L0 172 L-172 0 Z" fill="url(#shine)"/>
+      <path d="M-78 -22 H26 C58 -22 78 -2 78 30 V72" fill="none" stroke="#FFFFFF" stroke-width="36"/>
+      <path d="M42 66 L78 102 L114 66" fill="none" stroke="#FFFFFF" stroke-width="36"/>
+      <circle cx="-92" cy="-22" r="20" fill="#FFFFFF"/>
+    </g>
+
+    <path d="M760 304 L846 352 L760 400 Z" fill="#7C3AED"/>
+    <path d="M760 464 L846 512 L760 560 Z" fill="#0A84FF"/>
+    <path d="M760 624 L846 672 L760 720 Z" fill="#22C55E"/>
+  </g>
+
+  <rect x="1" y="1" width="1022" height="1022" rx="229" fill="none" stroke="#0A84FF" stroke-width="2" opacity="0.16"/>
+</svg>

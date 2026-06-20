@@ -64,7 +64,7 @@ struct ProviderModel: Codable {
 /// Manages channels with templates, model fetching, and testing capabilities
 @MainActor
 final class ChannelManager: ObservableObject {
-    static let shared = ChannelManager()
+    static let shared = ChannelManager(channelServices: .shared)
 
     @Published private(set) var providerTemplates: [ProviderTemplate] = []
     @Published var isLoadingModels: Bool = false
@@ -73,8 +73,8 @@ final class ChannelManager: ObservableObject {
 
     private let channelServices: ChannelServices
 
-    private init() {
-        channelServices = .shared
+    init(channelServices: ChannelServices) {
+        self.channelServices = channelServices
         loadProviderTemplates()
     }
 

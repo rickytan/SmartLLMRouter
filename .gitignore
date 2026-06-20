@@ -62,3 +62,4 @@ fastlane/README.md
 release-artifacts/
 sparkle-bin/
 sparkle_private.pem
+.env

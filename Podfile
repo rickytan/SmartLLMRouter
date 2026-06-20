@@ -35,4 +35,20 @@ post_install do |installer|
       config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '13.0'
     end
   end
+
+end
+
+post_integrate do |installer|
+  installer.aggregate_targets.each do |aggregate_target|
+    project = aggregate_target.user_project
+    target = project.targets.find { |item| item.name == 'SmartLLMRouter' }
+    next unless target
+
+    phase = target.shell_script_build_phases.find { |item| item.name == 'Sign Sparkle Framework' }
+    next unless phase
+
+    target.build_phases.delete(phase)
+    target.build_phases << phase
+    project.save
+  end
 end

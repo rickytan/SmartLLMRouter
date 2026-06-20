@@ -12,7 +12,7 @@ final class AppState: ObservableObject {
     @Published var launchAtLogin: Bool = false
     @Published var onboardingCompleted: Bool = false
 
-    private init() {
+    init() {
         onboardingCompleted = UserDefaults.standard.bool(forKey: "smartllm_onboarding_completed")
         port = UserDefaults.standard.integer(forKey: "smartllm_port")
         if port <= 0 || port > 65535 {

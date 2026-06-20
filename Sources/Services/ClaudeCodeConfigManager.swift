@@ -22,7 +22,7 @@ final class ClaudeCodeConfigManager: ObservableObject {
         configDirectory.appendingPathComponent("settings.json")
     }
 
-    private init() {
+    init() {
         loadState()
     }
 

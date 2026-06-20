@@ -3,9 +3,9 @@ import Swifter
 
 @MainActor
 final class ProxyServer: ObservableObject {
-    static let shared = ProxyServer()
+    static let shared = ProxyServer(services: .shared)
     private let httpServer = HttpServer()
-    private let services = RouterServices.shared
+    private let services: RouterServices
     private let modelEndpointHandler: ModelEndpointHandler
     private let filesEndpointHandler: FilesEndpointHandler
     private let auxiliaryEndpointHandler: AuxiliaryEndpointHandler
@@ -23,7 +23,8 @@ final class ProxyServer: ObservableObject {
         requestIDGenerator.next()
     }
 
-    private init() {
+    init(services: RouterServices) {
+        self.services = services
         modelEndpointHandler = ModelEndpointHandler(services: services)
         filesEndpointHandler = FilesEndpointHandler(
             services: services,

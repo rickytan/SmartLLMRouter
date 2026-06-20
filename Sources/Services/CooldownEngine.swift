@@ -45,17 +45,17 @@ struct CooldownEntry: Codable, Identifiable {
 /// Manages cooldown periods for channels after errors
 @MainActor
 final class CooldownEngine: ObservableObject {
-    static let shared = CooldownEngine()
+    static let shared = CooldownEngine(channelStore: .shared)
 
     private let userDefaultsKey = "smartllm_router_cooldowns"
 
     @Published private(set) var cooldowns: [CooldownEntry] = []
 
     private var cleanupTimer: Timer?
-    private let channelServices: ChannelServices
+    private let channelStore: ChannelStore
 
-    private init() {
-        channelServices = .shared
+    init(channelStore: ChannelStore) {
+        self.channelStore = channelStore
         loadCooldowns()
         startCleanupTimer()
     }
@@ -175,7 +175,7 @@ final class CooldownEngine: ObservableObject {
 
     /// Update ChannelStore's channel cooldown flags
     private func updateChannelCooldownFlags() {
-        let channels = channelServices.channels
+        let channels = channelStore.channels
         for channel in channels {
             let isCooling = isCoolingDown(channelID: channel.id)
             let cooldownEnd = getCooldown(channelID: channel.id)?.endTime
@@ -185,7 +185,7 @@ final class CooldownEngine: ObservableObject {
                 var updatedChannel = channel
                 updatedChannel.isCoolingDown = isCooling
                 updatedChannel.cooldownUntil = cooldownEnd
-                channelServices.updateChannel(updatedChannel)
+                channelStore.updateChannel(updatedChannel)
             }
         }
     }
