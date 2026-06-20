@@ -7,8 +7,6 @@ use_frameworks! :linkage => :static
 target 'SmartLLMRouter' do
   # 轻量级 HTTP Server
   pod 'Swifter', '~> 1.5.0'
-  # 网络请求库
-  pod 'Alamofire', '~> 5.9.0'
   # Keychain 管理
   pod 'KeychainAccess', '~> 4.2.2'
   # 应用更新检查
