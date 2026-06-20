@@ -152,6 +152,7 @@ final class ChannelExportService {
     func showExportOptions(channels: [Channel]) {
         // Step 1: Ask if user wants to encrypt
         let encryptAlert = NSAlert()
+        encryptAlert.icon = NSApp.applicationIconImage
         encryptAlert.messageText = L10n.ChannelExport.exportChannels
         encryptAlert.informativeText = L10n.ChannelExport.encryptOptionDetail
         encryptAlert.alertStyle = .informational
@@ -169,6 +170,7 @@ final class ChannelExportService {
         case .alertSecondButtonReturn:
             // Step 2: Get password
             let passwordAlert = NSAlert()
+            passwordAlert.icon = NSApp.applicationIconImage
             passwordAlert.messageText = L10n.ChannelExport.encryptOption
             passwordAlert.informativeText = L10n.ChannelExport.passwordPlaceholder
             passwordAlert.alertStyle = .informational
@@ -470,6 +472,7 @@ final class ChannelExportService {
     /// Show password prompt for encrypted files
     private func showPasswordPrompt(exportFile: ExportFile, channels: [ExportedChannel]) {
         let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
         alert.messageText = L10n.ChannelExport.decryptPrompt
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.ConfigImporter.ok)
@@ -511,6 +514,7 @@ final class ChannelExportService {
     /// Show import preview dialog
     private func showImportPreview(exportFile: ExportFile, channels: [ExportedChannel], password: String? = nil) {
         let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
         alert.messageText = L10n.ChannelExport.importPreview
         alert.informativeText = L10n.ChannelExport.importPreviewDetail(channels.count)
         alert.alertStyle = .informational
@@ -559,6 +563,7 @@ final class ChannelExportService {
     /// short report so they know whether the file actually imported.
     private func showImportResult(_ result: ImportResult) {
         let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
         if result.imported == result.total && !result.hasIssues {
             // Clean success
             alert.messageText = L10n.ChannelExport.importSuccess
@@ -664,6 +669,7 @@ final class ChannelExportService {
 
     private func showAlert(title: String, message: String) {
         let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .informational
