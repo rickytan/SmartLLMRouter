@@ -55,6 +55,14 @@ targets:
           DEVELOPMENT_TEAM: G2DGKXFDHZ
           ENABLE_HARDENED_RUNTIME: YES
           OTHER_CODE_SIGN_FLAGS: --timestamp
+          ENABLE_TESTABILITY: NO
+          SWIFT_COMPILATION_MODE: wholemodule
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          DEAD_CODE_STRIPPING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          COPY_PHASE_STRIP: YES
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+          ASSETCATALOG_COMPILER_OPTIMIZATION: space
     dependencies:
       - sdk: Cocoa.framework
       - sdk: SystemConfiguration.framework
