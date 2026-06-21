@@ -3,8 +3,6 @@ import Foundation
 /// Manages shell environment configuration for zsh/bash
 @MainActor
 final class ShellConfigManager: ObservableObject {
-    static let shared = ShellConfigManager()
-    
     @Published private(set) var isConfigured: Bool = false
     @Published private(set) var configurationStatus: ConfigurationStatus = .notConfigured
     

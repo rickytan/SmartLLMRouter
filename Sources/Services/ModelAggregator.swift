@@ -1,13 +1,11 @@
 import Foundation
 
-/// Singleton service that manages an in-memory cache of aggregated models
+/// Service that manages an in-memory cache of aggregated models
 /// from all configured upstream channels. Fetches lazily on first request
 /// and merges results with deduplication by model identifier.
 /// NOTE: This class is NOT @MainActor. Network requests run in the background.
 /// Only updates to ChannelStore happen on MainActor.
 final class ModelAggregator {
-    @MainActor
-    static let shared = ModelAggregator(channelServices: .shared)
     private let channelServices: ChannelServices
 
     /// In-memory cache of aggregated model entries, keyed by channel ID.

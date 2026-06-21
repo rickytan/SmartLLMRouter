@@ -126,8 +126,6 @@ struct RoutingDecision {
 }
 
 final class RouterRuntimeState {
-    static let shared = RouterRuntimeState()
-
     private let lock = NSRecursiveLock()
     private var mode: RoutingMode = .auto
     private var maxRetries: Int = 3
@@ -141,8 +139,8 @@ final class RouterRuntimeState {
     private let switchLock: SwitchLock
 
     init(
-        circuitBreaker: CircuitBreaker = .shared,
-        switchLock: SwitchLock = .shared
+        circuitBreaker: CircuitBreaker = CircuitBreaker(),
+        switchLock: SwitchLock = SwitchLock()
     ) {
         self.circuitBreaker = circuitBreaker
         self.switchLock = switchLock
@@ -439,8 +437,6 @@ final class RouterRuntimeState {
 }
 
 final class ModelOverrideRuntimeState {
-    static let shared = ModelOverrideRuntimeState()
-
     private let lock = NSLock()
     private var selectedModelID: String?
 
@@ -462,8 +458,6 @@ final class ModelOverrideRuntimeState {
 /// Smart routing engine for channel selection and failover
 @MainActor
 final class SmartRouter: ObservableObject {
-    static let shared = SmartRouter(services: .shared)
-
     @Published var mode: RoutingMode = .auto
     @Published var maxRetries: Int = 3
     @Published var cooldown429Minutes: Int = 30

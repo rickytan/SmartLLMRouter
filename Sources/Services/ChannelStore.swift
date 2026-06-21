@@ -6,27 +6,6 @@ final class ChannelStore: ObservableObject {
     static let userDefaultsKey = "smartllm_channels"
     static let activeChannelDefaultsKey = "smartllm_active_channel"
 
-    /// Production singleton. Tests must NOT use this directly — they should
-    /// construct their own `ChannelStore` with an in-memory `UserDefaults`
-    /// suite and a temporary file URL (or `nil` for `fileURL` to skip disk
-    /// entirely), then call `setSharedForTesting` to install it.
-    static let productionShared = ChannelStore()
-
-    /// Test seam. Replaces the shared instance for the duration of a test
-    /// process. Production code must not call this.
-    static func setSharedForTesting(_ store: ChannelStore?) {
-        _sharedOverride = store
-    }
-
-    private static var _sharedOverride: ChannelStore?
-
-    /// The currently-active shared instance. Returns the test override if
-    /// set, otherwise the production singleton. All production code paths
-    /// should use this so test isolation works.
-    static var shared: ChannelStore {
-        _sharedOverride ?? productionShared
-    }
-
     @Published var channels: [Channel] = []
     @Published var activeChannelID: String?
 
@@ -55,7 +34,7 @@ final class ChannelStore: ObservableObject {
     init(
         defaults: UserDefaults = .standard,
         persistence: ChannelsPersistence = ChannelsPersistence(),
-        runtimeState: RouterRuntimeState = .shared
+        runtimeState: RouterRuntimeState = RouterRuntimeState()
     ) {
         self.defaults = defaults
         self.persistence = persistence

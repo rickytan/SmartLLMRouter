@@ -34,34 +34,81 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 ```
 
 ## Current State
-- **Phase 1-2**: ✅ Complete — All core services (Proxy, Router, ProtocolConverter, Keychain, Logger)
-- **Phase 3 UI**: ✅ MenuView & SettingsView fully rewritten with DesignTokens
-- **Onboarding**: ✅ **FIXED** — UI overlap resolved, provider icons (SF Symbols), crash protection
-- **Phase 4**: ✅ **COMPLETE** — Stacked usage chart, Sparkle auto-update, zero hardcoded visual values
-- **Phase 5**: ✅ **COMPLETE** — Unified Model Switcher with Protocol Consistency enforcement
-- **Architecture**: ✅ Asset Catalog + SwiftGen for colors, Static linking (8.6MB), XcodeGen-only workflow
+- Core proxy, routing, protocol conversion, keychain storage, import/export, and persistence are implemented.
+- Onboarding requires a successful connection test and at least one enabled model before a channel can be added.
+- Channels can be disabled without deletion; this state is persisted and excluded from routing and model aggregation.
+- The app is XcodeGen-first. `project.yml` is authoritative; generated `.xcodeproj` and `.xcworkspace` files are not source files.
+- Release builds use static CocoaPods linkage, whole-module optimization, dead-code stripping, and Developer ID signing. CI builds and tests use Debug because unit tests use `@testable import`.
+
+## Architecture
+
+### Composition Root
+
+`AppServices` is the application composition root and the only application-wide singleton. `AppDelegate` owns `AppServices.shared`, starts the proxy, and creates the menu bar manager. SwiftUI views receive `AppServices` explicitly; their `services ?? .shared` initializers are compatibility defaults for the Settings scene and previews, not a reason to reach for lower-level services.
+
+```text
+AppDelegate / SwiftUI scene
+          |
+          v
+    AppServices (composition root)
+       |                    |
+       v                    v
+ChannelServices        RouterServices
+       |                    |
+       v                    v
+ChannelStore         SmartRouter / ProxyServer
+KeychainManager      ModelAggregator / ModelSwitcher
+CooldownEngine       CircuitBreaker / SwitchLock / UsageTracker
+```
+
+### Channel Domain
+
+- `ChannelStore` owns observable channels, the active channel, persistence, and the runtime snapshot used by request handling.
+- `ChannelServices` is the channel-domain boundary for CRUD, API-key lookup, enabled-channel filtering, and cooldown queries.
+- `KeychainManager` stores every API key in one Keychain item as a JSON dictionary keyed by channel ID. Do not create one Keychain item per key.
+- `ChannelsPersistence` is the durable file source of truth; `UserDefaults` is a cache and migration fallback.
+- `ChannelManager` handles provider metadata, model fetch/test operations, and connection tests. `ChannelExportService` owns encrypted import/export.
+
+### Routing And Proxy Domain
+
+- `RouterServices` groups only dependencies used during proxy request handling.
+- `RouterRuntimeState` exposes a thread-safe channel snapshot to non-main-actor HTTP handlers. Do not read SwiftUI state directly from Swifter callbacks.
+- `ProxyServer` maps local endpoints to focused endpoint handlers. `ModelEndpointHandler` serves aggregated `/v1/models`; forwarding handlers preserve the client-facing protocol while converting upstream requests and responses where needed.
+- `SmartRouter` makes model-first routing decisions. It considers only enabled, healthy channels and uses `CircuitBreaker`, `CooldownEngine`, and `SwitchLock` for failover coordination.
+- `ModelAggregator` caches the deduplicated enabled-model set. `ChannelStore` invalidates that cache after channel/model changes.
+
+### Singleton Policy
+
+- New production code must receive dependencies through `AppServices`, `ChannelServices`, `RouterServices`, or an initializer. Do not add new `shared` properties.
+- `ChannelServices`, `RouterServices`, stores, and all runtime services are constructed explicitly. Tests must use isolated factory helpers and must never replace process-wide service state.
+- `AppServices.shared` is acceptable at app/scene boundaries. `NSWorkspace.shared`, `URLSession.shared`, and framework-owned singletons are platform APIs, not app service locators.
 
 ## Technical Decisions (ADR)
 1. **Shell Config Path**: Use `~/.zshenv` (not `.zshrc`) for non-interactive shell compatibility.
 2. **Color Management**: `Assets.xcassets` + SwiftGen generated code (`Asset.xxx.swiftUIColor`). Dark Mode supported via System Reference Colors.
 3. **Project Files**: `xcodeproj/` and `xcworkspace/` are `.gitignore`d. XcodeGen is the source of truth.
 4. **Static Linking**: `use_frameworks! :linkage => :static` enabled. Sparkle remains dynamic (contains Updater.app).
-5. **Protocol Consistency**: Model switching restricted to same protocol family. Cross-protocol switches FORBIDDEN.
+5. **Protocol Consistency**: The client-facing protocol must remain unchanged. Cross-protocol upstream routing is allowed only when `ProtocolConverter` converts both the request and response back to the client's protocol.
 6. **Build Order**: `xcodegen generate` BEFORE `bundle exec pod install`.
 7. **Generated Code**: `Sources/Generated/` (L10n.swift, Assets+Generated.swift) committed to repo for fresh-clone builds.
 
 ## Pending Tasks
-- **UI Test expansion**: Add UITest cases for Onboarding flow, AddChannel CRUD, Settings tabs
-- **UsageTracker integration in Proxy**: Ensure `UsageTracker.recordUsage` is called from `RequestForwarder` on every proxied request
-- **Shell Config UX**: Consider supporting both `.zshrc` and `.zshenv` with user choice
+- Expand isolated unit tests around configuration-file writers, usage persistence, channel/model aggregation, and endpoint-handler fallback paths.
+- Keep new services explicit and extend isolated tests at storage, network, and filesystem boundaries.
+- Evaluate shell configuration UX only if both interactive and non-interactive shell support is required; `.zshenv` remains the default for non-interactive clients.
 
 ## Key Files
 - Sources/Views/Onboarding/OnboardingView.swift — First-launch wizard (4 steps)
 - Sources/Views/Onboarding/AddChannelView.swift — Channel add/edit form
 - Sources/Views/MenuView.swift — Menu bar (rewritten)
 - Sources/Views/SettingsView.swift — Settings with 5 tabs (rewritten)
-- Sources/Models/AppState.swift — Has onboardingCompleted property
-- Sources/Services/ChannelManager.swift — Channel CRUD, speed test, provider templates
+- Sources/Services/AppServices.swift — Composition root and dependency wiring
+- Sources/Services/ChannelServices.swift — Channel-domain boundary
+- Sources/Services/RouterServices.swift — Routing/proxy dependency boundary
+- Sources/Services/ChannelStore.swift — Channel persistence and enabled-channel source
+- Sources/Services/ChannelManager.swift — Provider metadata, model fetch, and connection testing
+- Sources/Services/ProxyServer.swift — Local HTTP routes and endpoint handlers
+- Sources/Services/SmartRouter.swift — Model-first routing and retry decisions
 - Sources/Services/ShellConfigManager.swift — `.zshenv` configuration (auto-proxy setup)
 
 ## Design System (DESIGN.md)
@@ -80,6 +127,12 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 - Status indicators with pulse animation
 
 ## Testing
-- 8 unit tests passing in SmartLLMRouterTests
-- UI Test infrastructure ready in SmartLLMRouterUITests (24 test cases)
-- Hermes handles testing — you focus on implementation
+- Unit tests are in `Tests/Unit`; use isolated `UserDefaults`, temporary persistence URLs, and `KeychainManagerTestSupport` for all storage tests. Never exercise the production Keychain from tests.
+- `ChannelStoreTestSupport` and `KeychainManagerTestSupport` create isolated dependencies. New tests should construct dependencies explicitly and avoid global state.
+- UI tests are in `Tests/UI` and depend on `ACCESSIBILITY_IDS.md`. Add identifiers with every new interactive control.
+- Run the Debug test configuration locally and in CI:
+  ```bash
+  xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter \
+    -configuration Debug -destination 'platform=macOS' \
+    -only-testing:SmartLLMRouterTests
+  ```

@@ -9,12 +9,11 @@ import KeychainAccess
 /// instantiated `KeychainManager(service: "com.smartllmrouter.keys")`
 /// and called `clearAll()` would delete every API key the user has
 /// ever saved. This has already happened once during development —
-/// `ChannelExportImportTests` originally called `clearAll()` on
-/// `.shared` and wiped the user's data.
+/// a previous test called `clearAll()` against the production service
+/// and wiped the user's data.
 ///
-/// These tests pin the fix in place: they verify that after
-/// `KeychainManagerTestSupport.installAsShared()` returns, the
-/// production service's contents are byte-for-byte unchanged.
+/// These tests pin the fix in place: all test managers use a dedicated
+/// UUID-scoped keychain service and never mutate production state.
 @MainActor
 final class KeychainManagerTestSupportTests: XCTestCase {
 
@@ -29,12 +28,11 @@ final class KeychainManagerTestSupportTests: XCTestCase {
 
     func testIsolatedManagerUsesDifferentService() {
         let before = productionSentinel()
-        let (isolated, restore) = KeychainManagerTestSupport.installAsShared()
-        defer { restore() }
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
 
-        // Install should not touch the production service.
         XCTAssertEqual(productionSentinel(), before,
-                       "installAsShared touched the production keychain service")
+                       "creating an isolated manager touched the production keychain service")
 
         // The isolated manager's service must be different from the
         // production one. macOS treats services as separate namespaces.
@@ -45,18 +43,36 @@ final class KeychainManagerTestSupportTests: XCTestCase {
     }
 
     func testSetAndGetKeyInIsolatedService() throws {
-        let (isolated, restore) = KeychainManagerTestSupport.installAsShared()
-        defer { restore() }
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
 
         let manager = isolated.manager
         try manager.setAPIKey("test-key-123", for: "channel-abc")
         XCTAssertEqual(manager.getAPIKey(for: "channel-abc"), "test-key-123")
     }
 
+    func testSingleJSONItemPreservesOtherChannelKeysAfterMutation() throws {
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
+
+        try isolated.manager.setAPIKey("key-one", for: "channel-1")
+        try isolated.manager.setAPIKey("key-two", for: "channel-2")
+        isolated.manager.resetCache()
+
+        XCTAssertEqual(isolated.manager.getAPIKey(for: "channel-1"), "key-one")
+        XCTAssertEqual(isolated.manager.getAPIKey(for: "channel-2"), "key-two")
+
+        try isolated.manager.removeAPIKey(for: "channel-1")
+        isolated.manager.resetCache()
+
+        XCTAssertNil(isolated.manager.getAPIKey(for: "channel-1"))
+        XCTAssertEqual(isolated.manager.getAPIKey(for: "channel-2"), "key-two")
+    }
+
     func testIsolatedServiceDoesNotLeakToProduction() throws {
         let before = productionSentinel()
-        let (isolated, restore) = KeychainManagerTestSupport.installAsShared()
-        defer { restore() }
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
 
         // Write a key into the isolated service. The production sentinel
         // must remain unchanged — macOS treats services as separate
@@ -72,7 +88,8 @@ final class KeychainManagerTestSupportTests: XCTestCase {
     }
 
     func testCleanupWipesOnlyIsolatedService() throws {
-        let (isolated, restore) = KeychainManagerTestSupport.installAsShared()
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
         try isolated.manager.setAPIKey("doomed", for: "doomed-channel")
         XCTAssertEqual(isolated.manager.getAPIKey(for: "doomed-channel"), "doomed")
 
@@ -84,18 +101,16 @@ final class KeychainManagerTestSupportTests: XCTestCase {
         XCTAssertNil(isolated.manager.getAPIKey(for: "doomed-channel"))
     }
 
-    func testRestoringSharedReturnsToPreviousOverride() {
-        // Simulate a chained-test scenario: override A, then override B,
-        // then restore. Make sure restore from B actually returns to A.
-        let (a, _) = KeychainManagerTestSupport.installAsShared()
-        XCTAssertTrue(KeychainManager.shared === a.manager)
+    func testEachIsolatedManagerUsesIndependentService() throws {
+        let first = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        let second = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer {
+            first.cleanup()
+            second.cleanup()
+        }
 
-        let (b, restoreB) = KeychainManagerTestSupport.installAsShared()
-        XCTAssertTrue(KeychainManager.shared === b.manager)
-        XCTAssertFalse(KeychainManager.shared === a.manager)
-
-        restoreB()
-        XCTAssertTrue(KeychainManager.shared === a.manager,
-                      "Restoring B should have returned to override A")
+        try first.manager.setAPIKey("first-key", for: "channel")
+        XCTAssertEqual(first.manager.getAPIKey(for: "channel"), "first-key")
+        XCTAssertNil(second.manager.getAPIKey(for: "channel"))
     }
 }

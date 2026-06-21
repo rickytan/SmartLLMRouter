@@ -6,7 +6,6 @@ import CommonCrypto
 /// Service for exporting and importing channel configurations
 @MainActor
 final class ChannelExportService {
-    static let shared = ChannelExportService(channelServices: .shared)
     private let channelServices: ChannelServices
 
     init(channelServices: ChannelServices) {

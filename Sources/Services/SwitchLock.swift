@@ -4,8 +4,6 @@ import Foundation
 /// when multiple requests simultaneously trigger failover or
 /// circuit breaker state changes.
 final class SwitchLock {
-    static let shared = SwitchLock()
-
     /// Serial queue that serializes all failover/state-change operations
     private let queue = DispatchQueue(label: "com.smartllmrouter.switchlock", qos: .userInitiated)
 

@@ -26,8 +26,6 @@ enum CircuitState: Equatable {
 /// Replaces the simple CooldownEngine with a more robust state machine.
 /// Thread-safe via internal serial queue.
 final class CircuitBreaker {
-    static let shared = CircuitBreaker()
-
     // Configuration
     private let consecutiveFailureThreshold: Int
     private let failureRateThreshold: Double

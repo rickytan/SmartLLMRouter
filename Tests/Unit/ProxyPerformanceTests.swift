@@ -6,25 +6,6 @@ import XCTest
 @MainActor
 final class ProxyPerformanceTests: XCTestCase {
 
-    // MARK: - Test Isolation
-
-    private var isolatedStore: IsolatedChannelStore?
-    private var restoreShared: (() -> Void)?
-
-    override func setUp() async throws {
-        try await super.setUp()
-        let (isolated, restore) = ChannelStoreTestSupport.installAsShared()
-        self.isolatedStore = isolated
-        self.restoreShared = restore
-    }
-
-    override func tearDown() async throws {
-        restoreShared?()
-        restoreShared = nil
-        isolatedStore = nil
-        try await super.tearDown()
-    }
-
     // MARK: - Protocol Conversion Performance
 
     func testAnthropicToOpenAIConversionPerformance() throws {
@@ -91,7 +72,45 @@ final class ProxyPerformanceTests: XCTestCase {
     // MARK: - Smart Router Selection Performance
 
     func testSmartRouterSelectionPerformance() {
-        let channelStore = ChannelStore.shared
+        let circuitBreaker = CircuitBreaker()
+        let switchLock = SwitchLock()
+        let runtimeState = RouterRuntimeState(
+            circuitBreaker: circuitBreaker,
+            switchLock: switchLock
+        )
+        let isolatedStore = ChannelStoreTestSupport.makeIsolatedChannelStore(
+            useTempFile: false,
+            runtimeState: runtimeState
+        )
+        let isolatedKeychain = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer {
+            isolatedStore.cleanup()
+            isolatedKeychain.cleanup()
+        }
+
+        let channelServices = ChannelServices(
+            store: isolatedStore.store,
+            keychain: isolatedKeychain.manager,
+            cooldownEngine: CooldownEngine(channelStore: isolatedStore.store)
+        )
+        let overrideState = ModelOverrideRuntimeState()
+        let aggregator = ModelAggregator(channelServices: channelServices)
+        let switcher = ModelSwitcher(
+            channelServices: channelServices,
+            modelOverrideState: overrideState,
+            defaults: isolatedStore.defaults
+        )
+        let router = SmartRouter(services: RouterServices(
+            channelServices: channelServices,
+            runtimeState: runtimeState,
+            modelOverrideState: overrideState,
+            circuitBreaker: circuitBreaker,
+            switchLock: switchLock,
+            modelAggregator: aggregator,
+            modelSwitcher: switcher,
+            usageTracker: UsageTracker(defaults: isolatedStore.defaults)
+        ))
+        let channelStore = isolatedStore.store
         let models = [
             ModelEntry(id: UUID().uuidString, identifier: "gpt-4o", displayName: "GPT-4o", contextLength: 128000, inputPricePer1M: 5.0, outputPricePer1M: 15.0, isEnabled: true)
         ]
@@ -116,7 +135,7 @@ final class ProxyPerformanceTests: XCTestCase {
 
         measure {
             for _ in 0..<100 {
-                _ = SmartRouter.shared.selectChannel(requestID: "perf-\(UUID().uuidString)", modelName: "gpt-4o")
+                _ = router.selectChannel(requestID: "perf-\(UUID().uuidString)", modelName: "gpt-4o")
             }
         }
 
