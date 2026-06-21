@@ -89,7 +89,7 @@ jobs:
           xcodebuild build \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
-            -configuration Release \
+            -configuration Debug \
             -destination "platform=macOS,arch=arm64" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
@@ -103,7 +103,7 @@ jobs:
           xcodebuild test \
             -workspace "${{ env.PROJECT_NAME }}.xcworkspace" \
             -scheme "${{ env.SCHEME }}" \
-            -configuration Release \
+            -configuration Debug \
             -destination "platform=macOS,arch=arm64" \
             -only-testing:SmartLLMRouterTests \
             CODE_SIGN_IDENTITY="-" \
