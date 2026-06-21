@@ -9,23 +9,28 @@ final class ChannelExportServiceTests: XCTestCase {
 
     // MARK: - Test Isolation
 
-    private var restoreKeychain: (() -> Void)?
+    private var isolatedStore: IsolatedChannelStore!
+    private var isolatedKeychain: IsolatedKeychainManager!
+    private var service: ChannelExportService!
 
     override func setUp() async throws {
         try await super.setUp()
-        // Install a per-test KeychainManager with a UUID-scoped
-        // service. The unit-test target inherits the host app's
-        // bundle ID, so without isolation, calls to
-        // KeychainManager.shared would write to the user's real
-        // keychain (and may trigger a macOS keychain prompt that
-        // hangs the test).
-        let (_, restore) = KeychainManagerTestSupport.installAsShared()
-        restoreKeychain = restore
+        isolatedStore = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        isolatedKeychain = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        let channelServices = ChannelServices(
+            store: isolatedStore.store,
+            keychain: isolatedKeychain.manager,
+            cooldownEngine: CooldownEngine(channelStore: isolatedStore.store)
+        )
+        service = ChannelExportService(channelServices: channelServices)
     }
 
     override func tearDown() async throws {
-        restoreKeychain?()
-        restoreKeychain = nil
+        isolatedStore.cleanup()
+        isolatedKeychain.cleanup()
+        service = nil
+        isolatedStore = nil
+        isolatedKeychain = nil
         try await super.tearDown()
     }
 
@@ -73,14 +78,13 @@ final class ChannelExportServiceTests: XCTestCase {
         )
 
         // Set API key in keychain
-        try KeychainManager.shared.setAPIKey("sk-test-key-12345", for: channel.id)
+        try isolatedKeychain.manager.setAPIKey("sk-test-key-12345", for: channel.id)
 
         defer {
-            try? KeychainManager.shared.removeAPIKey(for: channel.id)
+            try? isolatedKeychain.manager.removeAPIKey(for: channel.id)
         }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel])
+                let data = try await service.exportChannels([channel])
 
         // Verify it's valid JSON
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -123,16 +127,15 @@ final class ChannelExportServiceTests: XCTestCase {
             protocolType: .anthropic
         )
 
-        try KeychainManager.shared.setAPIKey("key1", for: "ch1")
-        try KeychainManager.shared.setAPIKey("key2", for: "ch2")
+        try isolatedKeychain.manager.setAPIKey("key1", for: "ch1")
+        try isolatedKeychain.manager.setAPIKey("key2", for: "ch2")
 
         defer {
-            try? KeychainManager.shared.removeAPIKey(for: "ch1")
-            try? KeychainManager.shared.removeAPIKey(for: "ch2")
+            try? isolatedKeychain.manager.removeAPIKey(for: "ch1")
+            try? isolatedKeychain.manager.removeAPIKey(for: "ch2")
         }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel1, channel2])
+                let data = try await service.exportChannels([channel1, channel2])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]
@@ -143,8 +146,7 @@ final class ChannelExportServiceTests: XCTestCase {
         let channel = createTestChannel(id: "no-key-channel")
 
         // Don't set API key
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel])
+                let data = try await service.exportChannels([channel])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]
@@ -157,11 +159,10 @@ final class ChannelExportServiceTests: XCTestCase {
         let model = createTestModel(inputTypes: ["text", "image", "audio"])
         let channel = createTestChannel(models: [model])
 
-        try KeychainManager.shared.setAPIKey("test-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("test-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel])
+                let data = try await service.exportChannels([channel])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]
@@ -203,8 +204,7 @@ final class ChannelExportServiceTests: XCTestCase {
         ]
 
         let data = try JSONSerialization.data(withJSONObject: json)
-        let service = await ChannelExportService.shared
-        let (exportFile, channels) = try await service.parseImportData(data)
+                let (exportFile, channels) = try await service.parseImportData(data)
 
         XCTAssertEqual(exportFile.format, "smartllmrouter/channels")
         XCTAssertEqual(exportFile.version, 1)
@@ -226,7 +226,6 @@ final class ChannelExportServiceTests: XCTestCase {
         ]
 
         let data = try! JSONSerialization.data(withJSONObject: json)
-        let service = await ChannelExportService.shared
 
         do {
             _ = try await service.parseImportData(data)
@@ -253,7 +252,6 @@ final class ChannelExportServiceTests: XCTestCase {
         ]
 
         let data = try! JSONSerialization.data(withJSONObject: json)
-        let service = await ChannelExportService.shared
 
         do {
             _ = try await service.parseImportData(data)
@@ -273,11 +271,10 @@ final class ChannelExportServiceTests: XCTestCase {
 
     func testExportWithEncryption() async throws {
         let channel = createTestChannel()
-        try KeychainManager.shared.setAPIKey("secret-api-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("secret-api-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let password = "test-password-123"
+                let password = "test-password-123"
         let data = try await service.exportChannels([channel], password: password)
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -296,11 +293,10 @@ final class ChannelExportServiceTests: XCTestCase {
 
     func testExportWithoutEncryption() async throws {
         let channel = createTestChannel()
-        try KeychainManager.shared.setAPIKey("plain-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("plain-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel], password: nil)
+                let data = try await service.exportChannels([channel], password: nil)
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
@@ -317,11 +313,10 @@ final class ChannelExportServiceTests: XCTestCase {
 
     func testExportWithEmptyPassword() async throws {
         let channel = createTestChannel()
-        try KeychainManager.shared.setAPIKey("test-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("test-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel], password: "")
+                let data = try await service.exportChannels([channel], password: "")
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
@@ -339,11 +334,10 @@ final class ChannelExportServiceTests: XCTestCase {
             name: "Original Channel",
             models: [originalModel]
         )
-        try KeychainManager.shared.setAPIKey("original-key", for: "original-id")
-        defer { try? KeychainManager.shared.removeAPIKey(for: "original-id") }
+        try isolatedKeychain.manager.setAPIKey("original-key", for: "original-id")
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: "original-id") }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([originalChannel])
+                let data = try await service.exportChannels([originalChannel])
 
         // Parse import
         let (exportFile, channels) = try await service.parseImportData(data)
@@ -357,11 +351,10 @@ final class ChannelExportServiceTests: XCTestCase {
     func testExportThenImportWithEncryption() async throws {
         // Create and export with encryption
         let originalChannel = createTestChannel()
-        try KeychainManager.shared.setAPIKey("secret-key", for: originalChannel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: originalChannel.id) }
+        try isolatedKeychain.manager.setAPIKey("secret-key", for: originalChannel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: originalChannel.id) }
 
-        let service = await ChannelExportService.shared
-        let password = "strong-password-123"
+                let password = "strong-password-123"
         let data = try await service.exportChannels([originalChannel], password: password)
 
         // Parse import
@@ -405,8 +398,7 @@ final class ChannelExportServiceTests: XCTestCase {
         ]
 
         let data = try JSONSerialization.data(withJSONObject: json)
-        let service = await ChannelExportService.shared
-        let (exportFile, channels) = try await service.parseImportData(data)
+                let (exportFile, channels) = try await service.parseImportData(data)
 
         XCTAssertEqual(channels.count, 1)
         XCTAssertEqual(channels.first?.name, "Old Format Channel")
@@ -415,8 +407,7 @@ final class ChannelExportServiceTests: XCTestCase {
     // MARK: - Edge Cases
 
     func testExportEmptyChannelsArray() async throws {
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([])
+                let data = try await service.exportChannels([])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]
@@ -425,11 +416,10 @@ final class ChannelExportServiceTests: XCTestCase {
 
     func testExportChannelWithEmptyModels() async throws {
         let channel = createTestChannel(models: [])
-        try KeychainManager.shared.setAPIKey("test-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("test-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel])
+                let data = try await service.exportChannels([channel])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]
@@ -449,11 +439,10 @@ final class ChannelExportServiceTests: XCTestCase {
             inputTypes: ["text", "image", "video"]
         )
         let channel = createTestChannel(models: [model])
-        try KeychainManager.shared.setAPIKey("test-key", for: channel.id)
-        defer { try? KeychainManager.shared.removeAPIKey(for: channel.id) }
+        try isolatedKeychain.manager.setAPIKey("test-key", for: channel.id)
+        defer { try? isolatedKeychain.manager.removeAPIKey(for: channel.id) }
 
-        let service = await ChannelExportService.shared
-        let data = try await service.exportChannels([channel])
+                let data = try await service.exportChannels([channel])
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let channels = json?["channels"] as? [[String: Any]]

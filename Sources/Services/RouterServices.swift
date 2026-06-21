@@ -6,24 +6,6 @@ import Foundation
 /// handling so routing code does not directly reach into unrelated singletons.
 @MainActor
 final class RouterServices {
-    static let shared: RouterServices = {
-        let channelServices = ChannelServices.shared
-        let modelOverrideState = ModelOverrideRuntimeState.shared
-        return RouterServices(
-            channelServices: channelServices,
-            runtimeState: .shared,
-            modelOverrideState: modelOverrideState,
-            circuitBreaker: .shared,
-            switchLock: .shared,
-            modelAggregator: ModelAggregator.shared,
-            modelSwitcher: ModelSwitcher(
-                channelServices: channelServices,
-                modelOverrideState: modelOverrideState
-            ),
-            usageTracker: .shared
-        )
-    }()
-
     let channelServices: ChannelServices
     let runtimeState: RouterRuntimeState
     let modelOverrideState: ModelOverrideRuntimeState
@@ -35,13 +17,13 @@ final class RouterServices {
 
     init(
         channelServices: ChannelServices,
-        runtimeState: RouterRuntimeState = .shared,
-        modelOverrideState: ModelOverrideRuntimeState = .shared,
-        circuitBreaker: CircuitBreaker = .shared,
-        switchLock: SwitchLock = .shared,
+        runtimeState: RouterRuntimeState,
+        modelOverrideState: ModelOverrideRuntimeState,
+        circuitBreaker: CircuitBreaker,
+        switchLock: SwitchLock,
         modelAggregator: ModelAggregator,
         modelSwitcher: ModelSwitcher,
-        usageTracker: UsageTracker = .shared
+        usageTracker: UsageTracker
     ) {
         self.channelServices = channelServices
         self.runtimeState = runtimeState

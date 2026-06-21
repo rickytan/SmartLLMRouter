@@ -3,7 +3,6 @@ import Swifter
 
 @MainActor
 final class ProxyServer: ObservableObject {
-    static let shared = ProxyServer(services: .shared)
     private let httpServer = HttpServer()
     private let services: RouterServices
     private let modelEndpointHandler: ModelEndpointHandler

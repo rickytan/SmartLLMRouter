@@ -36,8 +36,6 @@ struct UsageStats {
 /// Tracks API usage records with thread-safe access.
 /// All @Published updates are dispatched to main thread to avoid background-publish warnings.
 final class UsageTracker: ObservableObject {
-    static let shared = UsageTracker()
-
     @Published private(set) var records: [UsageRecord] = []
     @Published private(set) var todayStats = UsageStats.zero
     @Published private(set) var weekStats = UsageStats.zero
@@ -45,10 +43,15 @@ final class UsageTracker: ObservableObject {
 
     private let userDefaultsKey = "smartllm_router_usage_records"
     private let maxRecordsCount = 10000
+    private let defaults: UserDefaults
     /// Serial queue for thread-safe record mutations
     private let queue = DispatchQueue(label: "cn.rickytan.smartLLMRouter.usage-tracker", qos: .utility)
+    /// Source of truth for mutations. `records` is a main-thread UI projection
+    /// and may lag behind this queue while multiple requests complete quickly.
+    private var storedRecords: [UsageRecord] = []
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         loadRecords()
     }
 
@@ -81,8 +84,7 @@ final class UsageTracker: ObservableObject {
 
         queue.async { [weak self] in
             guard let self else { return }
-            // Work with local copy inside the queue — never touch @Published from background
-            var localRecords = self.records
+            var localRecords = self.storedRecords
             localRecords.append(record)
 
             // Trim old records
@@ -90,7 +92,8 @@ final class UsageTracker: ObservableObject {
                 localRecords.removeFirst(localRecords.count - self.maxRecordsCount)
             }
 
-            self.saveRecords(Array(localRecords))
+            self.storedRecords = localRecords
+            self.saveRecords(localRecords)
             let stats = self.computeStats(from: localRecords)
 
             DispatchQueue.main.async {
@@ -105,6 +108,7 @@ final class UsageTracker: ObservableObject {
     func clearHistory() {
         queue.async { [weak self] in
             guard let self else { return }
+            self.storedRecords = []
             self.saveRecords([])
 
             DispatchQueue.main.async {
@@ -122,10 +126,11 @@ final class UsageTracker: ObservableObject {
         queue.async { [weak self] in
             guard let self else { return }
             do {
-                guard let data = UserDefaults.standard.data(forKey: self.userDefaultsKey) else {
+                guard let data = self.defaults.data(forKey: self.userDefaultsKey) else {
                     return
                 }
                 let decoded = try JSONDecoder().decode([UsageRecord].self, from: data)
+                self.storedRecords = decoded
                 let stats = self.computeStats(from: decoded)
 
                 DispatchQueue.main.async {
@@ -144,7 +149,7 @@ final class UsageTracker: ObservableObject {
     private func saveRecords(_ records: [UsageRecord]) {
         do {
             let encoded = try JSONEncoder().encode(records)
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+            defaults.set(encoded, forKey: userDefaultsKey)
         } catch {
             Log.error("Failed to save usage records: \(error.localizedDescription)")
         }

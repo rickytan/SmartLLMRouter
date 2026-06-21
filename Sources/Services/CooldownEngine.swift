@@ -45,8 +45,6 @@ struct CooldownEntry: Codable, Identifiable {
 /// Manages cooldown periods for channels after errors
 @MainActor
 final class CooldownEngine: ObservableObject {
-    static let shared = CooldownEngine(channelStore: .shared)
-
     private let userDefaultsKey = "smartllm_router_cooldowns"
 
     @Published private(set) var cooldowns: [CooldownEntry] = []

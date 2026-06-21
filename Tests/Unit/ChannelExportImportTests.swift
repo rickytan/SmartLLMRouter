@@ -8,8 +8,8 @@ import XCTest
 /// Both `ChannelStore` and `KeychainManager` are isolated per-test via
 /// dedicated test-support helpers. The unit-test target runs inside
 /// the host app's process (TEST_HOST/BUNDLE_LOADER), so any test that
-/// touched `KeychainManager.shared` (which uses the production service
-/// `com.smartllmrouter.keys`) would delete the user's real API keys.
+/// used the production Keychain service (`com.smartllmrouter.keys`) could
+/// delete the user's real API keys.
 /// `KeychainManagerTestSupport` gives every test a UUID-scoped keychain
 /// service so the production keychain is never touched.
 @MainActor
@@ -17,26 +17,26 @@ final class ChannelExportImportTests: XCTestCase {
 
     var isolated: IsolatedChannelStore!
     var isolatedKeychain: IsolatedKeychainManager!
-    var restore: (() -> Void)!
-    var restoreKeychain: (() -> Void)!
+    var service: ChannelExportService!
 
     override func setUp() async throws {
         try await super.setUp()
-        let (iso, restoreFn) = ChannelStoreTestSupport.installAsShared()
-        isolated = iso
-        restore = restoreFn
-        let (isoKc, restoreKc) = KeychainManagerTestSupport.installAsShared()
-        isolatedKeychain = isoKc
-        restoreKeychain = restoreKc
+        isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        isolatedKeychain = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        let channelServices = ChannelServices(
+            store: isolated.store,
+            keychain: isolatedKeychain.manager,
+            cooldownEngine: CooldownEngine(channelStore: isolated.store)
+        )
+        service = ChannelExportService(channelServices: channelServices)
     }
 
     override func tearDown() async throws {
-        restoreKeychain?()
-        restoreKeychain = nil
+        service = nil
+        isolatedKeychain.cleanup()
         isolatedKeychain = nil
-        restore()
+        isolated.cleanup()
         isolated = nil
-        restore = nil
         try await super.tearDown()
     }
 
@@ -75,7 +75,7 @@ final class ChannelExportImportTests: XCTestCase {
         let exported = [makeExportedChannel(name: "DeepSeek", baseURL: "https://api.deepseek.com")]
         let file = makeExportFile(channels: exported)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file)
+        let result = service.importChannels(exported, exportFile: file)
 
         XCTAssertEqual(result.total, 1)
         XCTAssertEqual(result.imported, 1)
@@ -95,7 +95,7 @@ final class ChannelExportImportTests: XCTestCase {
         ]
         let file = makeExportFile(channels: exported)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file)
+        let result = service.importChannels(exported, exportFile: file)
 
         XCTAssertEqual(result.total, 3)
         XCTAssertEqual(result.imported, 3)
@@ -122,7 +122,7 @@ final class ChannelExportImportTests: XCTestCase {
         let exported = [makeExportedChannel(name: "DeepSeek (new)", baseURL: "https://api.deepseek.com")]
         let file = makeExportFile(channels: exported)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file)
+        let result = service.importChannels(exported, exportFile: file)
 
         XCTAssertEqual(result.total, 1)
         XCTAssertEqual(result.imported, 0, "Duplicate should not be imported")
@@ -160,7 +160,7 @@ final class ChannelExportImportTests: XCTestCase {
         ]
         let file = makeExportFile(channels: exported)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file)
+        let result = service.importChannels(exported, exportFile: file)
 
         XCTAssertEqual(result.total, 3)
         XCTAssertEqual(result.imported, 2)
@@ -177,7 +177,7 @@ final class ChannelExportImportTests: XCTestCase {
         // Mark as encrypted but provide no salt/nonce and no password.
         let file = makeExportFile(channels: exported, encrypted: true)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file, password: nil)
+        let result = service.importChannels(exported, exportFile: file, password: nil)
 
         XCTAssertEqual(result.total, 1)
         XCTAssertEqual(result.imported, 0)
@@ -202,7 +202,7 @@ final class ChannelExportImportTests: XCTestCase {
         ]
         let file = makeExportFile(channels: exported)
 
-        let result = ChannelExportService.shared.importChannels(exported, exportFile: file)
+        let result = service.importChannels(exported, exportFile: file)
 
         // Previous contract: returned Int = 2. The 3rd was silently dropped.
         // New contract: returns total/imported/skipped/failed so the user

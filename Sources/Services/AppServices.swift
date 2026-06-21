@@ -27,7 +27,7 @@ final class AppServices {
     convenience init() {
         self.init(
             appState: AppState(),
-            keychainManager: .shared,
+            keychainManager: KeychainManager(),
             usageTracker: UsageTracker(),
             circuitBreaker: CircuitBreaker(),
             switchLock: SwitchLock(),

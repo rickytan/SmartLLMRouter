@@ -13,28 +13,6 @@ final class KeychainManager {
     /// `KeychainManagerTestSupport`).
     static let defaultService = "com.smartllmrouter.keys"
 
-    /// Production singleton. Tests must NOT call this directly — they
-    /// should construct their own `KeychainManager` with a unique
-    /// service, then call `setSharedForTesting` to install it.
-    static let productionShared = KeychainManager()
-
-    /// Test seam. Replaces the shared instance for the duration of a
-    /// test. Production code must not call this.
-    static func setSharedForTesting(_ store: KeychainManager?) {
-        testOverride = store
-    }
-
-    /// Test-only accessor. Lets test support read the current override
-    /// to restore it after a test. Production code must not use this.
-    static var testOverride: KeychainManager?
-
-    /// The currently-active shared instance. Returns the test override
-    /// if set, otherwise the production singleton. All production code
-    /// paths should use this so test isolation works.
-    static var shared: KeychainManager {
-        testOverride ?? productionShared
-    }
-
     let keychain: Keychain
     private let storageKey = "smartllm.apikeys"
     private let legacyServicePrefix = "smartllm.apikey."

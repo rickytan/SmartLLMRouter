@@ -23,14 +23,13 @@ enum ModelProtocolCompatibility: String, Codable, CaseIterable {
     }
 }
 
-/// Singleton service managing the active model selection
+/// Service managing the active model selection
 @MainActor
 final class ModelSwitcher: ObservableObject {
-    static let shared = ModelSwitcher(channelServices: .shared)
-
     private let selectedModelKey = "smartllm_selected_model"
     private let channelServices: ChannelServices
     private let modelOverrideState: ModelOverrideRuntimeState
+    private let defaults: UserDefaults
 
     /// Currently selected model ID. Nil means "Default/Passthrough".
     @Published var selectedModelID: String? {
@@ -90,11 +89,13 @@ final class ModelSwitcher: ObservableObject {
 
     init(
         channelServices: ChannelServices,
-        modelOverrideState: ModelOverrideRuntimeState = .shared
+        modelOverrideState: ModelOverrideRuntimeState = ModelOverrideRuntimeState(),
+        defaults: UserDefaults = .standard
     ) {
         self.channelServices = channelServices
         self.modelOverrideState = modelOverrideState
-        selectedModelID = UserDefaults.standard.string(forKey: selectedModelKey)
+        self.defaults = defaults
+        selectedModelID = defaults.string(forKey: selectedModelKey)
         if selectedModelID == "Default" || selectedModelID?.isEmpty == true {
             selectedModelID = nil
         }
@@ -139,9 +140,9 @@ final class ModelSwitcher: ObservableObject {
 
     private func saveSelection() {
         if let id = selectedModelID {
-            UserDefaults.standard.set(id, forKey: selectedModelKey)
+            defaults.set(id, forKey: selectedModelKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: selectedModelKey)
+            defaults.removeObject(forKey: selectedModelKey)
         }
     }
 

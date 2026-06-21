@@ -4,8 +4,6 @@ import Foundation
 /// Allows one-click takeover to route Claude Code through the SmartLLM Router proxy.
 @MainActor
 final class ClaudeCodeConfigManager: ObservableObject {
-    static let shared = ClaudeCodeConfigManager()
-
     @Published private(set) var isActive: Bool = false
     @Published private(set) var currentURL: String = ""
     @Published private(set) var configExists: Bool = false

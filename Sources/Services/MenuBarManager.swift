@@ -5,8 +5,6 @@ import SwiftUI
 /// Uses MenuView as the popover content for rich UI.
 @MainActor
 final class MenuBarManager: NSObject {
-    static let shared = MenuBarManager(services: .shared)
-
     private let services: AppServices
 
     /// Strong reference — this keeps the status item (and the app) alive

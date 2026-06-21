@@ -19,7 +19,10 @@ enum ChannelStoreTestSupport {
     ///     disable file persistence (in-memory only — fastest, no disk I/O).
     /// - Returns: A configured `ChannelStore` plus its storage handles for
     ///   later inspection / cleanup.
-    static func makeIsolatedChannelStore(useTempFile: Bool = true) -> IsolatedChannelStore {
+    static func makeIsolatedChannelStore(
+        useTempFile: Bool = true,
+        runtimeState: RouterRuntimeState? = nil
+    ) -> IsolatedChannelStore {
         let suiteName = "ChannelStoreTest.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         // Defensive: clear anything left over from a previous run with the
@@ -38,7 +41,15 @@ enum ChannelStoreTestSupport {
             persistence = ChannelsPersistence(fileURL: nil)
         }
 
-        let store = ChannelStore(defaults: defaults, persistence: persistence)
+        let runtimeState = runtimeState ?? RouterRuntimeState(
+            circuitBreaker: CircuitBreaker(),
+            switchLock: SwitchLock()
+        )
+        let store = ChannelStore(
+            defaults: defaults,
+            persistence: persistence,
+            runtimeState: runtimeState
+        )
         return IsolatedChannelStore(
             store: store,
             defaults: defaults,
@@ -47,27 +58,6 @@ enum ChannelStoreTestSupport {
         )
     }
 
-    /// Install an isolated `ChannelStore` as `ChannelStore.shared` for
-    /// the duration of a test. Returns a closure that restores the previous
-    /// state. Callers should invoke the closure in `tearDown`.
-    @discardableResult
-    static func installAsShared() -> (IsolatedChannelStore, () -> Void) {
-        let isolated = makeIsolatedChannelStore()
-        let previous = currentOverride ?? ChannelStore.shared
-        ChannelStore.setSharedForTesting(isolated.store)
-        let restore = {
-            ChannelStore.setSharedForTesting(previous)
-            isolated.cleanup()
-        }
-        return (isolated, restore)
-    }
-
-    /// Returns the currently installed test override, if any.
-    /// Used by `installAsShared` to remember the previous value so it can
-    /// restore it later.
-    private static var currentOverride: ChannelStore? {
-        ChannelStore.shared === ChannelStore.shared ? nil : ChannelStore.shared
-    }
 }
 
 /// Bundle returned by `makeIsolatedChannelStore`. Holds the storage handles
