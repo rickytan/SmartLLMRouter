@@ -1,11 +1,17 @@
 import Foundation
 
+protocol ModelAggregating: AnyObject, Sendable {
+    func fetchAllModelsIfNeeded() async -> Bool
+    func allModels() -> [ModelEntry]
+    func hasCachedModels() -> Bool
+}
+
 /// Service that manages an in-memory cache of aggregated models
 /// from all configured upstream channels. Fetches lazily on first request
 /// and merges results with deduplication by model identifier.
 /// NOTE: This class is NOT @MainActor. Network requests run in the background.
 /// Only updates to ChannelStore happen on MainActor.
-final class ModelAggregator {
+final class ModelAggregator: ModelAggregating, @unchecked Sendable {
     private let channelServices: ChannelServices
 
     /// In-memory cache of aggregated model entries, keyed by channel ID.
@@ -27,17 +33,17 @@ final class ModelAggregator {
     /// Fetches models from all channels, merges, deduplicates, and updates
     /// the ChannelStore. Triggers lazy loading on first call.
     /// This is an async function and should be called from a background context or Task.
-    func fetchAllModelsIfNeeded() async {
+    func fetchAllModelsIfNeeded() async -> Bool {
         let shouldFetch = markInitializedIfNeeded()
 
-        guard shouldFetch else { return }
+        guard shouldFetch else { return hasCachedModels() }
 
-        await fetchAndMergeAllChannels()
+        return await fetchAndMergeAllChannels()
     }
 
     /// Force-refresh models from all channels regardless of cache state.
     func refreshAllModels() async {
-        await fetchAndMergeAllChannels()
+        _ = await fetchAndMergeAllChannels()
     }
 
     /// Clears cached aggregation so the next request reflects current channel state.
@@ -84,14 +90,14 @@ final class ModelAggregator {
 
     /// Fetches models from every channel concurrently, merges results,
     /// and updates each channel's model list in ChannelStore.
-    private func fetchAndMergeAllChannels() async {
+    private func fetchAndMergeAllChannels() async -> Bool {
         let channels = await MainActor.run {
             return self.channelServices.enabledChannels
         }
         
         guard !channels.isEmpty else {
             Log.info("[ModelAggregator] No channels configured, skipping fetch")
-            return
+            return false
         }
 
         Log.info("[ModelAggregator] Fetching models from \(channels.count) channels")
@@ -147,6 +153,7 @@ final class ModelAggregator {
 
         let totalUnique = allUniqueModels.count
         Log.info("[ModelAggregator] Aggregation complete: \(totalUnique) unique models from \(updates.count) channels")
+        return !updates.isEmpty
     }
 
     private func markInitializedIfNeeded() -> Bool {

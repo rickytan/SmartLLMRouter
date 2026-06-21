@@ -1,5 +1,23 @@
 import Foundation
 
+@MainActor
+protocol ConnectionTestHTTPTransport: AnyObject {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+    func response(for request: URLRequest) async throws -> URLResponse
+}
+
+@MainActor
+final class URLSessionConnectionTestHTTPTransport: ConnectionTestHTTPTransport {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await URLSession.shared.data(for: request)
+    }
+
+    func response(for request: URLRequest) async throws -> URLResponse {
+        let (_, response) = try await URLSession.shared.bytes(for: request)
+        return response
+    }
+}
+
 /// Provider template from providers.json
 struct ProviderTemplate: Codable, Identifiable {
     let id: String
@@ -70,9 +88,14 @@ final class ChannelManager: ObservableObject {
     @Published var lastSpeedTestResults: [String: TimeInterval] = [:]
 
     private let channelServices: ChannelServices
+    private let connectionTransport: any ConnectionTestHTTPTransport
 
-    init(channelServices: ChannelServices) {
+    init(
+        channelServices: ChannelServices,
+        connectionTransport: any ConnectionTestHTTPTransport = URLSessionConnectionTestHTTPTransport()
+    ) {
         self.channelServices = channelServices
+        self.connectionTransport = connectionTransport
         loadProviderTemplates()
     }
 
@@ -355,7 +378,7 @@ final class ChannelManager: ObservableObject {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await connectionTransport.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
@@ -417,7 +440,7 @@ final class ChannelManager: ObservableObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: [:] as [String: Any])
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await connectionTransport.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
@@ -499,7 +522,7 @@ final class ChannelManager: ObservableObject {
         }
 
         do {
-            let (_, response) = try await URLSession.shared.bytes(for: request)
+            let response = try await connectionTransport.response(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
@@ -557,7 +580,7 @@ final class ChannelManager: ObservableObject {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await connectionTransport.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
 
