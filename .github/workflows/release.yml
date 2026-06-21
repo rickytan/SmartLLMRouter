@@ -159,9 +159,18 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_SSH_PRIVATE_KEY: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
         run: |
-          MATCH_GIT_BASIC_AUTHORIZATION=$(echo -n "x-access-token:${{ secrets.GITHUB_TOKEN }}" | base64)
-          export MATCH_GIT_BASIC_AUTHORIZATION
+          if [[ -z "$MATCH_SSH_PRIVATE_KEY" ]]; then
+            echo "::error::Missing Fastlane Environment secret MATCH_SSH_PRIVATE_KEY"
+            exit 1
+          fi
+          MATCH_SSH_KEY_PATH="$RUNNER_TEMP/match-certificates"
+          MATCH_KNOWN_HOSTS_PATH="$RUNNER_TEMP/match-known-hosts"
+          printf '%s\n' "$MATCH_SSH_PRIVATE_KEY" > "$MATCH_SSH_KEY_PATH"
+          chmod 600 "$MATCH_SSH_KEY_PATH"
+          ssh-keyscan -t ed25519 github.com > "$MATCH_KNOWN_HOSTS_PATH"
+          export GIT_SSH_COMMAND="ssh -i $MATCH_SSH_KEY_PATH -o IdentitiesOnly=yes -o UserKnownHostsFile=$MATCH_KNOWN_HOSTS_PATH -o StrictHostKeyChecking=yes"
           bundle exec fastlane release
 
       - name: Determine version
