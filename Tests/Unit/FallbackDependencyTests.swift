@@ -169,14 +169,14 @@ final class FallbackDependencyTests: XCTestCase {
     }
 
     private func responseJSON(_ response: HttpResponse) throws -> [String: Any] {
-        guard case let .raw(_, _, _, writer?) = response else {
-            XCTFail("Expected raw JSON response")
+        guard case let .ok(body) = response,
+              case let .json(object) = body
+        else {
+            XCTFail("Expected .ok(.json(...)) response")
             return [:]
         }
 
-        let bodyWriter = TestResponseBodyWriter()
-        try writer(bodyWriter)
-        return try XCTUnwrap(JSONSerialization.jsonObject(with: bodyWriter.data) as? [String: Any])
+        return try XCTUnwrap(object as? [String: Any])
     }
 }
 
@@ -228,12 +228,3 @@ private enum ScriptedTransportError: Error {
     case missingResponseResult
 }
 
-private final class TestResponseBodyWriter: HttpResponseBodyWriter {
-    private(set) var data = Data()
-
-    func write(_ file: String.File) throws {}
-    func write(_ data: [UInt8]) throws { self.data.append(contentsOf: data) }
-    func write(_ data: ArraySlice<UInt8>) throws { self.data.append(contentsOf: data) }
-    func write(_ data: NSData) throws { self.data.append(data as Data) }
-    func write(_ data: Data) throws { self.data.append(data) }
-}
