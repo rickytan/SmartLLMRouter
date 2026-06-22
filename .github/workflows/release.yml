@@ -159,9 +159,8 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
-          MATCH_GIT_BASIC_AUTHORIZATION=$(echo -n "x-access-token:${{ secrets.GITHUB_TOKEN }}" | base64)
-          export MATCH_GIT_BASIC_AUTHORIZATION
           bundle exec fastlane release
 
       - name: Determine version
