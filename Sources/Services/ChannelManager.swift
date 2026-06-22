@@ -92,10 +92,10 @@ final class ChannelManager: ObservableObject {
 
     init(
         channelServices: ChannelServices,
-        connectionTransport: any ConnectionTestHTTPTransport = URLSessionConnectionTestHTTPTransport()
+        connectionTransport: (any ConnectionTestHTTPTransport)? = nil
     ) {
         self.channelServices = channelServices
-        self.connectionTransport = connectionTransport
+        self.connectionTransport = connectionTransport ?? URLSessionConnectionTestHTTPTransport()
         loadProviderTemplates()
     }
 
