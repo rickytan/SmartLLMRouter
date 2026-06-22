@@ -4,15 +4,23 @@ import Swifter
 @MainActor
 final class ModelEndpointHandler {
     private let services: RouterServices
+    private let modelAggregator: any ModelAggregating
+    private let initialFetchTimeout: TimeInterval
 
-    init(services: RouterServices) {
+    init(
+        services: RouterServices,
+        modelAggregator: (any ModelAggregating)? = nil,
+        initialFetchTimeout: TimeInterval = 8
+    ) {
         self.services = services
+        self.modelAggregator = modelAggregator ?? services.modelAggregator
+        self.initialFetchTimeout = initialFetchTimeout
     }
 
     func handleListModels() -> HttpResponse {
         // Fast path: If we have cached models, return them immediately.
-        if services.modelAggregator.hasCachedModels() {
-            let models = services.modelAggregator.allModels()
+        if modelAggregator.hasCachedModels() {
+            let models = modelAggregator.allModels()
             return HttpResponse.ok(.json([
                 "object": "list",
                 "data": models.map { modelJSON(for: $0.identifier, ownedBy: "aggregated") }
@@ -22,20 +30,16 @@ final class ModelEndpointHandler {
         // First request path: Block and wait for the fetch to complete.
         // We use a semaphore to bridge the async fetch into this sync handler.
         // Timeout is set to 8s (5s request timeout + 3s processing buffer).
-        let semaphore = DispatchSemaphore(value: 0)
-        var fetchCompleted = false
-
-        Task {
-            await services.modelAggregator.fetchAllModelsIfNeeded()
-            fetchCompleted = true
-            semaphore.signal()
+        let fetchResult = InitialModelFetchResult()
+        Task.detached { [modelAggregator, fetchResult] in
+            fetchResult.complete(await modelAggregator.fetchAllModelsIfNeeded())
         }
 
         // Wait for the fetch to finish, but don't wait forever.
-        let waitResult = semaphore.wait(timeout: .now() + 8)
+        let fetchSucceeded = fetchResult.wait(timeout: initialFetchTimeout)
 
-        if waitResult == .success && fetchCompleted {
-            let models = services.modelAggregator.allModels()
+        if fetchSucceeded == true {
+            let models = modelAggregator.allModels()
             return HttpResponse.ok(.json([
                 "object": "list",
                 "data": models.map { modelJSON(for: $0.identifier, ownedBy: "aggregated") }
@@ -63,8 +67,8 @@ final class ModelEndpointHandler {
         var foundModel: ModelEntry?
         var foundChannelName = "unknown"
 
-        if services.modelAggregator.hasCachedModels() {
-            let models = services.modelAggregator.allModels()
+        if modelAggregator.hasCachedModels() {
+            let models = modelAggregator.allModels()
             foundModel = models.first { ModelSwitcher.modelMatches(requested: modelId, stored: $0.identifier) }
             if foundModel != nil {
                 foundChannelName = ownerName(for: modelId) ?? foundChannelName
@@ -108,5 +112,28 @@ final class ModelEndpointHandler {
 
     private func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {
         ProxyEndpointSupport.errorResponse(statusCode, message)
+    }
+}
+
+private final class InitialModelFetchResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var succeeded = false
+
+    func complete(_ succeeded: Bool) {
+        lock.lock()
+        self.succeeded = succeeded
+        lock.unlock()
+        semaphore.signal()
+    }
+
+    func wait(timeout: TimeInterval) -> Bool? {
+        guard semaphore.wait(timeout: .now() + timeout) == .success else {
+            return nil
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        return succeeded
     }
 }
