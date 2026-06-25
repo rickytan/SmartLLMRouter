@@ -204,22 +204,32 @@ lane :notarize_dmg do
   UI.user_error!("#{dmg_path} not found -- run `fastlane dmg` first") unless File.exist?(dmg_path)
 
   if app_store_connect_key_available?
-    notarize(
-      package: dmg_path,
-      api_key: app_store_connect_key,
-      skip_stapling: false
-    )
+    key_id     = ENV["APPLE_KEY_ID"] || ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"]
+    issuer_id  = ENV["APPLE_ISSUER_ID"] || ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"]
+    key_content = ENV["APPLE_KEY_CONTENT"] || ENV["APP_STORE_CONNECT_API_KEY_KEY"]
+
+    key_file = root_path("auth_key_#{key_id}.p8")
+    File.write(key_file, key_content)
+
+    begin
+      run("xcrun", "notarytool", "submit", dmg_path,
+          "--key", key_file,
+          "--key-id", key_id,
+          "--issuer", issuer_id,
+          "--wait")
+    ensure
+      FileUtils.rm_f(key_file)
+    end
   else
     [apple_id_val, apple_password, team_id_val].each { |v| UI.user_error!("Missing required notarization env var") if v.nil? || v.empty? }
-    notarize(
-      package: dmg_path,
-      username: apple_id_val,
-      password: apple_password,
-      team_id: team_id_val,
-      skip_stapling: false
-    )
+    run("xcrun", "notarytool", "submit", dmg_path,
+        "--apple-id", apple_id_val,
+        "--password", apple_password,
+        "--team-id", team_id_val,
+        "--wait")
   end
 
+  run("xcrun", "stapler", "staple", dmg_path)
   UI.success("Notarized & stapled: #{dmg_path}")
 end
 
