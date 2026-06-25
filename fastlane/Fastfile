@@ -259,6 +259,15 @@ end
 
 # ── Full Release ──
 lane :release do
+  # Create a temporary keychain to prevent codesign UI permission popups in CI
+  create_keychain(
+    name: "fastlane_tmp_keychain",
+    password: ENV["MATCH_PASSWORD"],
+    default_keychain: true,
+    unlock: true,
+    timeout: 3600
+  )
+
   if signed_build?
     # match fetches Developer ID cert from git repo
     match_options = {
@@ -289,6 +298,8 @@ lane :release do
   end
 
   UI.success("Release #{app_version} complete!")
+ensure
+  delete_keychain(name: "fastlane_tmp_keychain")
 end
 
 # ── Dry-run (local testing) ──
