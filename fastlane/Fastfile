@@ -154,6 +154,27 @@ lane :build do
     run("ditto", dsym_src, "build/#{APP_NAME}.dSYM")
   end
 
+  # Deep codesign all nested binaries (Sparkle XPC services, etc.)
+  if signed_build?
+    identity = code_sign_identity
+    app_path = root_path("build/#{APP_NAME}")
+    frameworks_dir = "#{app_path}/Contents/Frameworks"
+    UI.important("Deep codesign: identity=#{identity}, frameworks_dir=#{frameworks_dir}, exist=#{Dir.exist?(frameworks_dir)}")
+    if Dir.exist?(frameworks_dir)
+      # Sign XPC services first (innermost), then frameworks
+      xpcs = Dir.glob("#{frameworks_dir}/**/*.xpc")
+      UI.important("Deep codesign: found #{xpcs.length} xpc bundles: #{xpcs.map { |x| File.basename(x) }}")
+      xpcs.each do |xpc|
+        run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", xpc)
+      end
+      fws = Dir.glob("#{frameworks_dir}/**/*.framework")
+      UI.important("Deep codesign: found #{fws.length} frameworks: #{fws.map { |f| File.basename(f) }}")
+      fws.each do |fw|
+        run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", fw)
+      end
+    end
+  end
+
   UI.success("Build complete: build/#{APP_NAME}")
 end
 
@@ -210,7 +231,7 @@ lane :notarize_dmg do
     key_content = ENV["APPLE_KEY_CONTENT"] || ENV["APP_STORE_CONNECT_API_KEY_KEY"]
 
     key_file = root_path("auth_key_#{key_id}.p8")
-    File.write(key_file, key_content)
+    File.write(key_file, key_content.gsub("\\n", "\n"))
 
     begin
       run("xcrun", "notarytool", "submit", dmg_path,
