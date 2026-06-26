@@ -161,12 +161,26 @@ lane :build do
     frameworks_dir = "#{app_path}/Contents/Frameworks"
     UI.important("Deep codesign: identity=#{identity}, frameworks_dir=#{frameworks_dir}, exist=#{Dir.exist?(frameworks_dir)}")
     if Dir.exist?(frameworks_dir)
-      # Sign XPC services first (innermost), then frameworks
+      # 1. Sign standalone binaries inside frameworks (e.g. Autoupdate)
+      Dir.glob("#{frameworks_dir}/**/Versions/B/*").each do |f|
+        next if f.end_with?(".xpc") || f.end_with?(".framework") || File.directory?(f)
+        next if File.basename(f) == "Headers"  # skip Headers dir
+        UI.important("Deep codesign: signing binary #{File.basename(f)}")
+        run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", f)
+      end
+      # 2. Sign XPC services
       xpcs = Dir.glob("#{frameworks_dir}/**/*.xpc")
       UI.important("Deep codesign: found #{xpcs.length} xpc bundles: #{xpcs.map { |x| File.basename(x) }}")
       xpcs.each do |xpc|
         run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", xpc)
       end
+      # 3. Sign nested .app bundles (e.g. Updater.app)
+      apps = Dir.glob("#{frameworks_dir}/**/*.app")
+      UI.important("Deep codesign: found #{apps.length} app bundles: #{apps.map { |a| File.basename(a) }}")
+      apps.each do |app|
+        run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", app)
+      end
+      # 4. Sign frameworks (outermost last)
       fws = Dir.glob("#{frameworks_dir}/**/*.framework")
       UI.important("Deep codesign: found #{fws.length} frameworks: #{fws.map { |f| File.basename(f) }}")
       fws.each do |fw|
