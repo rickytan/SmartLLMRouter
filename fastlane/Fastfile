@@ -234,7 +234,7 @@ lane :notarize_dmg do
     File.write(key_file, key_content.gsub("\\n", "\n"))
 
     begin
-      run("xcrun", "notarytool", "submit", dmg_path,
+      output = run("xcrun", "notarytool", "submit", dmg_path,
           "--key", key_file,
           "--key-id", key_id,
           "--issuer", issuer_id,
@@ -244,11 +244,26 @@ lane :notarize_dmg do
     end
   else
     [apple_id_val, apple_password, team_id_val].each { |v| UI.user_error!("Missing required notarization env var") if v.nil? || v.empty? }
-    run("xcrun", "notarytool", "submit", dmg_path,
+    output = run("xcrun", "notarytool", "submit", dmg_path,
         "--apple-id", apple_id_val,
         "--password", apple_password,
         "--team-id", team_id_val,
         "--wait")
+  end
+
+  # Check for failure and fetch detailed log
+  if output.to_s.include?("status: Invalid") || $?.exitstatus != 0
+    submission_id = output.to_s[/id:\s+([a-f0-9-]+)/, 1]
+    if submission_id
+      UI.important("Notarization failed. Fetching log for submission #{submission_id}...")
+      log_cmd = app_store_connect_key_available? ?
+        "xcrun notarytool log #{submission_id} --key #{key_file} --key-id #{ENV['APPLE_KEY_ID']} --issuer #{ENV['APPLE_ISSUER_ID']}" :
+        "xcrun notarytool log #{submission_id} --apple-id #{apple_id_val} --password #{apple_password} --team-id #{team_id_val}"
+      log_output = `#{log_cmd} 2>&1`
+      UI.error("=== Notarization Log ===")
+      UI.error(log_output)
+      UI.user_error!("Notarization rejected — see log above")
+    end
   end
 
   run("xcrun", "stapler", "staple", dmg_path)
