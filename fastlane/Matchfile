@@ -1,4 +1,4 @@
-git_url("https://github.com/QRCodeSnap/Certificates.git")
+git_url(ENV["MATCH_GIT_URL"] || "git@github.com:QRCodeSnap/Certificates.git")
 git_branch("main")
 storage_mode("git")
 type("developer_id")
