@@ -175,11 +175,11 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
     /// Fetches models from a single channel with appropriate auth headers
     /// and a 5-second timeout.
     private func fetchModelsForChannel(_ channel: Channel) async -> [ModelEntry] {
-        let apiKey = await MainActor.run {
-            return self.channelServices.apiKey(for: channel.id)
+        let apiKeys = await MainActor.run {
+            self.channelServices.apiKeys(for: channel.id)
         }
         
-        guard let apiKey = apiKey, !apiKey.isEmpty else {
+        guard !apiKeys.isEmpty else {
             Log.warn("[ModelAggregator] No API key for channel '\(channel.name)', skipping")
             return []
         }
@@ -193,37 +193,46 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
             return []
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 5 // 5s timeout per channel
+        for (index, apiKey) in apiKeys.enumerated() {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 5 // 5s timeout per channel
 
-        // Set auth headers based on channel protocol
-        switch channel.protocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .auto:
-            // Both OpenAI and Auto channels use Bearer auth for /v1/models
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200
-            else {
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                let bodyPreview = String(data: data, encoding: .utf8)?.prefix(200) ?? "nil"
-                Log.warn("[ModelAggregator] HTTP \(statusCode) from '\(channel.name)': \(bodyPreview)")
-                return []
+            // Set auth headers based on channel protocol
+            switch channel.protocol {
+            case .anthropic:
+                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .openai, .auto:
+                // Both OpenAI and Auto channels use Bearer auth for /v1/models
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             }
 
-            return parseModelsResponse(data: data)
-        } catch {
-            Log.warn("[ModelAggregator] Fetch failed for '\(channel.name)': \(error.localizedDescription)")
-            return []
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+
+                guard let httpResponse = response as? HTTPURLResponse,
+                      httpResponse.statusCode == 200
+                else {
+                    let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let bodyPreview = String(data: data, encoding: .utf8)?.prefix(200) ?? "nil"
+                    Log.warn("[ModelAggregator] HTTP \(statusCode) from '\(channel.name)': \(bodyPreview)")
+                    if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),
+                       index < apiKeys.count - 1 {
+                        Log.warn("[ModelAggregator] API key #\(index + 1) failed for '\(channel.name)', trying next key")
+                        continue
+                    }
+                    return []
+                }
+
+                return parseModelsResponse(data: data)
+            } catch {
+                Log.warn("[ModelAggregator] Fetch failed for '\(channel.name)': \(error.localizedDescription)")
+                return []
+            }
         }
+
+        return []
     }
 
     /// Parses an OpenAI-style /v1/models JSON response into ModelEntry objects.

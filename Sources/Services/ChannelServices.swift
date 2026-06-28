@@ -41,8 +41,16 @@ final class ChannelServices {
         keychain.getAPIKey(for: channelID)
     }
 
+    func apiKeys(for channelID: String) -> [String] {
+        keychain.getAPIKeys(for: channelID)
+    }
+
     func setAPIKey(_ apiKey: String, for channelID: String) throws {
         try keychain.setAPIKey(apiKey, for: channelID)
+    }
+
+    func setAPIKeys(_ apiKeys: [String], for channelID: String) throws {
+        try keychain.setAPIKeys(apiKeys, for: channelID)
     }
 
     func removeAPIKey(for channelID: String) throws {

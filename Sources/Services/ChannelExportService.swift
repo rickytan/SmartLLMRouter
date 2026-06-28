@@ -51,19 +51,21 @@ final class ChannelExportService {
         let protocolType: String
         let priority: Int
         let models: [ExportedModel]
-        let apiKey: String // Plain text or encrypted (base64)
+        let apiKey: String // First key, retained for backward compatibility
+        let apiKeys: [String] // Plain text or encrypted (base64)
 
         enum CodingKeys: String, CodingKey {
-            case name, baseURL, `protocol`, priority, models, apiKey
+            case name, baseURL, `protocol`, priority, models, apiKey, apiKeys
         }
 
-        init(name: String, baseURL: String, protocolType: String, priority: Int, models: [ExportedModel], apiKey: String) {
+        init(name: String, baseURL: String, protocolType: String, priority: Int, models: [ExportedModel], apiKeys: [String], apiKey: String? = nil) {
             self.name = name
             self.baseURL = baseURL
             self.protocolType = protocolType
             self.priority = priority
             self.models = models
-            self.apiKey = apiKey
+            self.apiKeys = apiKeys
+            self.apiKey = apiKey ?? apiKeys.first ?? ""
         }
 
         init(from decoder: Decoder) throws {
@@ -73,7 +75,10 @@ final class ChannelExportService {
             protocolType = try container.decode(String.self, forKey: .`protocol`)
             priority = try container.decode(Int.self, forKey: .priority)
             models = try container.decode([ExportedModel].self, forKey: .models)
-            apiKey = try container.decode(String.self, forKey: .apiKey)
+            let decodedAPIKeys = try container.decodeIfPresent([String].self, forKey: .apiKeys)
+            let decodedAPIKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
+            apiKeys = decodedAPIKeys ?? decodedAPIKey.map { [$0] } ?? []
+            apiKey = decodedAPIKey ?? apiKeys.first ?? ""
         }
 
         func encode(to encoder: Encoder) throws {
@@ -84,6 +89,7 @@ final class ChannelExportService {
             try container.encode(priority, forKey: .priority)
             try container.encode(models, forKey: .models)
             try container.encode(apiKey, forKey: .apiKey)
+            try container.encode(apiKeys, forKey: .apiKeys)
         }
     }
 
@@ -212,18 +218,21 @@ final class ChannelExportService {
         }
 
         for channel in channels {
-            guard let apiKey = channelServices.apiKey(for: channel.id) else {
+            let apiKeys = channelServices.apiKeys(for: channel.id)
+            guard !apiKeys.isEmpty else {
                 Log.warn("[ChannelExport] No API key for channel \(channel.name), skipping")
                 continue
             }
 
             // Encrypt API key if needed
             let exportedApiKey: String
+            let exportedApiKeys: [String]
             if useEncryption, let key = symmetricKey, let nonceData = nonce {
-                let encrypted = try encryptAPIKey(apiKey, key: key, nonce: nonceData)
-                exportedApiKey = encrypted
+                exportedApiKey = try encryptAPIKey(apiKeys[0], key: key, nonce: nonceData)
+                exportedApiKeys = try apiKeys.map { try encryptAPIKeyWithEmbeddedNonce($0, key: key) }
             } else {
-                exportedApiKey = apiKey
+                exportedApiKey = apiKeys[0]
+                exportedApiKeys = apiKeys
             }
 
             let exportedModels = channel.models.map { model in
@@ -244,6 +253,7 @@ final class ChannelExportService {
                 protocolType: channel.protocol.rawValue,
                 priority: channel.priority,
                 models: exportedModels,
+                apiKeys: exportedApiKeys,
                 apiKey: exportedApiKey
             )
             exportedChannels.append(exportedChannel)
@@ -364,11 +374,13 @@ final class ChannelExportService {
                 continue
             }
 
-            // Decrypt API key if needed
-            let apiKey: String
+            // Decrypt API keys if needed
+            let apiKeys: [String]
             if exportFile.encrypted, let key = symmetricKey, let nonceBase64 = exportFile.encryptionNonce, let nonce = Data(base64Encoded: nonceBase64) {
                 do {
-                    apiKey = try decryptAPIKey(exported.apiKey, key: key, nonce: nonce)
+                    apiKeys = try exported.apiKeys.map {
+                        try decryptAPIKeyValue($0, key: key, fallbackNonce: nonce)
+                    }
                 } catch {
                     Log.error("[ChannelExport] Failed to decrypt API key for \(exported.name): \(error.localizedDescription)")
                     failed.append(ImportResult.Issue(
@@ -378,7 +390,7 @@ final class ChannelExportService {
                     continue
                 }
             } else {
-                apiKey = exported.apiKey
+                apiKeys = exported.apiKeys
             }
 
             // Parse protocol
@@ -408,9 +420,9 @@ final class ChannelExportService {
                 models: models
             )
 
-            // Save API key
+            // Save API keys
             do {
-                try channelServices.setAPIKey(apiKey, for: channel.id)
+                try channelServices.setAPIKeys(apiKeys, for: channel.id)
             } catch {
                 Log.error("[ChannelExport] Failed to save API key for \(exported.name): \(error.localizedDescription)")
                 failed.append(ImportResult.Issue(
@@ -654,6 +666,13 @@ final class ChannelExportService {
         return sealedBox.combined!.base64EncodedString()
     }
 
+    /// Encrypt API key with an embedded per-key nonce.
+    private func encryptAPIKeyWithEmbeddedNonce(_ apiKey: String, key: SymmetricKey) throws -> String {
+        let nonce = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
+        let encrypted = try encryptAPIKey(apiKey, key: key, nonce: nonce)
+        return "\(nonce.base64EncodedString()):\(encrypted)"
+    }
+
     /// Decrypt API key using AES-GCM
     private func decryptAPIKey(_ encryptedBase64: String, key: SymmetricKey, nonce: Data) throws -> String {
         guard let data = Data(base64Encoded: encryptedBase64) else {
@@ -662,6 +681,15 @@ final class ChannelExportService {
         let sealedBox = try AES.GCM.SealedBox(combined: data)
         let decryptedData = try AES.GCM.open(sealedBox, using: key)
         return String(data: decryptedData, encoding: .utf8) ?? ""
+    }
+
+    /// Decrypts either the new embedded-nonce key format or the legacy file-nonce format.
+    private func decryptAPIKeyValue(_ encryptedValue: String, key: SymmetricKey, fallbackNonce: Data) throws -> String {
+        let parts = encryptedValue.split(separator: ":", maxSplits: 1).map(String.init)
+        if parts.count == 2, let nonce = Data(base64Encoded: parts[0]) {
+            return try decryptAPIKey(parts[1], key: key, nonce: nonce)
+        }
+        return try decryptAPIKey(encryptedValue, key: key, nonce: fallbackNonce)
     }
 
     // MARK: - Helpers

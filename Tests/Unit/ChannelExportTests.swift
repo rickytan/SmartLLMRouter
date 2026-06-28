@@ -106,12 +106,44 @@ final class ChannelExportServiceTests: XCTestCase {
         XCTAssertEqual(firstChannel?["baseURL"] as? String, "https://api.test.com/v1")
         XCTAssertEqual(firstChannel?["protocol"] as? String, "OpenAI")
         XCTAssertEqual(firstChannel?["apiKey"] as? String, "sk-test-key-12345")
+        XCTAssertEqual(firstChannel?["apiKeys"] as? [String], ["sk-test-key-12345"])
 
         // Verify models
         let models = firstChannel?["models"] as? [[String: Any]]
         XCTAssertEqual(models?.count, 1)
         XCTAssertEqual(models?.first?["identifier"] as? String, "gpt-4o")
         XCTAssertEqual(models?.first?["inputTypes"] as? [String], ["text"])
+    }
+
+    func testExportIncludesMultipleAPIKeys() async throws {
+        let channel = createTestChannel()
+        try isolatedKeychain.manager.setAPIKeys(["key-a", "key-b"], for: channel.id)
+
+        let data = try await service.exportChannels([channel])
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let channels = json?["channels"] as? [[String: Any]]
+        let firstChannel = channels?.first
+
+        XCTAssertEqual(firstChannel?["apiKey"] as? String, "key-a")
+        XCTAssertEqual(firstChannel?["apiKeys"] as? [String], ["key-a", "key-b"])
+    }
+
+    func testExportThenImportPreservesEncryptedMultipleAPIKeys() async throws {
+        let channel = createTestChannel()
+        try isolatedKeychain.manager.setAPIKeys(["key-a", "key-b"], for: channel.id)
+
+        let data = try await service.exportChannels([channel], password: "password")
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let channelsJSON = json?["channels"] as? [[String: Any]]
+        let exportedAPIKeys = try XCTUnwrap(channelsJSON?.first?["apiKeys"] as? [String])
+        XCTAssertNotEqual(exportedAPIKeys, ["key-a", "key-b"])
+
+        let (exportFile, exportedChannels) = try service.parseImportData(data)
+        let result = service.importChannels(exportedChannels, exportFile: exportFile, password: "password")
+        let importedChannelID = try XCTUnwrap(isolatedStore.store.channels.first?.id)
+
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(isolatedKeychain.manager.getAPIKeys(for: importedChannelID), ["key-a", "key-b"])
     }
 
     func testExportWithMultipleChannels() async throws {

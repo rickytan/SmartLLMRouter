@@ -35,8 +35,8 @@ final class FilesEndpointHandler {
             return errorResponse(503, "No available OpenAI channel for Files API")
         }
 
-        guard let apiKey = services.channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: channel.id)
+        guard !apiKeys.isEmpty
         else {
             return errorResponse(503, "No API key for channel")
         }
@@ -47,7 +47,6 @@ final class FilesEndpointHandler {
 
         let targetProtocol = targetProtocol(for: channel)
         var headers = request.headers
-        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
 
         let bodyData: Data
@@ -60,13 +59,18 @@ final class FilesEndpointHandler {
             bodyData = Data()
         }
 
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             method: method,
             headers: headers,
             body: bodyData,
-            timeout: 300
+            timeout: 300,
+            apiKeys: apiKeys,
+            targetProtocol: targetProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):

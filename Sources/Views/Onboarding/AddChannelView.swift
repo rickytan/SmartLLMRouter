@@ -6,6 +6,7 @@ struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
+    @ObservedObject private var freeLLMKeySyncService: FreeLLMKeySyncService
     private let channelServices: ChannelServices
 
     let editingChannel: Channel?
@@ -13,7 +14,7 @@ struct AddChannelView: View {
     // Form state
     @State private var name: String = ""
     @State private var baseURL: String = ""
-    @State private var apiKey: String = ""
+    @State private var apiKeys: [String] = [""]
     @State private var selectedProtocol: APIProtocol = .openai
     @State private var priority: Int = 1
     @State private var selectedProviderId: String?
@@ -30,6 +31,7 @@ struct AddChannelView: View {
     @State private var isSaving: Bool = false
     @State private var isTesting: Bool = false
     @State private var testResult: ChannelManager.ConnectionTestResult?
+    @State private var freeKeysErrorMessage: String?
 
     // Search (for provider picker)
     @State private var searchQuery: String = ""
@@ -40,6 +42,7 @@ struct AddChannelView: View {
         self.editingChannel = editingChannel
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        _freeLLMKeySyncService = ObservedObject(wrappedValue: services.freeLLMKeySyncService)
         channelServices = services.channelServices
     }
 
@@ -68,6 +71,9 @@ struct AddChannelView: View {
                     // Connection details
                     connectionSection
 
+                    // Free key source
+                    freeKeysSection
+
                     // Test connection
                     testConnectionSection
 
@@ -91,7 +97,7 @@ struct AddChannelView: View {
         .onChange(of: baseURL) { _ in
             resetConnectionValidation()
         }
-        .onChange(of: apiKey) { _ in
+        .onChange(of: apiKeys) { _ in
             resetConnectionValidation()
         }
         .onAppear {
@@ -105,7 +111,8 @@ struct AddChannelView: View {
                     channelManager.providerTemplates.contains(where: { $0.id == id }) ? id : nil
                 }
                 selectedProviderId = knownProvider
-                apiKey = channelServices.apiKey(for: channel.id) ?? ""
+                let storedAPIKeys = channelServices.apiKeys(for: channel.id)
+                apiKeys = storedAPIKeys.isEmpty ? [""] : storedAPIKeys
                 isCustomProvider = (knownProvider == nil)
                 if isCustomProvider {
                     customProviderName = channel.name
@@ -170,7 +177,7 @@ struct AddChannelView: View {
                         isCustomProvider = true
                         name = ""
                         baseURL = ""
-                        apiKey = ""
+                        apiKeys = [""]
                         selectedProtocol = .openai
                         models = []
                     } else {
@@ -225,12 +232,7 @@ struct AddChannelView: View {
                 accessibilityID: "addChannel.baseUrlField"
             )
 
-            LabeledSecureField(
-                label: L10n.Settings.channelsApiKey,
-                text: $apiKey,
-                placeholder: L10n.AddChannel.apiKeyPlaceholder,
-                accessibilityID: "addChannel.apiKeyField"
-            )
+            apiKeysEditor
 
             LabeledNumberField(
                 L10n.Settings.channelsPriority,
@@ -239,6 +241,124 @@ struct AddChannelView: View {
                 accessibilityID: "addChannel.priorityField"
             )
         }
+    }
+
+    private var apiKeysEditor: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
+            HStack {
+                Text(L10n.AddChannel.apiKeys)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+
+                Spacer()
+
+                IconButton(
+                    icon: "plus.circle",
+                    tooltip: L10n.AddChannel.addApiKey
+                ) {
+                    apiKeys.append("")
+                }
+                .accessibilityIdentifier("addChannel.addApiKeyButton")
+            }
+
+            VStack(spacing: DesignToken.Spacing.xs) {
+                ForEach(apiKeys.indices, id: \.self) { index in
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        SecureField(L10n.AddChannel.apiKeyPlaceholder, text: apiKeyBinding(at: index))
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("addChannel.apiKeyField.\(index)")
+
+                        IconButton(
+                            icon: "chevron.up",
+                            tooltip: L10n.AddChannel.moveApiKeyUp,
+                            isDisabled: index == 0
+                        ) {
+                            moveAPIKey(from: index, to: index - 1)
+                        }
+                        .accessibilityIdentifier("addChannel.moveApiKeyUpButton.\(index)")
+
+                        IconButton(
+                            icon: "chevron.down",
+                            tooltip: L10n.AddChannel.moveApiKeyDown,
+                            isDisabled: index >= apiKeys.count - 1
+                        ) {
+                            moveAPIKey(from: index, to: index + 1)
+                        }
+                        .accessibilityIdentifier("addChannel.moveApiKeyDownButton.\(index)")
+
+                        IconButton(
+                            icon: "minus.circle",
+                            tooltip: L10n.AddChannel.removeApiKey,
+                            isDisabled: apiKeys.count <= 1,
+                            color: DesignToken.Colors.destructive
+                        ) {
+                            apiKeys.remove(at: index)
+                            if apiKeys.isEmpty {
+                                apiKeys = [""]
+                            }
+                        }
+                        .accessibilityIdentifier("addChannel.removeApiKeyButton.\(index)")
+                    }
+                }
+            }
+        }
+    }
+
+    private var freeKeysSection: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
+            HStack(spacing: DesignToken.Spacing.sm) {
+                Image(systemName: "key.fill")
+                    .font(DesignToken.Font.system(size: 14, weight: .semibold))
+                    .foregroundColor(DesignToken.Colors.accent)
+
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                    Text(L10n.AddChannel.freeKeysTitle)
+                        .font(DesignToken.Font.h3())
+                    Text(L10n.AddChannel.freeKeysSubtitle)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Link(destination: FreeLLMKeySyncService.repositoryURL) {
+                    Image(systemName: "info.circle")
+                        .font(DesignToken.Font.system(size: 14, weight: .medium))
+                        .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.AddChannel.freeKeysSourceHelp)
+                .accessibilityLabel(L10n.AddChannel.freeKeysSourceHelp)
+                .accessibilityIdentifier("addChannel.freeKeys.sourceInfoButton")
+            }
+
+            ToggleRow(
+                L10n.AddChannel.freeKeysAutoSync,
+                subtitle: L10n.AddChannel.freeKeysAutoSyncSubtitle,
+                isOn: $freeLLMKeySyncService.autoSyncEnabled
+            )
+            .accessibilityIdentifier("addChannel.freeKeys.autoSyncToggle")
+
+            HoverButton(
+                title: freeLLMKeySyncService.isSyncing ? L10n.AddChannel.freeKeysFetching : L10n.AddChannel.freeKeysFetchAndAdd,
+                icon: freeLLMKeySyncService.isSyncing ? "ellipsis.circle.fill" : "arrow.clockwise"
+            ) {
+                Task { await fetchAndAddFreeKeys() }
+            }
+            .disabled(freeLLMKeySyncService.isSyncing)
+            .accessibilityIdentifier("addChannel.freeKeys.fetchButton")
+
+            if let freeKeysErrorMessage {
+                Text(freeKeysErrorMessage)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.statusOffline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(DesignToken.Spacing.sm)
+        .background(DesignToken.Colors.bgSecondary)
+        .cornerRadius(DesignToken.Layout.rowCornerRadius)
     }
 
     // MARK: - Test Connection
@@ -251,7 +371,7 @@ struct AddChannelView: View {
             ) {
                 Task { await testConnection() }
             }
-            .disabled(apiKey.isEmpty || baseURL.isEmpty || isTesting)
+            .disabled(!hasAPIKey || baseURL.isEmpty || isTesting)
             .accessibilityIdentifier("addChannel.testConnectionButton")
 
             Spacer()
@@ -288,7 +408,7 @@ struct AddChannelView: View {
         )
 
         do {
-            try channelServices.setAPIKey(apiKey, for: tempChannel.id)
+            try channelServices.setAPIKeys(sanitizedAPIKeys, for: tempChannel.id)
         } catch {
             Log.error("Failed to set test API key: \(error.localizedDescription)")
         }
@@ -469,7 +589,7 @@ struct AddChannelView: View {
     }
 
     private func fetchModels() async {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else { return }
+        guard !baseURL.isEmpty, hasAPIKey else { return }
 
         isFetchingModels = true
         errorMessage = nil
@@ -483,7 +603,7 @@ struct AddChannelView: View {
             models: models
         )
 
-        try? channelServices.setAPIKey(apiKey, for: tempChannel.id)
+        try? channelServices.setAPIKeys(sanitizedAPIKeys, for: tempChannel.id)
         let fetchedModels = await channelManager.fetchModels(channel: tempChannel)
         try? channelServices.removeAPIKey(for: tempChannel.id)
 
@@ -535,7 +655,7 @@ struct AddChannelView: View {
     }
 
     private var isValid: Bool {
-        !name.isEmpty && !baseURL.isEmpty && !apiKey.isEmpty && isTestSuccessful && !models.isEmpty
+        !name.isEmpty && !baseURL.isEmpty && hasAPIKey && isTestSuccessful && !models.isEmpty
     }
 
     // MARK: - Save
@@ -556,7 +676,7 @@ struct AddChannelView: View {
                 updated.models = models
                 updated.providerId = isCustomProvider ? "custom" : selectedProviderId
 
-                try channelServices.setAPIKey(apiKey, for: existingChannel.id)
+                try channelServices.setAPIKeys(sanitizedAPIKeys, for: existingChannel.id)
                 channelStore.updateChannel(updated)
             } else {
                 let providerId = isCustomProvider ? "custom" : selectedProviderId
@@ -570,7 +690,7 @@ struct AddChannelView: View {
                     models: models.isEmpty ? defaultModelsForProvider() : models
                 )
 
-                try channelServices.setAPIKey(apiKey, for: newChannel.id)
+                try channelServices.setAPIKeys(sanitizedAPIKeys, for: newChannel.id)
                 channelStore.addChannel(newChannel)
             }
 
@@ -623,6 +743,54 @@ struct AddChannelView: View {
         if testResult != nil {
             testResult = nil
         }
+    }
+
+    private func fetchAndAddFreeKeys() async {
+        freeKeysErrorMessage = nil
+        do {
+            _ = try await freeLLMKeySyncService.syncNow()
+            dismiss()
+        } catch {
+            freeKeysErrorMessage = error.localizedDescription
+        }
+    }
+
+    private var sanitizedAPIKeys: [String] {
+        var seen = Set<String>()
+        return apiKeys.compactMap { key in
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else {
+                return nil
+            }
+            seen.insert(trimmed)
+            return trimmed
+        }
+    }
+
+    private var hasAPIKey: Bool {
+        !sanitizedAPIKeys.isEmpty
+    }
+
+    private func apiKeyBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard apiKeys.indices.contains(index) else { return "" }
+                return apiKeys[index]
+            },
+            set: { newValue in
+                guard apiKeys.indices.contains(index) else { return }
+                apiKeys[index] = newValue
+            }
+        )
+    }
+
+    private func moveAPIKey(from source: Int, to destination: Int) {
+        guard apiKeys.indices.contains(source),
+              apiKeys.indices.contains(destination),
+              source != destination else {
+            return
+        }
+        apiKeys.swapAt(source, destination)
     }
 }
 

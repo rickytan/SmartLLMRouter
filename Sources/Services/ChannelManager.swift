@@ -191,8 +191,8 @@ final class ChannelManager: ObservableObject {
 
     /// Fetch available models from an upstream API
     func fetchModels(channel: Channel) async -> [ModelEntry] {
-        guard let apiKey = channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
+        let apiKeys = channelServices.apiKeys(for: channel.id)
+        guard !apiKeys.isEmpty
         else {
             Log.warn("No API key for channel \(channel.id)")
             return []
@@ -208,36 +208,45 @@ final class ChannelManager: ObservableObject {
             return []
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
+        for (index, apiKey) in apiKeys.enumerated() {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 30
 
-        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
 
-            let httpResponse = response as? HTTPURLResponse
-            let statusCode = httpResponse?.statusCode ?? 0
+                let httpResponse = response as? HTTPURLResponse
+                let statusCode = httpResponse?.statusCode ?? 0
 
-            if statusCode == 200 {
-                let models = parseModelsResponse(data: data, channel: channel)
-                isLoadingModels = false
-                Log.info("Fetched \(models.count) models for channel \(channel.name)")
-                return models
-            } else {
-                // Log non-2xx response with body
-                let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
-                Log.error("Failed to fetch models from \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
+                if statusCode == 200 {
+                    let models = parseModelsResponse(data: data, channel: channel)
+                    isLoadingModels = false
+                    Log.info("Fetched \(models.count) models for channel \(channel.name)")
+                    return models
+                } else {
+                    let responseBodyStr = String(data: data, encoding: .utf8)?.prefix(500) ?? "nil"
+                    Log.error("Failed to fetch models from \(channel.name): HTTP \(statusCode) - \(responseBodyStr)")
+                    if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),
+                       index < apiKeys.count - 1 {
+                        Log.warn("Fetch models for \(channel.name): API key #\(index + 1) failed, trying next key")
+                        continue
+                    }
+                    isLoadingModels = false
+                    return []
+                }
+            } catch {
+                Log.error("Fetch models error: \(error.localizedDescription)")
                 isLoadingModels = false
                 return []
             }
-        } catch {
-            Log.error("Fetch models error: \(error.localizedDescription)")
-            isLoadingModels = false
-            return []
         }
+
+        isLoadingModels = false
+        return []
     }
 
     /// Parse OpenAI-style models response
@@ -356,9 +365,33 @@ final class ChannelManager: ObservableObject {
     /// Test connection to a channel. Primary method: GET /v1/models.
     /// Falls back to POST if GET returns 403, timeout, or other errors.
     func testConnection(channel: Channel) async -> ConnectionTestResult {
-        guard let apiKey = channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
+        let apiKeys = channelServices.apiKeys(for: channel.id)
+        guard !apiKeys.isEmpty
         else {
+            return .failure("API Key is empty")
+        }
+
+        var lastResult: ConnectionTestResult = .failure("API Key is empty")
+        for (index, apiKey) in apiKeys.enumerated() {
+            let result = await testConnection(channel: channel, apiKey: apiKey)
+            lastResult = result
+            if result.success {
+                return result
+            }
+
+            if shouldTryNextAPIKey(after: result), index < apiKeys.count - 1 {
+                Log.warn("Connection test for \(channel.name): API key #\(index + 1) failed, trying next key")
+                continue
+            }
+
+            return result
+        }
+
+        return lastResult
+    }
+
+    private func testConnection(channel: Channel, apiKey: String) async -> ConnectionTestResult {
+        guard !apiKey.isEmpty else {
             return .failure("API Key is empty")
         }
 
@@ -405,6 +438,22 @@ final class ChannelManager: ObservableObject {
             Log.info("GET /v1/models failed for \(channel.name), falling back to empty POST check")
             return await testConnectionByEmptyPOST(channel: channel, apiKey: apiKey)
         }
+    }
+
+    private func shouldTryNextAPIKey(after result: ConnectionTestResult) -> Bool {
+        guard let message = result.errorMessage?.lowercased() else {
+            return false
+        }
+        return message.contains("invalid api key") ||
+            message.contains("invalid_api_key") ||
+            message.contains("quota") ||
+            message.contains("rate limit") ||
+            message.contains("rate_limit") ||
+            message.contains("billing") ||
+            message.contains("401") ||
+            message.contains("402") ||
+            message.contains("403") ||
+            message.contains("429")
     }
 
     // MARK: - Connection Test Fallbacks
@@ -679,7 +728,8 @@ final class ChannelManager: ObservableObject {
     /// "reachable + auth-checked" so the measured RTT reflects real network cost
     /// even when the channel is misconfigured.
     func speedTest(channel: Channel) async -> TimeInterval? {
-        guard let apiKey = channelServices.apiKey(for: channel.id),
+        let apiKeys = channelServices.apiKeys(for: channel.id)
+        guard let apiKey = apiKeys.first,
               !apiKey.isEmpty
         else {
             Log.warn("No API key for speed test")

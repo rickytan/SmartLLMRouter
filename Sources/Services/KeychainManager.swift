@@ -17,7 +17,7 @@ final class KeychainManager {
     private let storageKey = "smartllm.apikeys"
     private let legacyServicePrefix = "smartllm.apikey."
     private let lock = NSLock()
-    private var apiKeysCache: [String: String]?
+    private var apiKeysCache: [String: [String]]?
 
     init(service: String = KeychainManager.defaultService) {
         // .afterFirstUnlock: accessible after user unlocks login keychain once per boot.
@@ -28,37 +28,52 @@ final class KeychainManager {
 
     /// Store an API key for a channel
     func setAPIKey(_ key: String, for channelID: String) throws {
+        try setAPIKeys([key], for: channelID)
+    }
+
+    /// Store API keys for a channel. Empty keys are dropped and order is preserved.
+    func setAPIKeys(_ keys: [String], for channelID: String) throws {
         lock.lock()
         defer { lock.unlock() }
 
         var apiKeys = loadAPIKeysLocked()
-        apiKeys[channelID] = key
+        let sanitizedKeys = sanitizeAPIKeys(keys)
+        if sanitizedKeys.isEmpty {
+            apiKeys.removeValue(forKey: channelID)
+        } else {
+            apiKeys[channelID] = sanitizedKeys
+        }
         try saveAPIKeysLocked(apiKeys)
     }
 
     /// Retrieve an API key for a channel
     func getAPIKey(for channelID: String) -> String? {
+        getAPIKeys(for: channelID).first
+    }
+
+    /// Retrieve all API keys for a channel
+    func getAPIKeys(for channelID: String) -> [String] {
         lock.lock()
         defer { lock.unlock() }
 
         var apiKeys = loadAPIKeysLocked()
-        if let apiKey = apiKeys[channelID] {
-            return apiKey
+        if let channelKeys = apiKeys[channelID], !channelKeys.isEmpty {
+            return channelKeys
         }
 
         guard let legacyAPIKey = getLegacyAPIKeyLocked(for: channelID) else {
-            return nil
+            return []
         }
 
         do {
-            apiKeys[channelID] = legacyAPIKey
+            apiKeys[channelID] = sanitizeAPIKeys([legacyAPIKey])
             try saveAPIKeysLocked(apiKeys)
             try? keychain.remove(legacyServicePrefix + channelID)
         } catch {
             Log.error("Failed to migrate API key for channel \(channelID): \(error.localizedDescription)")
         }
 
-        return legacyAPIKey
+        return sanitizeAPIKeys([legacyAPIKey])
     }
 
     /// Remove an API key for a channel
@@ -92,10 +107,10 @@ final class KeychainManager {
 
     /// Check if a key exists for a channel
     func hasAPIKey(for channelID: String) -> Bool {
-        getAPIKey(for: channelID) != nil
+        !getAPIKeys(for: channelID).isEmpty
     }
 
-    private func loadAPIKeysLocked() -> [String: String] {
+    private func loadAPIKeysLocked() -> [String: [String]] {
         if let apiKeysCache {
             return apiKeysCache
         }
@@ -108,17 +123,30 @@ final class KeychainManager {
         }
 
         do {
-            let apiKeys = try JSONDecoder().decode([String: String].self, from: data)
+            let apiKeys = try JSONDecoder().decode([String: [String]].self, from: data)
             apiKeysCache = apiKeys
             return apiKeys
         } catch {
-            Log.error("Failed to load API keys: \(error.localizedDescription)")
-            apiKeysCache = [:]
-            return [:]
+            do {
+                let legacyAPIKeys = try JSONDecoder().decode([String: String].self, from: data)
+                let migrated = legacyAPIKeys.reduce(into: [String: [String]]()) { result, pair in
+                    let keys = sanitizeAPIKeys([pair.value])
+                    if !keys.isEmpty {
+                        result[pair.key] = keys
+                    }
+                }
+                try saveAPIKeysLocked(migrated)
+                Log.info("Migrated API key storage to multi-key format")
+                return migrated
+            } catch {
+                Log.error("Failed to load API keys: \(error.localizedDescription)")
+                apiKeysCache = [:]
+                return [:]
+            }
         }
     }
 
-    private func saveAPIKeysLocked(_ apiKeys: [String: String]) throws {
+    private func saveAPIKeysLocked(_ apiKeys: [String: [String]]) throws {
         let data = try JSONEncoder().encode(apiKeys)
         guard let json = String(data: data, encoding: .utf8) else {
             throw NSError(
@@ -134,5 +162,17 @@ final class KeychainManager {
 
     private func getLegacyAPIKeyLocked(for channelID: String) -> String? {
         try? keychain.getString(legacyServicePrefix + channelID)
+    }
+
+    private func sanitizeAPIKeys(_ keys: [String]) -> [String] {
+        var seen = Set<String>()
+        return keys.compactMap { key in
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else {
+                return nil
+            }
+            seen.insert(trimmed)
+            return trimmed
+        }
     }
 }

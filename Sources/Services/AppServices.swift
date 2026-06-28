@@ -20,6 +20,7 @@ final class AppServices {
     let smartRouter: SmartRouter
     let circuitBreaker: CircuitBreaker
     let channelExportService: ChannelExportService
+    let freeLLMKeySyncService: FreeLLMKeySyncService
     let shellConfigManager: ShellConfigManager
     let claudeCodeConfigManager: ClaudeCodeConfigManager
     lazy var menuBarManager: MenuBarManager = MenuBarManager(services: self)
@@ -86,6 +87,7 @@ final class AppServices {
         channelStore = store
         channelServices = channels
         self.channelExportService = channelExportService ?? ChannelExportService(channelServices: channels)
+        freeLLMKeySyncService = FreeLLMKeySyncService(channelServices: channels)
         modelSwitcher = switcher
         channelManager = ChannelManager(channelServices: channels)
         routerServices = routing

@@ -81,8 +81,8 @@ final class MultipartEndpointHandler {
         ) else {
             return nil
         }
-        guard let apiKey = services.channelServices.apiKey(for: decision.channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: decision.channel.id)
+        guard !apiKeys.isEmpty
         else {
             return nil
         }
@@ -99,8 +99,8 @@ final class MultipartEndpointHandler {
         reqIdString: String,
         modelName: String?
     ) -> HttpResponse {
-        guard let apiKey = services.channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: channel.id)
+        guard !apiKeys.isEmpty
         else {
             services.runtimeState.completeRequest(requestID: reqIdString)
             return ProxyEndpointSupport.errorResponse(503, "No API key for channel")
@@ -115,18 +115,22 @@ final class MultipartEndpointHandler {
         }
 
         var headers = request.headers
-        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
         if headers["content-type"] == nil {
             headers["content-type"] = "multipart/form-data"
         }
 
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: headers,
             body: bodyData,
-            timeout: 300
+            timeout: 300,
+            apiKeys: apiKeys,
+            targetProtocol: targetProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):

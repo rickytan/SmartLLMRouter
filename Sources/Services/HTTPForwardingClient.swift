@@ -6,6 +6,12 @@ final class HTTPForwardingClient {
         case failure(Error)
     }
 
+    struct APIKeyForwardResult {
+        let result: Result
+        let apiKey: String
+        let keyIndex: Int
+    }
+
     private final class ResultBox: @unchecked Sendable {
         var data: Data?
         var statusCode = 200
@@ -69,5 +75,65 @@ final class HTTPForwardingClient {
         }
 
         return .success(data: data, statusCode: resultBox.statusCode, headers: resultBox.headers)
+    }
+
+    func forwardSyncWithAPIKeyFailover(
+        url: URL,
+        method: String = "POST",
+        headers: [String: String],
+        body: Data,
+        timeout: TimeInterval,
+        apiKeys: [String],
+        targetProtocol: RequestForwarder.RequestProtocol,
+        channelName: String,
+        requestID: String
+    ) -> APIKeyForwardResult {
+        let keys = apiKeys.filter { !$0.isEmpty }
+        guard let firstKey = keys.first else {
+            return APIKeyForwardResult(
+                result: .failure(NSError(
+                    domain: "HTTPForwardingClient",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "No API key"]
+                )),
+                apiKey: "",
+                keyIndex: 0
+            )
+        }
+
+        var lastResult: Result = .failure(NSError(
+            domain: "HTTPForwardingClient",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "No request attempted"]
+        ))
+        var lastKey = firstKey
+        var lastIndex = 0
+
+        for (index, apiKey) in keys.enumerated() {
+            var keyedHeaders = headers
+            ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: targetProtocol)
+            let result = forwardSync(
+                url: url,
+                method: method,
+                headers: keyedHeaders,
+                body: body,
+                timeout: timeout
+            )
+
+            lastResult = result
+            lastKey = apiKey
+            lastIndex = index
+
+            if case let .success(data, statusCode, _) = result,
+               ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),
+               index < keys.count - 1 {
+                Log.warn("[\(requestID)] \(channelName) API key #\(index + 1) returned HTTP \(statusCode); retrying next key")
+                continue
+            }
+
+            break
+        }
+
+        return APIKeyForwardResult(result: lastResult, apiKey: lastKey, keyIndex: lastIndex)
     }
 }
