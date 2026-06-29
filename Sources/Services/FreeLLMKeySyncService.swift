@@ -13,11 +13,11 @@ final class FreeLLMKeySyncService: ObservableObject {
         let entries: [Entry]
 
         var apiKeys: [String] {
-            unique(entries.map(\.apiKey))
+            Self.unique(entries.map(\.apiKey))
         }
 
         var modelIdentifiers: [String] {
-            unique(entries.flatMap { modelAliases(for: $0.model) })
+            Self.unique(entries.flatMap { Self.modelAliases(for: $0.model) })
         }
 
         private static func unique(_ values: [String]) -> [String] {
@@ -67,11 +67,11 @@ final class FreeLLMKeySyncService: ObservableObject {
         }
     }
 
-    static let providerID = "free-llm-api-keys"
-    static let channelName = "Free LLM API Keys"
-    static let baseURL = "https://aiapiv2.pekpik.com/v1"
-    static let repositoryURL = URL(string: "https://github.com/alistaitsacle/free-llm-api-keys")!
-    static let sourceURL = URL(string: "https://raw.githubusercontent.com/alistaitsacle/free-llm-api-keys/main/README.md")!
+    nonisolated static let providerID = "free-llm-api-keys"
+    nonisolated static let channelName = "Free LLM API Keys"
+    nonisolated static let baseURL = "https://aiapiv2.pekpik.com/v1"
+    nonisolated static let repositoryURL = URL(string: "https://github.com/alistaitsacle/free-llm-api-keys")!
+    nonisolated static let sourceURL = URL(string: "https://raw.githubusercontent.com/alistaitsacle/free-llm-api-keys/main/README.md")!
 
     private static let autoSyncEnabledKey = "freeLLMKeys.autoSyncEnabled"
     private static let lastSyncAtKey = "freeLLMKeys.lastSyncAt"
