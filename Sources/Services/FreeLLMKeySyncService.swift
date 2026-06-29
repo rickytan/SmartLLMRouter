@@ -204,25 +204,16 @@ final class FreeLLMKeySyncService: ObservableObject {
 
         let calendar = Calendar(identifier: .gregorian)
         let referenceStart = calendar.startOfDay(for: referenceDate)
-        let lines = markdown.components(separatedBy: .newlines)
-        let entries = lines.compactMap { line -> Entry? in
-            guard line.contains("|"),
-                  line.contains("sk-"),
-                  !line.localizedCaseInsensitiveContains("---") else {
-                return nil
-            }
+        let rowPattern = #"\|\s*`?(sk-[^`|\s]+)`?\s*\|\s*`?([^`|]+?)`?\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|"#
+        let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [])
+        let fullRange = NSRange(markdown.startIndex..<markdown.endIndex, in: markdown)
+        let matches = rowRegex?.matches(in: markdown, options: [], range: fullRange) ?? []
 
-            let columns = line
-                .split(separator: "|", omittingEmptySubsequences: false)
-                .dropFirst()
-                .dropLast()
-                .map { cleanMarkdownCell(String($0)) }
-
-            guard columns.count >= 6 else { return nil }
-            let apiKey = columns[0]
-            let model = columns[1]
-            let status = columns[2]
-            let expiresAt = dateFormatter.date(from: columns[5])
+        let entries = matches.compactMap { match -> Entry? in
+            let apiKey = cleanMarkdownCell(capture(1, in: markdown, match: match))
+            let model = cleanMarkdownCell(capture(2, in: markdown, match: match))
+            let status = cleanMarkdownCell(capture(3, in: markdown, match: match))
+            let expiresAt = dateFormatter.date(from: cleanMarkdownCell(capture(6, in: markdown, match: match)))
 
             guard apiKey.hasPrefix("sk-"),
                   !model.isEmpty,
@@ -244,6 +235,12 @@ final class FreeLLMKeySyncService: ObservableObject {
         value
             .replacingOccurrences(of: "`", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func capture(_ index: Int, in text: String, match: NSTextCheckingResult) -> String {
+        let range = match.range(at: index)
+        guard let swiftRange = Range(range, in: text) else { return "" }
+        return String(text[swiftRange])
     }
 
     private func markSynced() {

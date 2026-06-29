@@ -51,6 +51,30 @@ final class FreeLLMKeySyncServiceTests: XCTestCase {
         ])
     }
 
+    func testParseREADMEParsesCurrentFreeLLMRepositoryTableFormat() throws {
+        let markdown = [
+            "### Claude Opus | Key | Model | Status | Budget | Rate Limit | Expires | Description |",
+            "|-----|-------|--------|--------|------------|---------|-------------|",
+            "| `sk-realistic-a` | claude-opus-4-7 | New | $20.00 | 5 RPM | 2099-01-01 | Free rotating key |",
+            "--- ### Gemini | Key | Model | Status | Budget | Rate Limit | Expires | Description |",
+            "|-----|-------|--------|--------|------------|---------|-------------|",
+            "| `sk-realistic-b` | google/gemini-3.5-flash | New | $20.00 | 10 RPM | 2099-01-02 | Live key |",
+            "| `sk-realistic-expired` | openai/old-model | Expired | $0.00 | 1 RPM | 2099-01-03 | Expired row |",
+        ].joined(separator: " ")
+
+        let snapshot = FreeLLMKeySyncService.parseREADME(
+            markdown,
+            referenceDate: try XCTUnwrap(Self.date("2026-06-30"))
+        )
+
+        XCTAssertEqual(snapshot.apiKeys, ["sk-realistic-a", "sk-realistic-b"])
+        XCTAssertEqual(snapshot.modelIdentifiers, [
+            "claude-opus-4-7",
+            "google/gemini-3.5-flash",
+            "gemini-3.5-flash",
+        ])
+    }
+
     func testApplyCreatesFreeKeyChannelAndPreservesKeyOrder() throws {
         let service = FreeLLMKeySyncService(
             channelServices: channelServices,
