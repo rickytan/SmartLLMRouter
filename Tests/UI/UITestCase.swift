@@ -29,7 +29,6 @@ class UITestCase: XCTestCase {
         static let menuStatusStopped = "menu.status.stopped"
         static let menuPortLabel = "menu.port.label"
         static let menuFailoverToggle = "menu.failover.toggle"
-        static let menuActiveChannel = "menu.active.channel"
         static let menuCopyEnvButton = "menu.copy环境变量"
         static let menuTestKeyButton = "menu测试密钥"
         static let menuSettingsButton = "menu.settings"

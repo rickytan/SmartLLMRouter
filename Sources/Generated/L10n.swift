@@ -39,9 +39,6 @@ internal enum L10n {
     internal static var failoverManual: String {
       NSLocalizedString("menu.failover.manual", comment: "")
     }
-    internal static func channelActive(_ p1: String) -> String {
-      String(format: NSLocalizedString("menu.channel.active", comment: ""), p1)
-    }
     internal static var requestsRecent: String {
       NSLocalizedString("menu.requests.recent", comment: "")
     }

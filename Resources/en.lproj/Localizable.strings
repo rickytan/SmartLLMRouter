@@ -11,7 +11,6 @@
 "menu.stats.summary" = "%lld requests · %lld tokens";
 "menu.failover.auto" = "Auto-Failover";
 "menu.failover.manual" = "Manual Mode";
-"menu.channel.active" = "Active: %@";
 "menu.requests.recent" = "Recent Requests";
 "menu.requests.none" = "No recent requests";
 "menu.request.entry" = "%s · %s · %s";
@@ -19,7 +18,7 @@
 "menu.time.minutes" = "%dm ago";
 "menu.time.hours" = "%dh ago";
 "menu.copy.env" = "Copy Env Config";
-"menu.test.key" = "Test Active Key";
+"menu.test.key" = "Test Channels";
 "menu.settings" = "Settings...";
 "menu.quit" = "Quit";
 "menu.speed" = "Speed: %lldms";
