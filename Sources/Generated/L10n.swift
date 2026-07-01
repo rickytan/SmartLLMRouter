@@ -543,6 +543,51 @@ internal enum L10n {
     internal static var apiKeyPlaceholder: String {
       NSLocalizedString("addchannel.apiKeyPlaceholder", comment: "")
     }
+    internal static var apiKeys: String {
+      NSLocalizedString("addchannel.apiKeys", comment: "")
+    }
+    internal static var addApiKey: String {
+      NSLocalizedString("addchannel.addApiKey", comment: "")
+    }
+    internal static var removeApiKey: String {
+      NSLocalizedString("addchannel.removeApiKey", comment: "")
+    }
+    internal static var moveApiKeyUp: String {
+      NSLocalizedString("addchannel.moveApiKeyUp", comment: "")
+    }
+    internal static var moveApiKeyDown: String {
+      NSLocalizedString("addchannel.moveApiKeyDown", comment: "")
+    }
+    internal static var freeKeysTitle: String {
+      NSLocalizedString("addchannel.freeKeysTitle", comment: "")
+    }
+    internal static var freeKeysSubtitle: String {
+      NSLocalizedString("addchannel.freeKeysSubtitle", comment: "")
+    }
+    internal static var freeKeysFetchAndAdd: String {
+      NSLocalizedString("addchannel.freeKeysFetchAndAdd", comment: "")
+    }
+    internal static var freeKeysFetching: String {
+      NSLocalizedString("addchannel.freeKeysFetching", comment: "")
+    }
+    internal static var freeKeysAutoSync: String {
+      NSLocalizedString("addchannel.freeKeysAutoSync", comment: "")
+    }
+    internal static var freeKeysAutoSyncSubtitle: String {
+      NSLocalizedString("addchannel.freeKeysAutoSyncSubtitle", comment: "")
+    }
+    internal static var freeKeysSourceHelp: String {
+      NSLocalizedString("addchannel.freeKeysSourceHelp", comment: "")
+    }
+    internal static var freeKeysInvalidSource: String {
+      NSLocalizedString("addchannel.freeKeysInvalidSource", comment: "")
+    }
+    internal static var freeKeysInvalidResponse: String {
+      NSLocalizedString("addchannel.freeKeysInvalidResponse", comment: "")
+    }
+    internal static var freeKeysNoUsableKeys: String {
+      NSLocalizedString("addchannel.freeKeysNoUsableKeys", comment: "")
+    }
     internal static var priority: String {
       NSLocalizedString("addchannel.priority", comment: "")
     }

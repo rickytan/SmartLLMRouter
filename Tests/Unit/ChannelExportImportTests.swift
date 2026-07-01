@@ -51,7 +51,7 @@ final class ChannelExportImportTests: XCTestCase {
             protocolType: APIProtocol.openai.rawValue,
             priority: 1,
             models: [],
-            apiKey: apiKey
+            apiKeys: [apiKey]
         )
     }
 
@@ -85,6 +85,57 @@ final class ChannelExportImportTests: XCTestCase {
         XCTAssertEqual(isolated.store.channels.count, 1)
         XCTAssertEqual(isolated.store.channels[0].name, "DeepSeek")
         XCTAssertEqual(isolated.store.channels[0].baseURL, "https://api.deepseek.com")
+    }
+
+    func testImportPreservesMultipleAPIKeys() throws {
+        let exported = [
+            ChannelExportService.ExportedChannel(
+                name: "DeepSeek",
+                baseURL: "https://api.deepseek.com",
+                protocolType: APIProtocol.openai.rawValue,
+                priority: 1,
+                models: [],
+                apiKeys: ["key-a", "key-b"]
+            )
+        ]
+        let file = makeExportFile(channels: exported)
+
+        let result = service.importChannels(exported, exportFile: file)
+        let channelID = isolated.store.channels.first?.id
+
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(isolatedKeychain.manager.getAPIKeys(for: try XCTUnwrap(channelID)), ["key-a", "key-b"])
+    }
+
+    func testImportLegacySingleAPIKeyFileUpgradesToMultiKeyStorage() throws {
+        let json: [String: Any] = [
+            "format": "smartllmrouter/channels",
+            "version": 1,
+            "exportedAt": "2026-05-29T22:00:00Z",
+            "appVersion": "1.0.0",
+            "encrypted": false,
+            "channels": [
+                [
+                    "name": "Legacy Channel",
+                    "baseURL": "https://legacy.example.com/v1",
+                    "protocol": "OpenAI",
+                    "priority": 1,
+                    "apiKey": "legacy-key",
+                    "models": []
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let (exportFile, exportedChannels) = try service.parseImportData(data)
+
+        XCTAssertEqual(exportedChannels.first?.apiKey, "legacy-key")
+        XCTAssertEqual(exportedChannels.first?.apiKeys, ["legacy-key"])
+
+        let result = service.importChannels(exportedChannels, exportFile: exportFile)
+        let channelID = isolated.store.channels.first?.id
+
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(isolatedKeychain.manager.getAPIKeys(for: try XCTUnwrap(channelID)), ["legacy-key"])
     }
 
     func testImportMultipleChannelsAllSucceed() {

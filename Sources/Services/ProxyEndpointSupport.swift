@@ -39,6 +39,26 @@ enum ProxyEndpointSupport {
         return rawResponse(statusCode: statusCode, headers: headers, body: body ?? Data())
     }
 
+    static func shouldRetryWithNextAPIKey(statusCode: Int, body: Data?) -> Bool {
+        if [401, 402, 403, 429].contains(statusCode) {
+            return true
+        }
+
+        guard let body,
+              let bodyText = String(data: body, encoding: .utf8)?.lowercased()
+        else {
+            return false
+        }
+
+        return bodyText.contains("invalid api key") ||
+            bodyText.contains("invalid_api_key") ||
+            bodyText.contains("insufficient_quota") ||
+            bodyText.contains("quota") ||
+            bodyText.contains("rate limit") ||
+            bodyText.contains("rate_limit") ||
+            bodyText.contains("billing")
+    }
+
     static func estimateCost(channel: Channel, inputTokens: Int, outputTokens: Int) -> Double {
         guard let model = channel.models.first else { return 0.0 }
         let inputCost = model.inputPricePer1M ?? 3.0

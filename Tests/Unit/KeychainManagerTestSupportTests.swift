@@ -49,6 +49,33 @@ final class KeychainManagerTestSupportTests: XCTestCase {
         let manager = isolated.manager
         try manager.setAPIKey("test-key-123", for: "channel-abc")
         XCTAssertEqual(manager.getAPIKey(for: "channel-abc"), "test-key-123")
+        XCTAssertEqual(manager.getAPIKeys(for: "channel-abc"), ["test-key-123"])
+    }
+
+    func testSetAndGetMultipleKeysInIsolatedService() throws {
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
+
+        let manager = isolated.manager
+        try manager.setAPIKeys([" key-a ", "", "key-b", "key-a"], for: "channel-abc")
+
+        XCTAssertEqual(manager.getAPIKey(for: "channel-abc"), "key-a")
+        XCTAssertEqual(manager.getAPIKeys(for: "channel-abc"), ["key-a", "key-b"])
+    }
+
+    func testLegacySingleKeyJSONMigratesToMultiKeyStorage() throws {
+        let isolated = KeychainManagerTestSupport.makeIsolatedKeychainManager()
+        defer { isolated.cleanup() }
+
+        let legacyData = try JSONEncoder().encode(["channel-abc": "legacy-key"])
+        let legacyJSON = try XCTUnwrap(String(data: legacyData, encoding: .utf8))
+        try isolated.manager.keychain.set(legacyJSON, key: "smartllm.apikeys")
+        isolated.manager.resetCache()
+
+        XCTAssertEqual(isolated.manager.getAPIKeys(for: "channel-abc"), ["legacy-key"])
+
+        isolated.manager.resetCache()
+        XCTAssertEqual(isolated.manager.getAPIKeys(for: "channel-abc"), ["legacy-key"])
     }
 
     func testSingleJSONItemPreservesOtherChannelKeysAfterMutation() throws {

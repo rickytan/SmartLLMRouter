@@ -194,7 +194,7 @@ final class ProxyServer: ObservableObject {
     /// This struct is Sendable (all fields are value types) and safe to use on any thread.
     struct RequestState {
         let channel: Channel
-        let apiKey: String
+        let apiKeys: [String]
         let routingDecision: RoutingDecision
     }
 
@@ -212,14 +212,14 @@ final class ProxyServer: ObservableObject {
         ) else {
             return nil
         }
-        guard let apiKey = services.channelServices.apiKey(for: decision.channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: decision.channel.id)
+        guard !apiKeys.isEmpty
         else {
             return nil
         }
         return RequestState(
             channel: decision.channel,
-            apiKey: apiKey,
+            apiKeys: apiKeys,
             routingDecision: decision
         )
     }
@@ -307,7 +307,7 @@ final class ProxyServer: ObservableObject {
         }
 
         let channel = state.channel
-        let apiKey = state.apiKey
+        let apiKeys = state.apiKeys
         let routingDecision = state.routingDecision
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
@@ -362,18 +362,21 @@ final class ProxyServer: ObservableObject {
             forwardedBody = swappedBody
         }
 
-        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
-
         // Remove hop-by-hop headers
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request via URLSession
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout
+            timeout: upstreamTimeout,
+            apiKeys: apiKeys,
+            targetProtocol: upstreamProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):
@@ -408,7 +411,7 @@ final class ProxyServer: ObservableObject {
                         bodyData: bodyData,
                         incomingProtocol: incomingProtocol,
                         channel: channel,
-                        apiKey: apiKey,
+                        apiKeys: apiKeys,
                         reqId: reqId,
                         startTime: startTime,
                         modelName: modelName
@@ -540,8 +543,8 @@ final class ProxyServer: ObservableObject {
         let reqIdString = "req-\(reqId)"
         let channel = routingDecision.channel
 
-        guard let apiKey = services.channelServices.apiKey(for: channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: channel.id)
+        guard !apiKeys.isEmpty
         else {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(503, "No API key for retry channel")
@@ -602,17 +605,20 @@ final class ProxyServer: ObservableObject {
             forwardedBody = swappedBody
         }
 
-        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
-
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout
+            timeout: upstreamTimeout,
+            apiKeys: apiKeys,
+            targetProtocol: upstreamProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):
@@ -687,12 +693,6 @@ final class ProxyServer: ObservableObject {
         }
     }
 
-    /// Set auth headers on a dictionary based on upstream protocol.
-    /// Uses lowercase keys to match Swifter's lowercased header parsing.
-    private func setAuthHeaders(_ headers: inout [String: String], apiKey: String, protocol: RequestForwarder.RequestProtocol) {
-        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: apiKey, protocol: `protocol`)
-    }
-
     /// Extract model name from request body
     private func extractModelName(from body: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
@@ -759,7 +759,7 @@ final class ProxyServer: ObservableObject {
         bodyData _: Data,
         incomingProtocol: RequestForwarder.RequestProtocol,
         channel: Channel,
-        apiKey: String,
+        apiKeys: [String],
         reqId: Int64,
         startTime: Date,
         modelName: String?
@@ -801,17 +801,20 @@ final class ProxyServer: ObservableObject {
             forwardedBody = modifiedBody
         }
 
-        setAuthHeaders(&convertedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
-
         convertedHeaders.removeValue(forKey: "host")
 
         // Forward request
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout
+            timeout: upstreamTimeout,
+            apiKeys: apiKeys,
+            targetProtocol: upstreamProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):

@@ -43,6 +43,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start proxy server
         startProxy()
 
+        // Optional daily sync for the user-enabled free key source.
+        services.freeLLMKeySyncService.start()
+
         // Show onboarding if not completed — via NSWindow, no SwiftUI Window scene
         if !services.appState.onboardingCompleted {
             showOnboardingWindow()

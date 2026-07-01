@@ -58,15 +58,19 @@ final class AuxiliaryEndpointHandler {
         var headers = request.headers
         headers["content-type"] = "application/json"
         headers["content-length"] = String(effectiveBody.count)
-        ProxyEndpointSupport.setAuthHeaders(&headers, apiKey: state.apiKey, protocol: targetProtocol)
         headers.removeValue(forKey: "host")
 
-        let result = forwardingClient.forwardSync(
+        let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: headers,
             body: effectiveBody,
-            timeout: upstreamTimeout
+            timeout: upstreamTimeout,
+            apiKeys: state.apiKeys,
+            targetProtocol: targetProtocol,
+            channelName: channel.name,
+            requestID: "#\(reqId)"
         )
+        let result = keyForwardResult.result
 
         switch result {
         case let .success(data, statusCode, responseHeaders):
@@ -107,7 +111,7 @@ final class AuxiliaryEndpointHandler {
 
     private struct RequestState {
         let channel: Channel
-        let apiKey: String
+        let apiKeys: [String]
     }
 
     private func readRequestState(bodyData: Data, reqIdString: String) -> RequestState? {
@@ -120,12 +124,12 @@ final class AuxiliaryEndpointHandler {
         ) else {
             return nil
         }
-        guard let apiKey = services.channelServices.apiKey(for: decision.channel.id),
-              !apiKey.isEmpty
+        let apiKeys = services.channelServices.apiKeys(for: decision.channel.id)
+        guard !apiKeys.isEmpty
         else {
             return nil
         }
-        return RequestState(channel: decision.channel, apiKey: apiKey)
+        return RequestState(channel: decision.channel, apiKeys: apiKeys)
     }
 
     private func targetProtocol(for channel: Channel) -> RequestForwarder.RequestProtocol {

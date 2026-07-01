@@ -107,7 +107,7 @@ struct MenuView: View {
 
             Spacer()
 
-            Text(":\(proxy.port)")
+            Text(verbatim: ":\(String(proxy.port))")
                 .font(DesignToken.Font.monoMicro())
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("menu.port.label")
