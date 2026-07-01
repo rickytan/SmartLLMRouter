@@ -38,18 +38,6 @@ final class MenuViewUITests: UITestCase {
         XCTAssertTrue(toggle.value != nil || toggle.isSelected, "开关应有状态值")
     }
     
-    // MARK: - 活跃频道测试
-    
-    /// 测试活跃频道信息显示
-    func testActiveChannelInfoDisplays() throws {
-        let activeChannel = app.descendants(matching: .any).matching(identifier: UI.menuActiveChannel).firstMatch
-        
-        // 活跃频道可能为空（未配置时），所以用 waitForExistence 而不是 assert
-        if activeChannel.waitForExistence(timeout: 2) {
-            XCTAssertTrue(activeChannel.exists, "活跃频道信息应正确渲染")
-        }
-    }
-    
     // MARK: - 操作按钮测试
     
     /// 测试复制环境变量按钮

@@ -59,14 +59,6 @@ struct MenuView: View {
             Divider()
                 .padding(.horizontal, DesignToken.Layout.menuPadding)
 
-            // Active Channel
-            activeChannelInfo
-                .padding(.horizontal, DesignToken.Layout.menuPadding)
-                .padding(.vertical, DesignToken.Spacing.sm)
-
-            Divider()
-                .padding(.horizontal, DesignToken.Layout.menuPadding)
-
             // Recent Requests
             recentRequests
                 .padding(.horizontal, DesignToken.Layout.menuPadding)
@@ -210,35 +202,6 @@ struct MenuView: View {
         .accessibilityIdentifier("menu.model.selector")
     }
 
-    // MARK: - Active Channel Info
-
-    private var activeChannelInfo: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            if let channel = channelStore.activeChannel {
-                HStack(spacing: DesignToken.Spacing.xs) {
-                    Text(L10n.Menu.channelActive(channel.name))
-                        .font(DesignToken.Font.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-
-                    if channel.lastLatencyMs > 0 {
-                        LatencyChip(latencyMs: channel.lastLatencyMs)
-                    }
-                }
-
-                Text(channel.baseURL)
-                    .font(DesignToken.Font.micro())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            } else {
-                Text(L10n.Menu.channelActive(L10n.Settings.channelsAdd))
-                    .font(DesignToken.Font.system(size: 12, weight: .medium))
-                    .foregroundColor(DesignToken.Colors.textSecondary)
-            }
-        }
-        .accessibilityIdentifier("menu.active.channel")
-    }
-
     // MARK: - Recent Requests
 
     private var recentRequests: some View {
@@ -314,13 +277,13 @@ struct MenuView: View {
             ) {
                 Task {
                     isTestingKey = true
-                    if let channel = channelStore.activeChannel {
+                    for channel in channelStore.enabledChannels {
                         _ = await channelManager.testConnection(channel: channel)
                     }
                     isTestingKey = false
                 }
             }
-            .disabled(channelStore.activeChannel == nil || isTestingKey)
+            .disabled(channelStore.enabledChannels.isEmpty || isTestingKey)
             .accessibilityIdentifier("menu.testKeyButton")
         }
         .font(DesignToken.Font.system(size: 12))
