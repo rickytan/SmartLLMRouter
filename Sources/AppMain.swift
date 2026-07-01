@@ -29,9 +29,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_: Notification) {
-        // Set accessory policy: no Dock icon, stays alive without windows
-        NSApp.setActivationPolicy(.accessory)
-
         // Initialize logger
         LoggerManager.setup()
 
@@ -82,8 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isReleasedWhenClosed = false
         window.center()
 
-        // Activate app to bring window to front
-        NSApp.setActivationPolicy(.regular)
+        // Bring onboarding to the front while preserving LSUIElement menu-bar mode.
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
 
