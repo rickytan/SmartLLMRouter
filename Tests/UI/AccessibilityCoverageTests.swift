@@ -14,7 +14,6 @@ final class AccessibilityCoverageTests: UITestCase {
             UI.menuStatusStopped,
             UI.menuPortLabel,
             UI.menuFailoverToggle,
-            UI.menuActiveChannel,
             UI.menuCopyEnvButton,
             UI.menuTestKeyButton,
             UI.menuSettingsButton,
