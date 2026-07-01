@@ -359,18 +359,51 @@ struct MenuView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("menu.settingsButton")
-            .onTapGesture {
-                // Activate app to bring settings window to front
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            .simultaneousGesture(TapGesture().onEnded {
+                prepareSettingsWindowPresentation()
+            })
         } else {
             HoverButton(title: L10n.Menu.settings, icon: "gearshape") {
-                // Activate app first, then show settings
+                NotificationCenter.default.post(name: .closeMenuBarPopover, object: nil)
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                bringSettingsWindowToFrontSoon()
             }
             .accessibilityIdentifier("menu.settingsButton")
         }
+    }
+
+    private func prepareSettingsWindowPresentation() {
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            NotificationCenter.default.post(name: .closeMenuBarPopover, object: nil)
+            bringSettingsWindowToFront()
+        }
+        bringSettingsWindowToFrontSoon()
+    }
+
+    private func bringSettingsWindowToFrontSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            bringSettingsWindowToFront()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            bringSettingsWindowToFront()
+        }
+    }
+
+    private func bringSettingsWindowToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let titledWindows = NSApp.windows.filter { window in
+            window.styleMask.contains(.titled) && !window.isMiniaturized
+        }
+        let settingsWindow = titledWindows.first { window in
+            window.title.localizedCaseInsensitiveContains(L10n.Menu.settings)
+                || window.title.localizedCaseInsensitiveContains(L10n.Settings.title)
+        } ?? titledWindows.first
+
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFrontRegardless()
     }
 }
 

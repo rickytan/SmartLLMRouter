@@ -32,6 +32,7 @@ struct AddChannelView: View {
     @State private var isTesting: Bool = false
     @State private var testResult: ChannelManager.ConnectionTestResult?
     @State private var freeKeysErrorMessage: String?
+    @State private var originalAPIKeys: [String] = []
 
     // Search (for provider picker)
     @State private var searchQuery: String = ""
@@ -100,6 +101,9 @@ struct AddChannelView: View {
         .onChange(of: apiKeys) { _ in
             resetConnectionValidation()
         }
+        .onChange(of: selectedProtocol) { _ in
+            resetConnectionValidation()
+        }
         .onAppear {
             if let channel = editingChannel {
                 name = channel.name
@@ -113,6 +117,7 @@ struct AddChannelView: View {
                 selectedProviderId = knownProvider
                 let storedAPIKeys = channelServices.apiKeys(for: channel.id)
                 apiKeys = storedAPIKeys.isEmpty ? [""] : storedAPIKeys
+                originalAPIKeys = sanitizeAPIKeys(storedAPIKeys)
                 isCustomProvider = (knownProvider == nil)
                 if isCustomProvider {
                     customProviderName = channel.name
@@ -454,7 +459,7 @@ struct AddChannelView: View {
                 ) {
                     Task { await fetchModels() }
                 }
-                .disabled(isFetchingModels || !isTestSuccessful)
+                .disabled(isFetchingModels || !isConnectionUsable)
                 .accessibilityIdentifier("addChannel.fetchModelsButton")
             }
 
@@ -655,7 +660,7 @@ struct AddChannelView: View {
     }
 
     private var isValid: Bool {
-        !name.isEmpty && !baseURL.isEmpty && hasAPIKey && isTestSuccessful && !models.isEmpty
+        !name.isEmpty && !baseURL.isEmpty && hasAPIKey && isConnectionUsable && !models.isEmpty
     }
 
     // MARK: - Save
@@ -756,8 +761,23 @@ struct AddChannelView: View {
     }
 
     private var sanitizedAPIKeys: [String] {
+        sanitizeAPIKeys(apiKeys)
+    }
+
+    private var isConnectionUsable: Bool {
+        isTestSuccessful || isEditingConnectionUnchanged
+    }
+
+    private var isEditingConnectionUnchanged: Bool {
+        guard let editingChannel else { return false }
+        return baseURL == editingChannel.baseURL
+            && selectedProtocol == editingChannel.protocol
+            && sanitizedAPIKeys == originalAPIKeys
+    }
+
+    private func sanitizeAPIKeys(_ keys: [String]) -> [String] {
         var seen = Set<String>()
-        return apiKeys.compactMap { key in
+        return keys.compactMap { key in
             let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, !seen.contains(trimmed) else {
                 return nil
