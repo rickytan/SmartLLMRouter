@@ -374,19 +374,13 @@ struct MenuView: View {
     }
 
     private func prepareSettingsWindowPresentation() {
+        NotificationCenter.default.post(name: .closeMenuBarPopover, object: nil)
         NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            NotificationCenter.default.post(name: .closeMenuBarPopover, object: nil)
-            bringSettingsWindowToFront()
-        }
         bringSettingsWindowToFrontSoon()
     }
 
     private func bringSettingsWindowToFrontSoon() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            bringSettingsWindowToFront()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             bringSettingsWindowToFront()
         }
     }
