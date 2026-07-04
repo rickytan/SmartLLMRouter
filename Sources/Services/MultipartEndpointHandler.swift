@@ -107,7 +107,11 @@ final class MultipartEndpointHandler {
         }
 
         let targetProtocol = targetProtocol(for: channel)
-        var components = URLComponents(string: channel.baseURL)
+        guard let baseURL = channel.baseURL(for: targetProtocol) else {
+            services.runtimeState.completeRequest(requestID: reqIdString)
+            return ProxyEndpointSupport.errorResponse(500, "Invalid upstream URL")
+        }
+        var components = URLComponents(string: baseURL)
         components?.path = targetPath
         guard let upstreamURL = components?.url else {
             services.runtimeState.completeRequest(requestID: reqIdString)

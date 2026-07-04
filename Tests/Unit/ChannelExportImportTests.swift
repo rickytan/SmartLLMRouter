@@ -44,11 +44,14 @@ final class ChannelExportImportTests: XCTestCase {
 
     private func makeExportedChannel(name: String,
                                      baseURL: String,
+                                     protocolBaseURLs: [String: String] = [:],
+                                     protocolType: String = APIProtocol.openai.rawValue,
                                      apiKey: String = "test-key") -> ChannelExportService.ExportedChannel {
         ChannelExportService.ExportedChannel(
             name: name,
             baseURL: baseURL,
-            protocolType: APIProtocol.openai.rawValue,
+            protocolBaseURLs: protocolBaseURLs,
+            protocolType: protocolType,
             priority: 1,
             models: [],
             apiKeys: [apiKey]
@@ -105,6 +108,31 @@ final class ChannelExportImportTests: XCTestCase {
 
         XCTAssertEqual(result.imported, 1)
         XCTAssertEqual(isolatedKeychain.manager.getAPIKeys(for: try XCTUnwrap(channelID)), ["key-a", "key-b"])
+    }
+
+    func testImportPreservesProtocolSpecificBaseURLs() throws {
+        let endpoints = [
+            Channel.openAIEndpointKey: "https://openai.example.com/v1",
+            Channel.anthropicEndpointKey: "https://anthropic.example.com"
+        ]
+        let exported = [
+            makeExportedChannel(
+                name: "Dual Protocol",
+                baseURL: "https://openai.example.com/v1",
+                protocolBaseURLs: endpoints,
+                protocolType: APIProtocol.auto.rawValue
+            )
+        ]
+        let file = makeExportFile(channels: exported)
+
+        let result = service.importChannels(exported, exportFile: file)
+        let channel = try XCTUnwrap(isolated.store.channels.first)
+
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(channel.protocol, .auto)
+        XCTAssertEqual(channel.protocolBaseURLs, endpoints)
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.openai), "https://openai.example.com/v1")
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.anthropic), "https://anthropic.example.com")
     }
 
     func testImportLegacySingleAPIKeyFileUpgradesToMultiKeyStorage() throws {
@@ -187,6 +215,37 @@ final class ChannelExportImportTests: XCTestCase {
         // Store state should be unchanged
         XCTAssertEqual(isolated.store.channels.count, 1)
         XCTAssertEqual(isolated.store.channels[0].id, "existing-1")
+    }
+
+    func testImportAllowsSameBaseURLWhenProtocolDoesNotOverlap() {
+        let existing = Channel(
+            id: "existing-anthropic",
+            name: "Same Vendor Anthropic",
+            baseURL: "https://api.same-vendor.example.com",
+            priority: 1,
+            protocol: .anthropic,
+            models: []
+        )
+        isolated.store.addChannel(existing)
+
+        let exported = [
+            makeExportedChannel(
+                name: "Same Vendor OpenAI",
+                baseURL: "https://api.same-vendor.example.com",
+                protocolType: APIProtocol.openai.rawValue
+            )
+        ]
+        let file = makeExportFile(channels: exported)
+
+        let result = service.importChannels(exported, exportFile: file)
+
+        XCTAssertEqual(result.total, 1)
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertTrue(result.skipped.isEmpty, "Different protocol endpoint should not be treated as duplicate")
+        XCTAssertEqual(isolated.store.channels.count, 2)
+        XCTAssertEqual(isolated.store.channels[0].id, "existing-anthropic")
+        XCTAssertEqual(isolated.store.channels[1].protocol, .openai)
+        XCTAssertEqual(isolated.store.channels[1].baseURL(for: APIProtocol.openai), "https://api.same-vendor.example.com")
     }
 
     func testImportMixedSuccessAndDuplicateAndFailure() throws {

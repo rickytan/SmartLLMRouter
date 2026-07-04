@@ -105,9 +105,10 @@ final class ChannelStore: ObservableObject {
     }
 
     func addChannel(_ channel: Channel) {
-        // Prevent adding duplicate base URLs
-        if channels.contains(where: { $0.baseURL.lowercased() == channel.baseURL.lowercased() }) {
-            Log.info("[ChannelStore] Skipping duplicate channel: \\(channel.baseURL)")
+        // Prevent duplicate protocol endpoint registrations while allowing the
+        // same provider account to carry distinct OpenAI and Anthropic URLs.
+        if channels.contains(where: { $0.hasOverlappingEndpoint(with: channel) }) {
+            Log.info("[ChannelStore] Skipping duplicate channel endpoint: \(channel.displayEndpointSummary)")
             return
         }
 
@@ -128,7 +129,11 @@ final class ChannelStore: ObservableObject {
         if let index = channels.firstIndex(where: { $0.id == channel.id }) {
             let previousChannel = channels[index]
             channels[index] = channel
-            if previousChannel.isEnabled != channel.isEnabled || previousChannel.models != channel.models {
+            if previousChannel.isEnabled != channel.isEnabled ||
+                previousChannel.models != channel.models ||
+                previousChannel.baseURL != channel.baseURL ||
+                previousChannel.protocolBaseURLs != channel.protocolBaseURLs ||
+                previousChannel.protocol != channel.protocol {
                 invalidateModelCache?()
             }
             saveChannels()

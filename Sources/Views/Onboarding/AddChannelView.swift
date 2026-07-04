@@ -14,6 +14,8 @@ struct AddChannelView: View {
     // Form state
     @State private var name: String = ""
     @State private var baseURL: String = ""
+    @State private var openAIBaseURL: String = ""
+    @State private var anthropicBaseURL: String = ""
     @State private var apiKeys: [String] = [""]
     @State private var selectedProtocol: APIProtocol = .openai
     @State private var priority: Int = 1
@@ -98,6 +100,12 @@ struct AddChannelView: View {
         .onChange(of: baseURL) { _ in
             resetConnectionValidation()
         }
+        .onChange(of: openAIBaseURL) { _ in
+            resetConnectionValidation()
+        }
+        .onChange(of: anthropicBaseURL) { _ in
+            resetConnectionValidation()
+        }
         .onChange(of: apiKeys) { _ in
             resetConnectionValidation()
         }
@@ -108,6 +116,8 @@ struct AddChannelView: View {
             if let channel = editingChannel {
                 name = channel.name
                 baseURL = channel.baseURL
+                openAIBaseURL = channel.baseURL(for: APIProtocol.openai) ?? ""
+                anthropicBaseURL = channel.baseURL(for: APIProtocol.anthropic) ?? ""
                 selectedProtocol = channel.protocol
                 priority = channel.priority
                 models = channel.models
@@ -182,6 +192,8 @@ struct AddChannelView: View {
                         isCustomProvider = true
                         name = ""
                         baseURL = ""
+                        openAIBaseURL = ""
+                        anthropicBaseURL = ""
                         apiKeys = [""]
                         selectedProtocol = .openai
                         models = []
@@ -206,7 +218,7 @@ struct AddChannelView: View {
             Picker(selection: $selectedProtocol) {
                 Text(L10n.Settings.generalProtocolOpenai).tag(APIProtocol.openai)
                 Text(L10n.Settings.generalProtocolAnthropic).tag(APIProtocol.anthropic)
-                if isCustomProvider {
+                if allowsAutoProtocol {
                     Text(L10n.Settings.generalProtocolAuto).tag(APIProtocol.auto)
                 }
             } label: {
@@ -216,9 +228,9 @@ struct AddChannelView: View {
             .accessibilityIdentifier("addChannel.protocolPicker")
             .onChange(of: selectedProtocol) { _ in
                 if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                    if let url = template.baseURL(for: selectedProtocol.rawValue.lowercased()) {
-                        baseURL = url
-                    }
+                    applyTemplateEndpoints(template)
+                } else {
+                    syncBaseURLFromSelectedEndpoint()
                 }
                 resetConnectionValidation()
             }
@@ -229,13 +241,31 @@ struct AddChannelView: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            ClearableTextField(
-                L10n.AddChannel.baseUrlPlaceholder,
-                text: $baseURL,
-                label: L10n.Settings.channelsBaseUrl,
-                showClearButton: false,
-                accessibilityID: "addChannel.baseUrlField"
-            )
+            if usesMultipleEndpointFields {
+                ClearableTextField(
+                    L10n.AddChannel.baseUrlPlaceholder,
+                    text: $openAIBaseURL,
+                    label: "OpenAI \(L10n.Settings.channelsBaseUrl)",
+                    showClearButton: false,
+                    accessibilityID: "addChannel.openaiBaseUrlField"
+                )
+
+                ClearableTextField(
+                    L10n.AddChannel.baseUrlPlaceholder,
+                    text: $anthropicBaseURL,
+                    label: "Anthropic \(L10n.Settings.channelsBaseUrl)",
+                    showClearButton: false,
+                    accessibilityID: "addChannel.anthropicBaseUrlField"
+                )
+            } else {
+                ClearableTextField(
+                    L10n.AddChannel.baseUrlPlaceholder,
+                    text: selectedEndpointBaseURL,
+                    label: L10n.Settings.channelsBaseUrl,
+                    showClearButton: false,
+                    accessibilityID: "addChannel.baseUrlField"
+                )
+            }
 
             apiKeysEditor
 
@@ -376,7 +406,7 @@ struct AddChannelView: View {
             ) {
                 Task { await testConnection() }
             }
-            .disabled(!hasAPIKey || baseURL.isEmpty || isTesting)
+            .disabled(!hasAPIKey || !hasUsableEndpoint || isTesting)
             .accessibilityIdentifier("addChannel.testConnectionButton")
 
             Spacer()
@@ -407,7 +437,8 @@ struct AddChannelView: View {
             id: UUID().uuidString,
             name: name.isEmpty ? "test" : name,
             providerId: selectedProviderId,
-            baseURL: baseURL,
+            baseURL: primaryBaseURL,
+            protocolBaseURLs: configuredProtocolBaseURLs,
             protocol: selectedProtocol,
             models: []
         )
@@ -594,7 +625,7 @@ struct AddChannelView: View {
     }
 
     private func fetchModels() async {
-        guard !baseURL.isEmpty, hasAPIKey else { return }
+        guard hasUsableEndpoint, hasAPIKey else { return }
 
         isFetchingModels = true
         errorMessage = nil
@@ -603,7 +634,8 @@ struct AddChannelView: View {
             id: UUID().uuidString,
             name: name.isEmpty ? "temp" : name,
             providerId: selectedProviderId,
-            baseURL: baseURL,
+            baseURL: primaryBaseURL,
+            protocolBaseURLs: configuredProtocolBaseURLs,
             protocol: selectedProtocol,
             models: models
         )
@@ -660,7 +692,7 @@ struct AddChannelView: View {
     }
 
     private var isValid: Bool {
-        !name.isEmpty && !baseURL.isEmpty && hasAPIKey && isConnectionUsable && !models.isEmpty
+        !name.isEmpty && hasUsableEndpoint && hasAPIKey && isConnectionUsable && !models.isEmpty
     }
 
     // MARK: - Save
@@ -675,7 +707,8 @@ struct AddChannelView: View {
             if let existingChannel = editingChannel {
                 var updated = existingChannel
                 updated.name = name
-                updated.baseURL = baseURL
+                updated.baseURL = primaryBaseURL
+                updated.protocolBaseURLs = configuredProtocolBaseURLs
                 updated.protocol = selectedProtocol
                 updated.priority = priority
                 updated.models = models
@@ -689,7 +722,8 @@ struct AddChannelView: View {
                     id: UUID().uuidString,
                     name: name,
                     providerId: providerId,
-                    baseURL: baseURL,
+                    baseURL: primaryBaseURL,
+                    protocolBaseURLs: configuredProtocolBaseURLs,
                     priority: priority,
                     protocol: selectedProtocol,
                     models: models.isEmpty ? defaultModelsForProvider() : models
@@ -709,7 +743,7 @@ struct AddChannelView: View {
 
     private func defaultModelsForProvider() -> [ModelEntry] {
         if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-            return template.defaultModels.map { providerModelToModelEntry($0) }
+            return filteredProviderModels(template).map { providerModelToModelEntry($0) }
         }
         return []
     }
@@ -734,14 +768,40 @@ struct AddChannelView: View {
               let template = channelManager.getProviderTemplate(id: templateId) else { return }
 
         name = template.nameEn
-        if let firstProtocol = template.supportsProtocols.first {
+        let supportedProtocols = template.supportsProtocols
+        if supportedProtocols.count > 1 {
+            selectedProtocol = .auto
+        } else if let firstProtocol = supportedProtocols.first {
             selectedProtocol = APIProtocol(rawValue: firstProtocol.capitalized) ?? .openai
-            baseURL = template.baseURL(for: firstProtocol) ?? ""
-        } else if let fallback = template.baseURL {
-            baseURL = fallback
+        } else {
+            selectedProtocol = .openai
         }
-        models = template.defaultModels.map { providerModelToModelEntry($0) }
+        applyTemplateEndpoints(template)
+        models = filteredProviderModels(template).map { providerModelToModelEntry($0) }
         isCustomProvider = false
+    }
+
+    private func applyTemplateEndpoints(_ template: ProviderTemplate) {
+        let endpoints = template.protocolBaseURLMap()
+        openAIBaseURL = endpoints[Channel.openAIEndpointKey] ?? ""
+        anthropicBaseURL = endpoints[Channel.anthropicEndpointKey] ?? ""
+
+        switch selectedProtocol {
+        case .openai:
+            baseURL = openAIBaseURL
+        case .anthropic:
+            baseURL = anthropicBaseURL
+        case .auto:
+            baseURL = openAIBaseURL.isEmpty ? anthropicBaseURL : openAIBaseURL
+        }
+    }
+
+    private func filteredProviderModels(_ template: ProviderTemplate) -> [ProviderModel] {
+        guard selectedProtocol != .auto else {
+            return template.defaultModels
+        }
+        let protocolKey = selectedProtocol.rawValue.lowercased()
+        return template.defaultModels.filter { $0.protocol == protocolKey }
     }
 
     private func resetConnectionValidation() {
@@ -764,15 +824,92 @@ struct AddChannelView: View {
         sanitizeAPIKeys(apiKeys)
     }
 
+    private var selectedEndpointBaseURL: Binding<String> {
+        Binding(
+            get: {
+                switch selectedProtocol {
+                case .anthropic:
+                    return anthropicBaseURL
+                case .openai, .auto:
+                    return openAIBaseURL
+                }
+            },
+            set: { newValue in
+                switch selectedProtocol {
+                case .anthropic:
+                    anthropicBaseURL = newValue
+                case .openai, .auto:
+                    openAIBaseURL = newValue
+                }
+                syncBaseURLFromSelectedEndpoint()
+            }
+        )
+    }
+
+    private var allowsAutoProtocol: Bool {
+        if isCustomProvider { return true }
+        guard let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) else {
+            return false
+        }
+        return template.supportsProtocols.count > 1
+    }
+
+    private var usesMultipleEndpointFields: Bool {
+        selectedProtocol == .auto
+    }
+
+    private var configuredProtocolBaseURLs: [String: String] {
+        var endpoints: [String: String] = [:]
+        let openAI = openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let anthropic = anthropicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if selectedProtocol != .anthropic, !openAI.isEmpty {
+            endpoints[Channel.openAIEndpointKey] = openAI
+        }
+        if selectedProtocol != .openai, !anthropic.isEmpty {
+            endpoints[Channel.anthropicEndpointKey] = anthropic
+        }
+        return endpoints
+    }
+
+    private var primaryBaseURL: String {
+        switch selectedProtocol {
+        case .openai:
+            return openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .anthropic:
+            return anthropicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .auto:
+            if let openAI = configuredProtocolBaseURLs[Channel.openAIEndpointKey] {
+                return openAI
+            }
+            return configuredProtocolBaseURLs[Channel.anthropicEndpointKey] ?? ""
+        }
+    }
+
+    private var hasUsableEndpoint: Bool {
+        switch selectedProtocol {
+        case .openai:
+            return !openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .anthropic:
+            return !anthropicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .auto:
+            return !configuredProtocolBaseURLs.isEmpty
+        }
+    }
+
     private var isConnectionUsable: Bool {
         isTestSuccessful || isEditingConnectionUnchanged
     }
 
     private var isEditingConnectionUnchanged: Bool {
         guard let editingChannel else { return false }
-        return baseURL == editingChannel.baseURL
+        return primaryBaseURL == editingChannel.baseURL
+            && configuredProtocolBaseURLs == editingChannel.protocolBaseURLs
             && selectedProtocol == editingChannel.protocol
             && sanitizedAPIKeys == originalAPIKeys
+    }
+
+    private func syncBaseURLFromSelectedEndpoint() {
+        baseURL = primaryBaseURL
     }
 
     private func sanitizeAPIKeys(_ keys: [String]) -> [String] {
