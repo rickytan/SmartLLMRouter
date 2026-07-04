@@ -1168,6 +1168,105 @@ final class SSEParsingTests: XCTestCase {
         XCTAssertEqual(events.first?.data, "[DONE]")
     }
 
+    func testConvertOpenAITextStreamToAnthropicEvents() throws {
+        let openAIStream = """
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":2}}
+
+        data: [DONE]
+
+        """
+
+        let converted = ProtocolConverter.openAItoAnthropicStreamingResponse(
+            data: Data(openAIStream.utf8),
+            messageID: "msg_test",
+            model: "gpt-4o"
+        )
+
+        var parser = SSEParser()
+        let events = parser.parse(converted)
+        XCTAssertEqual(events.map(\.event), [
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop",
+        ])
+
+        let messageStart = try XCTUnwrap(jsonObject(from: events[0].data))
+        let message = try XCTUnwrap(messageStart["message"] as? [String: Any])
+        XCTAssertEqual(message["id"] as? String, "msg_test")
+        XCTAssertEqual(message["model"] as? String, "gpt-4o")
+
+        let firstDelta = try XCTUnwrap(jsonObject(from: events[2].data))
+        let firstDeltaBody = try XCTUnwrap(firstDelta["delta"] as? [String: Any])
+        XCTAssertEqual(firstDeltaBody["type"] as? String, "text_delta")
+        XCTAssertEqual(firstDeltaBody["text"] as? String, "Hello")
+
+        let stop = try XCTUnwrap(jsonObject(from: events[5].data))
+        let stopDelta = try XCTUnwrap(stop["delta"] as? [String: Any])
+        let usage = try XCTUnwrap(stop["usage"] as? [String: Any])
+        XCTAssertEqual(stopDelta["stop_reason"] as? String, "end_turn")
+        XCTAssertEqual(usage["input_tokens"] as? Int, 9)
+        XCTAssertEqual(usage["output_tokens"] as? Int, 2)
+    }
+
+    func testConvertOpenAIToolCallStreamToAnthropicEvents() throws {
+        let openAIStream = """
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"read_file","arguments":"{\\"path\\""}}]},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"README.md\\"}"}}]},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+        data: [DONE]
+
+        """
+
+        let converted = ProtocolConverter.openAItoAnthropicStreamingResponse(
+            data: Data(openAIStream.utf8),
+            messageID: "msg_tool",
+            model: "gpt-4o"
+        )
+
+        var parser = SSEParser()
+        let events = parser.parse(converted)
+        XCTAssertEqual(events.map(\.event), [
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop",
+        ])
+
+        let blockStart = try XCTUnwrap(jsonObject(from: events[1].data))
+        let contentBlock = try XCTUnwrap(blockStart["content_block"] as? [String: Any])
+        XCTAssertEqual(blockStart["index"] as? Int, 0)
+        XCTAssertEqual(contentBlock["type"] as? String, "tool_use")
+        XCTAssertEqual(contentBlock["id"] as? String, "call_1")
+        XCTAssertEqual(contentBlock["name"] as? String, "read_file")
+
+        let firstDelta = try XCTUnwrap(jsonObject(from: events[2].data))
+        let firstDeltaBody = try XCTUnwrap(firstDelta["delta"] as? [String: Any])
+        XCTAssertEqual(firstDeltaBody["type"] as? String, "input_json_delta")
+        XCTAssertEqual(firstDeltaBody["partial_json"] as? String, "{\"path\"")
+
+        let stop = try XCTUnwrap(jsonObject(from: events[5].data))
+        let stopDelta = try XCTUnwrap(stop["delta"] as? [String: Any])
+        XCTAssertEqual(stopDelta["stop_reason"] as? String, "tool_use")
+    }
+
     func testParseMultipleEvents() {
         var parser = SSEParser()
         let chunk = "event: message_start\ndata: {\"type\":\"message_start\"}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\"}\n\n".data(using: .utf8)!
@@ -1246,5 +1345,10 @@ final class SSEParsingTests: XCTestCase {
 
         XCTAssertFalse(encoded.contains("event:"))
         XCTAssertTrue(encoded.contains("data: {\"content\":\"test\"}"))
+    }
+
+    private func jsonObject(from text: String) -> [String: Any]? {
+        guard let data = text.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 }

@@ -133,6 +133,7 @@ final class RouterRuntimeState {
     private var maxFallbackCost: Double = 2.0
     private var retryCounter: [String: Int] = [:]
     private var requestToChannel: [String: String] = [:]
+    private var requestAttemptedChannels: [String: Set<String>] = [:]
     private var channels: [Channel] = []
     private var activeChannelID: String?
     private let circuitBreaker: CircuitBreaker
@@ -225,6 +226,7 @@ final class RouterRuntimeState {
         }
 
         requestToChannel[requestID] = selectedChannel.id
+        requestAttemptedChannels[requestID] = [selectedChannel.id]
 
         return RoutingDecision(
             channel: selectedChannel,
@@ -265,17 +267,20 @@ final class RouterRuntimeState {
         }
 
         let previousChannelID = requestToChannel[requestID]
+        var attemptedChannelIDs = requestAttemptedChannels[requestID] ?? []
         if let previousChannelID {
+            attemptedChannelIDs.insert(previousChannelID)
             _ = switchLock.execute {
                 self.circuitBreaker.recordFailure(channelID: previousChannelID)
             }
         }
+        requestAttemptedChannels[requestID] = attemptedChannelIDs
 
         retryCounter[requestID] = currentRetryCount + 1
 
         let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
-            channel.id != previousChannelID && circuitBreaker.isAvailable(channelID: channel.id)
+            !attemptedChannelIDs.contains(channel.id) && circuitBreaker.isAvailable(channelID: channel.id)
         }
         let compatibleChannels: [Channel] = if let model = modelName {
             availableChannels.filter { channel in
@@ -287,6 +292,7 @@ final class RouterRuntimeState {
 
         if errorType == .contextLengthExceeded, let nextChannel = compatibleChannels.first {
             requestToChannel[requestID] = nextChannel.id
+            requestAttemptedChannels[requestID, default: []].insert(nextChannel.id)
             Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
             return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
         }
@@ -298,7 +304,7 @@ final class RouterRuntimeState {
                actualTokensUsed: parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0,
                errorType: errorType,
                apiProtocol: requestProtocol ?? .openai,
-               excludedChannelID: previousChannelID,
+               excludedChannelIDs: attemptedChannelIDs,
                retryCount: currentRetryCount + 1
            ) {
             return fallback
@@ -306,6 +312,7 @@ final class RouterRuntimeState {
 
         if errorType != .contextLengthExceeded, let nextChannel = compatibleChannels.first {
             requestToChannel[requestID] = nextChannel.id
+            requestAttemptedChannels[requestID, default: []].insert(nextChannel.id)
             Log.info("Retrying with channel \(nextChannel.name) (retry #\(currentRetryCount + 1))")
             return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
         }
@@ -317,7 +324,7 @@ final class RouterRuntimeState {
                actualTokensUsed: parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0,
                errorType: errorType,
                apiProtocol: requestProtocol ?? .openai,
-               excludedChannelID: previousChannelID,
+               excludedChannelIDs: attemptedChannelIDs,
                retryCount: currentRetryCount + 1
            ) {
             return fallback
@@ -335,6 +342,7 @@ final class RouterRuntimeState {
         lock.lock()
         retryCounter.removeValue(forKey: requestID)
         requestToChannel.removeValue(forKey: requestID)
+        requestAttemptedChannels.removeValue(forKey: requestID)
         lock.unlock()
     }
 
@@ -344,11 +352,11 @@ final class RouterRuntimeState {
         actualTokensUsed: Int,
         errorType: RouterErrorType,
         apiProtocol: RequestForwarder.RequestProtocol,
-        excludedChannelID: String?,
+        excludedChannelIDs: Set<String>,
         retryCount: Int
     ) -> RoutingDecision? {
         let availableChannels = channels.filter { channel in
-            channel.isEnabled && channel.id != excludedChannelID && circuitBreaker.isAvailable(channelID: channel.id)
+            channel.isEnabled && !excludedChannelIDs.contains(channel.id) && circuitBreaker.isAvailable(channelID: channel.id)
         }
 
         var candidates: [(channel: Channel, model: ModelEntry)] = []
@@ -376,7 +384,7 @@ final class RouterRuntimeState {
             return nil
         }
 
-        let previousChannel = channels.first { $0.id == excludedChannelID } ?? Channel(name: "Unknown", baseURL: "")
+        let previousChannel = channels.first { excludedChannelIDs.contains($0.id) } ?? Channel(name: "Unknown", baseURL: "")
         let cost = Double(actualTokensUsed + 5000) * (best.model.outputPricePer1M ?? best.model.inputPricePer1M ?? 0.0) / 1_000_000.0
 
         Log.info("[INFO] SmartRouter: Fallback triggered for request \(requestID)")
@@ -387,7 +395,8 @@ final class RouterRuntimeState {
         Log.info("  Retry attempt: \(retryCount)/\(maxRetries)")
 
         requestToChannel[requestID] = best.channel.id
-        return RoutingDecision(channel: best.channel, isRetry: true, previousChannelID: excludedChannelID, retryCount: retryCount, originalModel: originalModel, effectiveModel: best.model.identifier)
+        requestAttemptedChannels[requestID, default: []].insert(best.channel.id)
+        return RoutingDecision(channel: best.channel, isRetry: true, previousChannelID: excludedChannelIDs.first, retryCount: retryCount, originalModel: originalModel, effectiveModel: best.model.identifier)
     }
 
     private func parseActualTokensUsedLocked(from body: Data?, modelName: String?) -> Int? {
