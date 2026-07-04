@@ -157,6 +157,93 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertTrue(writer.string.contains("invalid token"))
     }
 
+    func testStreamingForwarderRetriesNextAPIKeyAndStreamsSuccess() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            authorizations.append(request.headers["authorization"] ?? "")
+            if authorizations.count == 1 {
+                return Self.jsonResponse(
+                    statusCode: 401,
+                    json: ["error": ["message": "invalid token"]]
+                )
+            }
+
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data("data: {\"id\":\"chatcmpl-1\",\"model\":\"gpt-test\",\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n".utf8))
+                try writer.write(Data("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n".utf8))
+                try writer.write(Data("data: [DONE]\n\n".utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["bad-key", "good-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .openai,
+            channelName: "Test Channel",
+            requestID: "#stream-test",
+            model: "gpt-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+        let output = writer.string
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertEqual(completion.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer bad-key", "Bearer good-key"])
+        XCTAssertTrue(output.contains("event: message_start"))
+        XCTAssertTrue(output.contains("\"text\":\"ok\""))
+        XCTAssertFalse(output.contains("invalid token"))
+    }
+
+    func testStreamingForwarderPassesThroughAnthropicStreamAndHeaders() throws {
+        let server = HttpServer()
+        var capturedAPIKey: String?
+        var capturedVersion: String?
+        var capturedAuthorization: String?
+        let upstreamEvent = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-test\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n"
+
+        server.post["/v1/messages"] = { request in
+            capturedAPIKey = request.headers["x-api-key"]
+            capturedVersion = request.headers["anthropic-version"]
+            capturedAuthorization = request.headers["authorization"]
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data(upstreamEvent.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["anthropic-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Anthropic Channel",
+            requestID: "#stream-test",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertEqual(capturedAPIKey, "anthropic-key")
+        XCTAssertEqual(capturedVersion, "2023-06-01")
+        XCTAssertNil(capturedAuthorization)
+        XCTAssertEqual(writer.string, upstreamEvent)
+    }
+
     func testStreamingForwarderCanDeferErrorBodyForChannelFailover() throws {
         let server = HttpServer()
         server.post["/v1/chat/completions"] = { _ in

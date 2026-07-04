@@ -586,7 +586,7 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertEqual(decision?.channel.id, ch2.id, "Should select Secondary channel")
     }
 
-    func testErrorHandling_401_NoFailover() throws {
+    func testErrorHandling_401WithoutSelectedChannelHasNoRetryTarget() throws {
         let decision = router.handleError(
             requestID: "req-401", 
             statusCode: 401, 
@@ -594,7 +594,7 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             errorBody: nil
         )
         
-        XCTAssertNil(decision, "401 Auth Error should NEVER trigger failover")
+        XCTAssertNil(decision, "Without an initial selected channel there is no retry target")
     }
     
     func testErrorHandling_ContextExceeded_Failover() throws {
@@ -652,6 +652,35 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             modelName: "gpt-4o"
         )
         XCTAssertEqual(secondRetry?.channel.id, ch3.id)
+
+        let exhaustedRetry = router.handleError(
+            requestID: "req-no-repeat",
+            statusCode: 401,
+            modelName: "gpt-4o"
+        )
+        XCTAssertNil(exhaustedRetry)
+    }
+
+    func testErrorHandling_AttemptedChannelsAreScopedToSingleRequest() throws {
+        let ch1 = makeChannel(name: "Primary", priority: 1)
+        let ch2 = makeChannel(name: "Secondary", priority: 2)
+        isolatedStore.store.addChannel(ch1)
+        isolatedStore.store.addChannel(ch2)
+
+        let initialDecision = router.selectChannel(requestID: "req-scoped-a", modelName: "gpt-4o")
+        XCTAssertEqual(initialDecision?.channel.id, ch1.id)
+
+        let retryDecision = router.handleError(
+            requestID: "req-scoped-a",
+            statusCode: 401,
+            modelName: "gpt-4o"
+        )
+        XCTAssertEqual(retryDecision?.channel.id, ch2.id)
+
+        router.completeRequest(requestID: "req-scoped-a")
+
+        let nextRequestDecision = router.selectChannel(requestID: "req-scoped-b", modelName: "gpt-4o")
+        XCTAssertEqual(nextRequestDecision?.channel.id, ch1.id)
     }
 
     private func makeChannel(name: String, priority: Int) -> Channel {
