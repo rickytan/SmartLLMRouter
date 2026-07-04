@@ -66,7 +66,7 @@ struct ChannelRowView: View {
                     }
                 }
 
-                Text(channel.baseURL)
+                Text(channel.displayEndpointSummary)
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textSecondary)
                     .lineLimit(1)

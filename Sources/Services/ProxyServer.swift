@@ -270,8 +270,11 @@ final class ProxyServer: ObservableObject {
     /// - If baseURL has no path, prepends /v1.
     /// - If baseURL path ends with a version (e.g. /v1, /v3), strips /v1 from endpoint.
     /// - If baseURL path has content but no version, keeps full /v1 endpoint.
-    private func buildUpstreamURL(baseURL: String, protocol: RequestForwarder.RequestProtocol) -> URL? {
-        URLBuilder.buildUpstreamURL(baseURL: baseURL, protocol: `protocol`)
+    private func buildUpstreamURL(for channel: Channel, protocol: RequestForwarder.RequestProtocol) -> URL? {
+        guard let baseURL = channel.baseURL(for: `protocol`) else {
+            return nil
+        }
+        return URLBuilder.buildUpstreamURL(baseURL: baseURL, protocol: `protocol`)
     }
 
     private func handleRequestSync(
@@ -340,7 +343,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
+        guard let upstreamURL = buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -582,7 +585,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
+        guard let upstreamURL = buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
             routerCompleteRequest(requestID: reqIdString)
             return errorResponse(500, "Invalid upstream URL")
         }
@@ -778,7 +781,7 @@ final class ProxyServer: ObservableObject {
         let upstreamProtocol = upstreamProtocol(for: channel, clientProtocol: targetProtocol)
 
         // Build upstream URL
-        guard let upstreamURL = buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
+        guard let upstreamURL = buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
             return errorResponse(500, "Invalid upstream URL")
         }
 
@@ -1019,7 +1022,7 @@ final class ProxyServer: ObservableObject {
                 }
 
                 let upstreamProtocol = self.upstreamProtocol(for: channel, clientProtocol: targetProtocol)
-                guard let upstreamURL = self.buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
+                guard let upstreamURL = self.buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
                     finalMessage = "Invalid upstream URL"
                     Log.error("[#\(reqId)] \(finalMessage) for streaming channel \(channel.name)")
                     StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)

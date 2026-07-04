@@ -59,6 +59,30 @@ struct ProviderTemplate: Codable, Identifiable {
         // Backward compatibility: single base_url
         return baseURL
     }
+
+    func protocolBaseURLMap() -> [String: String] {
+        if let urls = baseUrls, !urls.isEmpty {
+            return urls.reduce(into: [:]) { result, pair in
+                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let value = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard [Channel.openAIEndpointKey, Channel.anthropicEndpointKey].contains(key), !value.isEmpty else {
+                    return
+                }
+                result[key] = value
+            }
+        }
+
+        guard let baseURL, !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return [:]
+        }
+
+        let protocols = supportsProtocols.isEmpty ? [Channel.openAIEndpointKey] : supportsProtocols
+        return protocols.reduce(into: [:]) { result, proto in
+            let key = proto.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard [Channel.openAIEndpointKey, Channel.anthropicEndpointKey].contains(key) else { return }
+            result[key] = baseURL
+        }
+    }
 }
 
 struct ProviderModel: Codable {
@@ -172,6 +196,7 @@ final class ChannelManager: ObservableObject {
             name: template.nameEn,
             providerId: template.id,
             baseURL: baseURL,
+            protocolBaseURLs: resolvedProtocol == .auto ? template.protocolBaseURLMap() : [protocolKey: baseURL],
             priority: channelServices.nextPriority,
             protocol: resolvedProtocol,
             models: models
@@ -200,7 +225,11 @@ final class ChannelManager: ObservableObject {
 
         isLoadingModels = true
 
-        let baseURL = channel.baseURL
+        guard let modelsEndpoint = modelsEndpoint(for: channel) else {
+            isLoadingModels = false
+            return []
+        }
+        let baseURL = modelsEndpoint.baseURL
         let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
@@ -213,8 +242,7 @@ final class ChannelManager: ObservableObject {
             request.httpMethod = "GET"
             request.timeoutInterval = 30
 
-            // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol)
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -396,7 +424,10 @@ final class ChannelManager: ObservableObject {
         }
 
         // Build the /v1/models URL
-        let baseURL = channel.baseURL
+        guard let modelsEndpoint = modelsEndpoint(for: channel) else {
+            return .failure("Invalid URL: \(channel.baseURL)")
+        }
+        let baseURL = modelsEndpoint.baseURL
         let modelsURL = buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
@@ -407,8 +438,7 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        // /v1/models endpoint is always OpenAI-compatible, use Bearer auth
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol)
 
         do {
             let (data, response) = try await connectionTransport.data(for: request)
@@ -458,6 +488,47 @@ final class ChannelManager: ObservableObject {
 
     // MARK: - Connection Test Fallbacks
 
+    private func modelsEndpoint(for channel: Channel) -> (baseURL: String, protocol: RequestForwarder.RequestProtocol)? {
+        if let baseURL = channel.baseURL(for: APIProtocol.openai) {
+            return (baseURL, RequestForwarder.RequestProtocol.openai)
+        }
+        if let baseURL = channel.baseURL(for: APIProtocol.anthropic) {
+            return (baseURL, RequestForwarder.RequestProtocol.anthropic)
+        }
+        return nil
+    }
+
+    private func requestEndpoint(for channel: Channel) -> (baseURL: String, protocol: RequestForwarder.RequestProtocol)? {
+        switch channel.protocol {
+        case .openai:
+            return channel.baseURL(for: APIProtocol.openai).map { ($0, RequestForwarder.RequestProtocol.openai) }
+        case .anthropic:
+            return channel.baseURL(for: APIProtocol.anthropic).map { ($0, RequestForwarder.RequestProtocol.anthropic) }
+        case .auto:
+            if let baseURL = channel.baseURL(for: APIProtocol.openai) {
+                return (baseURL, RequestForwarder.RequestProtocol.openai)
+            }
+            if let baseURL = channel.baseURL(for: APIProtocol.anthropic) {
+                return (baseURL, RequestForwarder.RequestProtocol.anthropic)
+            }
+            return nil
+        }
+    }
+
+    private func applyAuthHeaders(
+        to request: inout URLRequest,
+        apiKey: String,
+        protocol targetProtocol: RequestForwarder.RequestProtocol
+    ) {
+        switch targetProtocol {
+        case .anthropic:
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openai, .unknown:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
     /// Fallback #1: POST empty body — validates auth without needing a model name.
     ///
     /// Sends `{}` to `/v1/chat/completions`. The server processes auth first,
@@ -468,9 +539,8 @@ final class ChannelManager: ObservableObject {
     ///
     /// This is the only auth check that works with zero model knowledge.
     private func testConnectionByEmptyPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
-        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
-
-        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+        guard let endpoint = requestEndpoint(for: channel),
+              let url = buildChatCompletionsURL(baseURL: endpoint.baseURL, isAnthropic: endpoint.protocol == .anthropic) else {
             return .failure("Invalid URL: \(channel.baseURL)")
         }
 
@@ -479,12 +549,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if isAnthropic {
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        } else {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: [:] as [String: Any])
 
@@ -539,9 +604,8 @@ final class ChannelManager: ObservableObject {
             return await testConnectionByPOST(channel: channel, apiKey: apiKey)
         }
 
-        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
-
-        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+        guard let endpoint = requestEndpoint(for: channel),
+              let url = buildChatCompletionsURL(baseURL: endpoint.baseURL, isAnthropic: endpoint.protocol == .anthropic) else {
             return .failure("Invalid URL: \(channel.baseURL)")
         }
 
@@ -558,12 +622,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if isAnthropic {
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        } else {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
         guard request.httpBody != nil else {
@@ -599,9 +658,8 @@ final class ChannelManager: ObservableObject {
     /// returns an error status and we need the response body for diagnostics.
     private func testConnectionByPOST(channel: Channel, apiKey: String) async -> ConnectionTestResult {
         let testModel = channel.models.first?.identifier ?? "gpt-4o-mini"
-        let isAnthropic = channel.protocol == .anthropic || channel.baseURL.contains("anthropic")
-
-        guard let url = buildChatCompletionsURL(baseURL: channel.baseURL, isAnthropic: isAnthropic) else {
+        guard let endpoint = requestEndpoint(for: channel),
+              let url = buildChatCompletionsURL(baseURL: endpoint.baseURL, isAnthropic: endpoint.protocol == .anthropic) else {
             return .failure("Invalid URL: \(channel.baseURL)")
         }
 
@@ -616,12 +674,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if isAnthropic {
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        } else {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
         if request.httpBody == nil {
@@ -739,7 +792,8 @@ final class ChannelManager: ObservableObject {
         isSpeedTesting = true
         let startTime = Date()
 
-        guard let url = buildModelsURL(baseURL: channel.baseURL) else {
+        guard let endpoint = modelsEndpoint(for: channel),
+              let url = buildModelsURL(baseURL: endpoint.baseURL) else {
             isSpeedTesting = false
             return nil
         }
@@ -747,9 +801,7 @@ final class ChannelManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
-        // /v1/models is OpenAI-compatible; Bearer auth works for all backends
-        // we route to (including Anthropic-protocol adapters that proxy this path).
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)

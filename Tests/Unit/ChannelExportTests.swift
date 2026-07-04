@@ -40,6 +40,7 @@ final class ChannelExportServiceTests: XCTestCase {
         id: String = UUID().uuidString,
         name: String = "Test Channel",
         baseURL: String = "https://api.test.com/v1",
+        protocolBaseURLs: [String: String] = [:],
         protocolType: APIProtocol = .openai,
         models: [ModelEntry] = []
     ) -> Channel {
@@ -47,6 +48,7 @@ final class ChannelExportServiceTests: XCTestCase {
             id: id,
             name: name,
             baseURL: baseURL,
+            protocolBaseURLs: protocolBaseURLs,
             priority: 1,
             protocol: protocolType,
             models: models
@@ -113,6 +115,32 @@ final class ChannelExportServiceTests: XCTestCase {
         XCTAssertEqual(models?.count, 1)
         XCTAssertEqual(models?.first?["identifier"] as? String, "gpt-4o")
         XCTAssertEqual(models?.first?["inputTypes"] as? [String], ["text"])
+    }
+
+    func testExportIncludesProtocolSpecificBaseURLs() async throws {
+        let endpoints = [
+            Channel.openAIEndpointKey: "https://openai.example.com/v1",
+            Channel.anthropicEndpointKey: "https://anthropic.example.com"
+        ]
+        let channel = createTestChannel(
+            id: "dual-channel",
+            name: "Dual Protocol",
+            baseURL: "https://openai.example.com/v1",
+            protocolBaseURLs: endpoints,
+            protocolType: .auto
+        )
+        try isolatedKeychain.manager.setAPIKey("dual-key", for: channel.id)
+
+        let data = try await service.exportChannels([channel])
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let channels = json?["channels"] as? [[String: Any]]
+        let exported = try XCTUnwrap(channels?.first)
+
+        XCTAssertEqual(exported["protocol"] as? String, "Auto")
+        XCTAssertEqual(exported["protocolBaseURLs"] as? [String: String], endpoints)
+
+        let (_, parsedChannels) = try await service.parseImportData(data)
+        XCTAssertEqual(parsedChannels.first?.protocolBaseURLs, endpoints)
     }
 
     func testExportIncludesMultipleAPIKeys() async throws {

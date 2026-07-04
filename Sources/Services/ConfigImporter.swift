@@ -80,20 +80,16 @@ final class ConfigImporter {
         var importedCount = 0
 
         for imported in channels where imported.isSelected {
-            let existing = channelServices.channels.first { channel in
-                channel.baseURL == imported.baseURL
-            }
-
-            if existing != nil {
-                Log.info("[ConfigImporter] Skipping duplicate channel: \(imported.name)")
-                continue
-            }
-
             let channel = Channel(
                 name: imported.name,
                 baseURL: imported.baseURL,
                 protocol: imported.protocol
             )
+
+            if channelServices.channels.contains(where: { $0.hasOverlappingEndpoint(with: channel) }) {
+                Log.info("[ConfigImporter] Skipping duplicate channel: \(imported.name)")
+                continue
+            }
 
             channelServices.addChannel(channel)
 

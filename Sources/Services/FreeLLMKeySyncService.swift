@@ -167,13 +167,15 @@ final class FreeLLMKeySyncService: ObservableObject {
             )
         }
 
+        let freeEndpointSignature = "openai|\(Channel.normalizedEndpointURL(Self.baseURL) ?? Self.baseURL.lowercased())"
         if let existing = channelServices.channels.first(where: {
-            $0.providerId == Self.providerID || $0.baseURL.lowercased() == Self.baseURL.lowercased()
+            $0.providerId == Self.providerID || $0.endpointSignatures().contains(freeEndpointSignature)
         }) {
             var updated = existing
             updated.name = Self.channelName
             updated.providerId = Self.providerID
             updated.baseURL = Self.baseURL
+            updated.setBaseURL(Self.baseURL, for: .openai)
             updated.protocol = .openai
             updated.models = models
             try channelServices.setAPIKeys(apiKeys, for: updated.id)

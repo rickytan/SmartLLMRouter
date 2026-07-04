@@ -48,6 +48,7 @@ final class ChannelExportService {
     struct ExportedChannel: Codable {
         let name: String
         let baseURL: String
+        let protocolBaseURLs: [String: String]
         let protocolType: String
         let priority: Int
         let models: [ExportedModel]
@@ -55,12 +56,22 @@ final class ChannelExportService {
         let apiKeys: [String] // Plain text or encrypted (base64)
 
         enum CodingKeys: String, CodingKey {
-            case name, baseURL, `protocol`, priority, models, apiKey, apiKeys
+            case name, baseURL, protocolBaseURLs, `protocol`, priority, models, apiKey, apiKeys
         }
 
-        init(name: String, baseURL: String, protocolType: String, priority: Int, models: [ExportedModel], apiKeys: [String], apiKey: String? = nil) {
+        init(
+            name: String,
+            baseURL: String,
+            protocolBaseURLs: [String: String] = [:],
+            protocolType: String,
+            priority: Int,
+            models: [ExportedModel],
+            apiKeys: [String],
+            apiKey: String? = nil
+        ) {
             self.name = name
             self.baseURL = baseURL
+            self.protocolBaseURLs = protocolBaseURLs
             self.protocolType = protocolType
             self.priority = priority
             self.models = models
@@ -72,6 +83,7 @@ final class ChannelExportService {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             name = try container.decode(String.self, forKey: .name)
             baseURL = try container.decode(String.self, forKey: .baseURL)
+            protocolBaseURLs = try container.decodeIfPresent([String: String].self, forKey: .protocolBaseURLs) ?? [:]
             protocolType = try container.decode(String.self, forKey: .`protocol`)
             priority = try container.decode(Int.self, forKey: .priority)
             models = try container.decode([ExportedModel].self, forKey: .models)
@@ -85,6 +97,9 @@ final class ChannelExportService {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(name, forKey: .name)
             try container.encode(baseURL, forKey: .baseURL)
+            if !protocolBaseURLs.isEmpty {
+                try container.encode(protocolBaseURLs, forKey: .protocolBaseURLs)
+            }
             try container.encode(protocolType, forKey: .`protocol`)
             try container.encode(priority, forKey: .priority)
             try container.encode(models, forKey: .models)
@@ -250,6 +265,7 @@ final class ChannelExportService {
             let exportedChannel = ExportedChannel(
                 name: channel.name,
                 baseURL: channel.baseURL,
+                protocolBaseURLs: channel.protocolBaseURLs,
                 protocolType: channel.protocol.rawValue,
                 priority: channel.priority,
                 models: exportedModels,
@@ -364,8 +380,19 @@ final class ChannelExportService {
         }
 
         for exported in exportedChannels {
-            // Check for duplicate baseURL
-            if channelServices.channels.contains(where: { $0.baseURL.lowercased() == exported.baseURL.lowercased() }) {
+            let protocolType = APIProtocol(rawValue: exported.protocolType) ?? .auto
+            let candidate = Channel(
+                id: UUID().uuidString,
+                name: exported.name,
+                baseURL: exported.baseURL,
+                protocolBaseURLs: exported.protocolBaseURLs,
+                priority: exported.priority,
+                protocol: protocolType,
+                models: []
+            )
+
+            // Check for duplicate protocol endpoints
+            if channelServices.channels.contains(where: { $0.hasOverlappingEndpoint(with: candidate) }) {
                 Log.info("[ChannelExport] Skipping duplicate channel: \(exported.baseURL)")
                 skipped.append(ImportResult.Issue(
                     channelName: exported.name,
@@ -393,9 +420,6 @@ final class ChannelExportService {
                 apiKeys = exported.apiKeys
             }
 
-            // Parse protocol
-            let protocolType = APIProtocol(rawValue: exported.protocolType) ?? .auto
-
             // Convert models
             let models = exported.models.map { model in
                 ModelEntry(
@@ -412,9 +436,10 @@ final class ChannelExportService {
 
             // Create channel
             let channel = Channel(
-                id: UUID().uuidString,
+                id: candidate.id,
                 name: exported.name,
                 baseURL: exported.baseURL,
+                protocolBaseURLs: exported.protocolBaseURLs,
                 priority: exported.priority,
                 protocol: protocolType,
                 models: models
@@ -544,7 +569,7 @@ final class ChannelExportService {
         }
         for (index, channel) in channels.enumerated() {
             previewText += "\(index + 1). \(channel.name)\n"
-            previewText += "   URL: \(channel.baseURL)\n"
+            previewText += "   URL: \(endpointSummary(for: channel))\n"
             previewText += "   Protocol: \(channel.protocolType)\n"
             previewText += "   Models: \(channel.models.count)\n"
             if exportFile.encrypted {
@@ -565,6 +590,19 @@ final class ChannelExportService {
             let result = importChannels(channels, exportFile: exportFile, password: password)
             showImportResult(result)
         }
+    }
+
+    private func endpointSummary(for channel: ExportedChannel) -> String {
+        let openAI = channel.protocolBaseURLs[Channel.openAIEndpointKey]
+        let anthropic = channel.protocolBaseURLs[Channel.anthropicEndpointKey]
+        var parts: [String] = []
+        if let openAI, !openAI.isEmpty {
+            parts.append("OpenAI: \(openAI)")
+        }
+        if let anthropic, !anthropic.isEmpty, anthropic != openAI {
+            parts.append("Anthropic: \(anthropic)")
+        }
+        return parts.isEmpty ? channel.baseURL : parts.joined(separator: "  ")
     }
 
     /// Show the result of an import. Surfaces skipped duplicates and

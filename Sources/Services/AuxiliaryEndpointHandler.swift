@@ -49,7 +49,10 @@ final class AuxiliaryEndpointHandler {
             selectedModelID: override.selectedModelID
         )
 
-        var components = URLComponents(string: channel.baseURL)
+        guard let baseURL = channel.baseURL(for: targetProtocol) else {
+            return ProxyEndpointSupport.errorResponse(500, "Invalid upstream URL")
+        }
+        var components = URLComponents(string: baseURL)
         components?.path = targetPath
         guard let upstreamURL = components?.url else {
             return ProxyEndpointSupport.errorResponse(500, "Invalid upstream URL")

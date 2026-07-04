@@ -185,7 +185,11 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
         }
 
         // Build the models URL
-        let baseURL = channel.baseURL
+        guard let endpoint = modelsEndpoint(for: channel) else {
+            Log.warn("[ModelAggregator] Invalid URL for channel '\(channel.name)': \(channel.baseURL)")
+            return []
+        }
+        let baseURL = endpoint.baseURL
         let modelsURL = URLBuilder.buildModelsURL(baseURL: baseURL)
 
         guard let url = modelsURL else {
@@ -198,15 +202,7 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
             request.httpMethod = "GET"
             request.timeoutInterval = 5 // 5s timeout per channel
 
-            // Set auth headers based on channel protocol
-            switch channel.protocol {
-            case .anthropic:
-                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-            case .openai, .auto:
-                // Both OpenAI and Auto channels use Bearer auth for /v1/models
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            }
+            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -233,6 +229,30 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
         }
 
         return []
+    }
+
+    private func modelsEndpoint(for channel: Channel) -> (baseURL: String, protocol: RequestForwarder.RequestProtocol)? {
+        if let baseURL = channel.baseURL(for: APIProtocol.openai) {
+            return (baseURL, RequestForwarder.RequestProtocol.openai)
+        }
+        if let baseURL = channel.baseURL(for: APIProtocol.anthropic) {
+            return (baseURL, RequestForwarder.RequestProtocol.anthropic)
+        }
+        return nil
+    }
+
+    private func applyAuthHeaders(
+        to request: inout URLRequest,
+        apiKey: String,
+        protocol targetProtocol: RequestForwarder.RequestProtocol
+    ) {
+        switch targetProtocol {
+        case .anthropic:
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openai, .unknown:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
     }
 
     /// Parses an OpenAI-style /v1/models JSON response into ModelEntry objects.

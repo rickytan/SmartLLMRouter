@@ -74,6 +74,94 @@ final class ChannelsPersistenceTests: XCTestCase {
         }
     }
 
+    func testDecodeLegacyOpenAIChannelBackfillsOpenAIEndpoint() throws {
+        let json = """
+        {
+          "id": "legacy-openai",
+          "name": "Legacy OpenAI",
+          "baseURL": "https://openai-compatible.example.com/v1",
+          "priority": 1,
+          "protocol": "OpenAI",
+          "models": []
+        }
+        """
+
+        let channel = try JSONDecoder().decode(Channel.self, from: XCTUnwrap(json.data(using: .utf8)))
+
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.openai), "https://openai-compatible.example.com/v1")
+        XCTAssertNil(channel.baseURL(for: APIProtocol.anthropic))
+        XCTAssertEqual(channel.protocolBaseURLs[Channel.openAIEndpointKey], "https://openai-compatible.example.com/v1")
+        XCTAssertNil(channel.protocolBaseURLs[Channel.anthropicEndpointKey])
+    }
+
+    func testDecodeLegacyAutoChannelBackfillsBothProtocolEndpoints() throws {
+        let json = """
+        {
+          "id": "legacy-auto",
+          "name": "Legacy Auto",
+          "baseURL": "https://dual-protocol.example.com",
+          "priority": 1,
+          "protocol": "Auto",
+          "models": []
+        }
+        """
+
+        let channel = try JSONDecoder().decode(Channel.self, from: XCTUnwrap(json.data(using: .utf8)))
+
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.openai), "https://dual-protocol.example.com")
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.anthropic), "https://dual-protocol.example.com")
+        XCTAssertEqual(channel.protocolBaseURLs[Channel.openAIEndpointKey], "https://dual-protocol.example.com")
+        XCTAssertEqual(channel.protocolBaseURLs[Channel.anthropicEndpointKey], "https://dual-protocol.example.com")
+    }
+
+    func testProtocolSpecificEndpointsRoundTripThroughPersistence() {
+        let channel = Channel(
+            id: "dual",
+            name: "Dual Protocol",
+            baseURL: "https://openai.example.com/v1",
+            protocolBaseURLs: [
+                Channel.openAIEndpointKey: "https://openai.example.com/v1",
+                Channel.anthropicEndpointKey: "https://anthropic.example.com"
+            ],
+            priority: 1,
+            protocol: .auto,
+            models: []
+        )
+
+        XCTAssertTrue(persistence.save(channels: [channel], activeChannelID: "dual"))
+
+        let result = persistence.load()
+        switch result {
+        case .loaded(let loaded, let activeID):
+            let loadedChannel = loaded[0]
+            XCTAssertEqual(activeID, "dual")
+            XCTAssertEqual(loadedChannel.protocolBaseURLs[Channel.openAIEndpointKey], "https://openai.example.com/v1")
+            XCTAssertEqual(loadedChannel.protocolBaseURLs[Channel.anthropicEndpointKey], "https://anthropic.example.com")
+            XCTAssertEqual(loadedChannel.baseURL(for: APIProtocol.openai), "https://openai.example.com/v1")
+            XCTAssertEqual(loadedChannel.baseURL(for: APIProtocol.anthropic), "https://anthropic.example.com")
+        case .empty, .corrupted:
+            XCTFail("Expected .loaded, got \(result)")
+        }
+    }
+
+    func testAutoChannelWithOnlyOpenAIEndpointDoesNotFallbackToAnthropic() {
+        let channel = Channel(
+            id: "auto-openai-only",
+            name: "Auto OpenAI Only",
+            baseURL: "https://openai-only.example.com/v1",
+            protocolBaseURLs: [
+                Channel.openAIEndpointKey: "https://openai-only.example.com/v1"
+            ],
+            priority: 1,
+            protocol: .auto,
+            models: []
+        )
+
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.openai), "https://openai-only.example.com/v1")
+        XCTAssertNil(channel.baseURL(for: APIProtocol.anthropic))
+        XCTAssertEqual(channel.baseURL(for: APIProtocol.auto), "https://openai-only.example.com/v1")
+    }
+
     func testSavePreservesActiveChannelIDWhenNil() {
         let channels = [makeChannel(id: "1", name: "X", baseURL: "https://x.com")]
 
@@ -206,6 +294,62 @@ final class ChannelsPersistenceTests: XCTestCase {
         // UserDefaults should also have the cache
         XCTAssertNotNil(isolated.defaults.data(forKey: ChannelStore.userDefaultsKey))
         XCTAssertEqual(isolated.defaults.string(forKey: ChannelStore.activeChannelDefaultsKey), "1")
+    }
+
+    func testChannelStoreAllowsSameBaseURLForDifferentProtocols() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: true)
+        defer { isolated.cleanup() }
+
+        let store = isolated.store
+        let openAIChannel = Channel(
+            id: "openai",
+            name: "Same Vendor OpenAI",
+            baseURL: "https://api.same-vendor.example.com",
+            priority: 1,
+            protocol: .openai,
+            models: []
+        )
+        let anthropicChannel = Channel(
+            id: "anthropic",
+            name: "Same Vendor Anthropic",
+            baseURL: "https://api.same-vendor.example.com",
+            priority: 2,
+            protocol: .anthropic,
+            models: []
+        )
+
+        store.addChannel(openAIChannel)
+        store.addChannel(anthropicChannel)
+
+        XCTAssertEqual(store.channels.map(\.id), ["openai", "anthropic"])
+    }
+
+    func testChannelStoreRejectsDuplicateEndpointForSameProtocol() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: true)
+        defer { isolated.cleanup() }
+
+        let store = isolated.store
+        let first = Channel(
+            id: "first",
+            name: "First",
+            baseURL: "https://api.same-vendor.example.com/",
+            priority: 1,
+            protocol: .openai,
+            models: []
+        )
+        let duplicate = Channel(
+            id: "duplicate",
+            name: "Duplicate",
+            baseURL: "https://API.SAME-VENDOR.EXAMPLE.COM",
+            priority: 2,
+            protocol: .openai,
+            models: []
+        )
+
+        store.addChannel(first)
+        store.addChannel(duplicate)
+
+        XCTAssertEqual(store.channels.map(\.id), ["first"])
     }
 
     // MARK: - Production UserDefaults is never touched by tests

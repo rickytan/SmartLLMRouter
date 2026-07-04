@@ -117,7 +117,10 @@ final class FilesEndpointHandler {
     }
 
     private func buildUpstreamURL(for request: HttpRequest, channel: Channel, isContent: Bool) -> URL? {
-        var components = URLComponents(string: channel.baseURL)
+        guard let baseURL = channel.baseURL(for: APIProtocol.openai) else {
+            return nil
+        }
+        var components = URLComponents(string: baseURL)
         if isContent {
             guard let fileId = extractPathParameter(from: request, named: "fileId") else {
                 return nil
