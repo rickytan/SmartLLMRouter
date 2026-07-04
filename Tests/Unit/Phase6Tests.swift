@@ -628,6 +628,32 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertEqual(decision?.channel.id, ch2.id, "Should failover to Secondary (ch2)")
     }
 
+    func testErrorHandling_DoesNotRetryPreviouslyAttemptedChannel() throws {
+        let ch1 = makeChannel(name: "Primary", priority: 1)
+        let ch2 = makeChannel(name: "Secondary", priority: 2)
+        let ch3 = makeChannel(name: "Tertiary", priority: 3)
+        isolatedStore.store.addChannel(ch1)
+        isolatedStore.store.addChannel(ch2)
+        isolatedStore.store.addChannel(ch3)
+
+        let initialDecision = router.selectChannel(requestID: "req-no-repeat", modelName: "gpt-4o")
+        XCTAssertEqual(initialDecision?.channel.id, ch1.id)
+
+        let firstRetry = router.handleError(
+            requestID: "req-no-repeat",
+            statusCode: 401,
+            modelName: "gpt-4o"
+        )
+        XCTAssertEqual(firstRetry?.channel.id, ch2.id)
+
+        let secondRetry = router.handleError(
+            requestID: "req-no-repeat",
+            statusCode: 401,
+            modelName: "gpt-4o"
+        )
+        XCTAssertEqual(secondRetry?.channel.id, ch3.id)
+    }
+
     private func makeChannel(name: String, priority: Int) -> Channel {
         let model = ModelEntry(
             id: "gpt-4o",

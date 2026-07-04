@@ -560,4 +560,317 @@ enum ProtocolConverter {
 
         return response
     }
+
+    // MARK: - Streaming Response Conversion
+
+    /// Convert a buffered OpenAI-compatible SSE response into Anthropic SSE events.
+    /// This preserves the existing forwarding path while ensuring Anthropic clients
+    /// such as Claude Code receive the event grammar they expect.
+    static func openAItoAnthropicStreamingResponse(
+        data: Data,
+        messageID: String = "msg_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
+        model: String
+    ) -> Data {
+        var parser = SSEParser()
+        var parseData = data
+        if let text = String(data: data, encoding: .utf8), !text.hasSuffix("\n\n") {
+            parseData.append(Data("\n\n".utf8))
+        }
+
+        var converter = OpenAIToAnthropicSSEConverter(messageID: messageID, model: model)
+        let events = parser.parse(parseData)
+        var output = ""
+
+        for event in events {
+            output += converter.convert(event: event)
+        }
+
+        output += converter.finishIfNeeded()
+        return Data(output.utf8)
+    }
+}
+
+struct OpenAIToAnthropicSSEConverter {
+    private struct ToolState {
+        let anthropicIndex: Int
+        let id: String
+        let name: String
+        var started: Bool
+        var stopped: Bool
+    }
+
+    private let messageID: String
+    private let model: String
+    private var messageStarted = false
+    private var textBlockStarted = false
+    private var textBlockStopped = false
+    private var nextBlockIndex = 0
+    private var toolStates: [Int: ToolState] = [:]
+    private var messageStopped = false
+    private var inputTokens = 0
+    private var outputTokens = 0
+
+    init(messageID: String, model: String) {
+        self.messageID = messageID
+        self.model = model
+    }
+
+    mutating func convert(event: SSEEvent) -> String {
+        let trimmed = event.data.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "[DONE]" {
+            return finishIfNeeded()
+        }
+
+        guard let json = parseJSONObject(trimmed) else {
+            return ""
+        }
+
+        captureUsage(from: json["usage"] as? [String: Any])
+
+        guard let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first else {
+            return ""
+        }
+
+        var output = ensureMessageStarted()
+
+        if let delta = firstChoice["delta"] as? [String: Any] {
+            if let content = delta["content"] as? String, !content.isEmpty {
+                output += ensureTextBlockStarted()
+                output += encodeAnthropicEvent(
+                    event: "content_block_delta",
+                    object: [
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": [
+                            "type": "text_delta",
+                            "text": content,
+                        ],
+                    ]
+                )
+            }
+
+            if let reasoning = delta["reasoning_content"] as? String, !reasoning.isEmpty {
+                output += ensureTextBlockStarted()
+                output += encodeAnthropicEvent(
+                    event: "content_block_delta",
+                    object: [
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": [
+                            "type": "text_delta",
+                            "text": reasoning,
+                        ],
+                    ]
+                )
+            }
+
+            if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+                output += convertToolCalls(toolCalls)
+            }
+        }
+
+        if let finishReason = firstChoice["finish_reason"] as? String, !finishReason.isEmpty {
+            output += finish(stopReason: anthropicStopReason(for: finishReason))
+        }
+
+        return output
+    }
+
+    mutating func finishIfNeeded() -> String {
+        guard !messageStopped else { return "" }
+        return finish(stopReason: "end_turn")
+    }
+
+    private mutating func ensureMessageStarted() -> String {
+        guard !messageStarted else { return "" }
+        messageStarted = true
+        return encodeAnthropicEvent(
+            event: "message_start",
+            object: [
+                "type": "message_start",
+                "message": [
+                    "id": messageID,
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [],
+                    "model": model,
+                    "stop_reason": NSNull(),
+                    "stop_sequence": NSNull(),
+                    "usage": [
+                        "input_tokens": inputTokens,
+                        "output_tokens": outputTokens,
+                    ],
+                ],
+            ]
+        )
+    }
+
+    private mutating func ensureTextBlockStarted() -> String {
+        guard !textBlockStarted else { return "" }
+        textBlockStarted = true
+        if nextBlockIndex == 0 {
+            nextBlockIndex = 1
+        }
+        return encodeAnthropicEvent(
+            event: "content_block_start",
+            object: [
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": [
+                    "type": "text",
+                    "text": "",
+                ],
+            ]
+        )
+    }
+
+    private mutating func stopTextBlockIfNeeded() -> String {
+        guard textBlockStarted, !textBlockStopped else { return "" }
+        textBlockStopped = true
+        return encodeAnthropicEvent(
+            event: "content_block_stop",
+            object: [
+                "type": "content_block_stop",
+                "index": 0,
+            ]
+        )
+    }
+
+    private mutating func convertToolCalls(_ toolCalls: [[String: Any]]) -> String {
+        var output = stopTextBlockIfNeeded()
+
+        for toolCall in toolCalls {
+            let openAIIndex = toolCall["index"] as? Int ?? 0
+            let function = toolCall["function"] as? [String: Any]
+            let id = toolCall["id"] as? String
+                ?? toolStates[openAIIndex]?.id
+                ?? "toolu_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+            let name = function?["name"] as? String
+                ?? toolStates[openAIIndex]?.name
+                ?? "tool"
+
+            var state = toolStates[openAIIndex] ?? ToolState(
+                anthropicIndex: nextBlockIndex,
+                id: id,
+                name: name,
+                started: false,
+                stopped: false
+            )
+
+            if !state.started {
+                state.started = true
+                nextBlockIndex = max(nextBlockIndex, state.anthropicIndex + 1)
+                output += encodeAnthropicEvent(
+                    event: "content_block_start",
+                    object: [
+                        "type": "content_block_start",
+                        "index": state.anthropicIndex,
+                        "content_block": [
+                            "type": "tool_use",
+                            "id": state.id,
+                            "name": state.name,
+                            "input": [:],
+                        ],
+                    ]
+                )
+            }
+
+            if let arguments = function?["arguments"] as? String, !arguments.isEmpty {
+                output += encodeAnthropicEvent(
+                    event: "content_block_delta",
+                    object: [
+                        "type": "content_block_delta",
+                        "index": state.anthropicIndex,
+                        "delta": [
+                            "type": "input_json_delta",
+                            "partial_json": arguments,
+                        ],
+                    ]
+                )
+            }
+
+            toolStates[openAIIndex] = state
+        }
+
+        return output
+    }
+
+    private mutating func finish(stopReason: String) -> String {
+        guard !messageStopped else { return "" }
+        var output = ensureMessageStarted()
+
+        if !textBlockStarted && toolStates.isEmpty {
+            output += ensureTextBlockStarted()
+        }
+
+        output += stopTextBlockIfNeeded()
+        for key in toolStates.keys.sorted() {
+            guard var state = toolStates[key], !state.stopped else { continue }
+            state.stopped = true
+            toolStates[key] = state
+            output += encodeAnthropicEvent(
+                event: "content_block_stop",
+                object: [
+                    "type": "content_block_stop",
+                    "index": state.anthropicIndex,
+                ]
+            )
+        }
+
+        output += encodeAnthropicEvent(
+            event: "message_delta",
+            object: [
+                "type": "message_delta",
+                "delta": [
+                    "stop_reason": stopReason,
+                    "stop_sequence": NSNull(),
+                ],
+                "usage": [
+                    "input_tokens": inputTokens,
+                    "output_tokens": outputTokens,
+                ],
+            ]
+        )
+        output += encodeAnthropicEvent(
+            event: "message_stop",
+            object: ["type": "message_stop"]
+        )
+        messageStopped = true
+        return output
+    }
+
+    private mutating func captureUsage(from usage: [String: Any]?) {
+        guard let usage else { return }
+        inputTokens = usage["prompt_tokens"] as? Int ?? inputTokens
+        outputTokens = usage["completion_tokens"] as? Int ?? outputTokens
+    }
+
+    private func anthropicStopReason(for openAIReason: String) -> String {
+        switch openAIReason {
+        case "length":
+            return "max_tokens"
+        case "tool_calls", "function_call":
+            return "tool_use"
+        case "content_filter":
+            return "stop_sequence"
+        default:
+            return "end_turn"
+        }
+    }
+
+    private func parseJSONObject(_ text: String) -> [String: Any]? {
+        guard let data = text.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    private func encodeAnthropicEvent(event: String, object: [String: Any]) -> String {
+        let data: String
+        if let jsonData = try? JSONSerialization.data(withJSONObject: object),
+           let json = String(data: jsonData, encoding: .utf8) {
+            data = json
+        } else {
+            data = "{\"type\":\"error\",\"error\":{\"type\":\"serialization_error\",\"message\":\"Failed to encode SSE event\"}}"
+        }
+        return SSEEncoder.encode(event: event, data: data)
+    }
 }

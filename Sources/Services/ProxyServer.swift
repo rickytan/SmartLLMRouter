@@ -311,6 +311,17 @@ final class ProxyServer: ObservableObject {
         let routingDecision = state.routingDecision
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
+        if isStream {
+            return buildStreamingForwardResponse(
+                request: request,
+                targetProtocol: targetProtocol,
+                bodyData: bodyData,
+                incomingProtocol: incomingProtocol,
+                routingDecision: routingDecision,
+                reqId: reqId,
+                startTime: startTime
+            )
+        }
 
         // Thread-safe: read model override from @MainActor ModelSwitcher
         let override = readModelOverride()
@@ -447,23 +458,14 @@ final class ProxyServer: ObservableObject {
             // Convert response if needed
             var responseBody: Data? = data
             if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
-                do {
-                    guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        throw NSError(domain: "ProxyServer", code: -1, userInfo: [:])
-                    }
-                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
-                    case (.openai, .anthropic):
-                        ProtocolConverter.anthropicToOpenAIResponse(body: json)
-                    case (.anthropic, .openai):
-                        ProtocolConverter.openAItoAnthropicResponse(body: json)
-                    default:
-                        json
-                    }
-                    responseBody = try JSONSerialization.data(withJSONObject: converted)
-                } catch {
-                    Log.error("[#\(reqId)] Response conversion failed")
-                    responseBody = data
-                }
+                responseBody = convertResponseBodyIfNeeded(
+                    data: data,
+                    isStream: isStream,
+                    incomingProtocol: incomingProtocol,
+                    upstreamProtocol: upstreamProtocol,
+                    model: routingDecision.effectiveModel ?? modelName ?? channel.models.first?.identifier ?? "unknown",
+                    requestID: "#\(reqId)"
+                )
             }
 
             // Record usage
@@ -551,6 +553,17 @@ final class ProxyServer: ObservableObject {
         }
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
+        if isStream {
+            return buildStreamingForwardResponse(
+                request: request,
+                targetProtocol: targetProtocol,
+                bodyData: bodyData,
+                incomingProtocol: incomingProtocol,
+                routingDecision: routingDecision,
+                reqId: reqId,
+                startTime: startTime
+            )
+        }
 
         // Thread-safe: read model override from @MainActor ModelSwitcher
         let override = readModelOverride()
@@ -655,17 +668,14 @@ final class ProxyServer: ObservableObject {
             // Convert response if needed
             var responseBody: Data? = data
             if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
-                    case (.openai, .anthropic):
-                        ProtocolConverter.anthropicToOpenAIResponse(body: json)
-                    case (.anthropic, .openai):
-                        ProtocolConverter.openAItoAnthropicResponse(body: json)
-                    default:
-                        json
-                    }
-                    responseBody = try? JSONSerialization.data(withJSONObject: converted)
-                }
+                responseBody = convertResponseBodyIfNeeded(
+                    data: data,
+                    isStream: isStream,
+                    incomingProtocol: incomingProtocol,
+                    upstreamProtocol: upstreamProtocol,
+                    model: routingDecision.effectiveModel ?? extractModelName(from: bodyData) ?? channel.models.first?.identifier ?? "unknown",
+                    requestID: "#\(reqId)"
+                )
             }
 
             // Record usage for retry channel
@@ -849,17 +859,14 @@ final class ProxyServer: ObservableObject {
 
             var responseBody: Data? = data
             if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
-                    case (.openai, .anthropic):
-                        ProtocolConverter.anthropicToOpenAIResponse(body: json)
-                    case (.anthropic, .openai):
-                        ProtocolConverter.openAItoAnthropicResponse(body: json)
-                    default:
-                        json
-                    }
-                    responseBody = try? JSONSerialization.data(withJSONObject: converted)
-                }
+                responseBody = convertResponseBodyIfNeeded(
+                    data: data,
+                    isStream: isStream,
+                    incomingProtocol: incomingProtocol,
+                    upstreamProtocol: upstreamProtocol,
+                    model: modelName ?? channel.models.first?.identifier ?? "unknown",
+                    requestID: "#\(reqId)"
+                )
             }
 
             let cost = estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output)
@@ -938,6 +945,220 @@ final class ProxyServer: ObservableObject {
             }
         }
         return rawResponse(statusCode: statusCode, headers: responseHeaders, body: body)
+    }
+
+    private func buildStreamingForwardResponse(
+        request: HttpRequest,
+        targetProtocol: RequestForwarder.RequestProtocol,
+        bodyData: Data,
+        incomingProtocol: RequestForwarder.RequestProtocol,
+        routingDecision: RoutingDecision,
+        reqId: Int64,
+        startTime: Date
+    ) -> HttpResponse {
+        let responseHeaders = [
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+            "connection": "close",
+        ]
+
+        return HttpResponse.raw(200, "OK", responseHeaders) { [self] writer in
+            let reqIdString = "req-\(reqId)"
+            var currentDecision: RoutingDecision? = routingDecision
+            var finalMessage = "Upstream streaming request failed"
+
+            while let decision = currentDecision {
+                currentDecision = nil
+                let channel = decision.channel
+                let model = decision.effectiveModel ?? self.extractModelName(from: bodyData) ?? channel.models.first?.identifier ?? "unknown"
+                let apiKeys = self.services.channelServices.apiKeys(for: channel.id)
+
+                guard !apiKeys.isEmpty else {
+                    finalMessage = "No API key configured for \(channel.name)"
+                    Log.error("[#\(reqId)] \(finalMessage)")
+                    self.services.usageTracker.recordUsage(
+                        channelID: channel.id,
+                        channelName: channel.name,
+                        model: model,
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        estimatedCost: 0,
+                        latency: Date().timeIntervalSince(startTime) * 1000,
+                        statusCode: 502,
+                        isError: true
+                    )
+                    if let retryDecision = self.routerHandleError(
+                        requestID: reqIdString,
+                        statusCode: 502,
+                        modelName: self.extractModelName(from: bodyData),
+                        requestProtocol: targetProtocol
+                    ) {
+                        Log.info("[#\(reqId)] Retrying streaming request with channel \(retryDecision.channel.name)")
+                        currentDecision = retryDecision
+                        continue
+                    }
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    self.routerCompleteRequest(requestID: reqIdString)
+                    return
+                }
+
+                let override = self.readModelOverride()
+                let effectiveBody = self.applyModelOverride(
+                    body: bodyData,
+                    hasOverride: override.hasOverride,
+                    selectedModelID: override.selectedModelID
+                )
+
+                var swappedBody = effectiveBody
+                if let orig = decision.originalModel,
+                   let eff = decision.effectiveModel,
+                   orig != eff,
+                   let swapped = RequestForwarder.swapModel(in: effectiveBody, newModel: eff) {
+                    Log.info("Smart fallback: model swapped from \(orig) to \(eff) for streaming on channel \(channel.name)")
+                    swappedBody = swapped
+                }
+
+                let upstreamProtocol = self.upstreamProtocol(for: channel, clientProtocol: targetProtocol)
+                guard let upstreamURL = self.buildUpstreamURL(baseURL: channel.baseURL, protocol: upstreamProtocol) else {
+                    finalMessage = "Invalid upstream URL"
+                    Log.error("[#\(reqId)] \(finalMessage) for streaming channel \(channel.name)")
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    self.routerCompleteRequest(requestID: reqIdString)
+                    return
+                }
+
+                let forwardedBody: Data
+                var convertedHeaders = request.headers
+                if incomingProtocol != upstreamProtocol {
+                    do {
+                        guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
+                            finalMessage = "Invalid JSON body"
+                            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                            self.routerCompleteRequest(requestID: reqIdString)
+                            return
+                        }
+
+                        let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
+                        case (.anthropic, .openai):
+                            try ProtocolConverter.anthropicToOpenAI(body: json)
+                        case (.openai, .anthropic):
+                            try ProtocolConverter.openAItoAnthropic(body: json)
+                        default:
+                            json
+                        }
+
+                        forwardedBody = try JSONSerialization.data(withJSONObject: converted)
+                        convertedHeaders["content-type"] = "application/json"
+                        convertedHeaders["content-length"] = String(forwardedBody.count)
+                    } catch {
+                        finalMessage = "Protocol conversion failed"
+                        Log.error("[#\(reqId)] \(finalMessage): \(error.localizedDescription)")
+                        StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                        self.routerCompleteRequest(requestID: reqIdString)
+                        return
+                    }
+                } else {
+                    forwardedBody = swappedBody
+                }
+                convertedHeaders.removeValue(forKey: "host")
+
+                let forwarder = StreamingForwarder(
+                    url: upstreamURL,
+                    headers: convertedHeaders,
+                    body: forwardedBody,
+                    timeout: self.upstreamTimeout,
+                    apiKeys: apiKeys,
+                    incomingProtocol: incomingProtocol,
+                    upstreamProtocol: upstreamProtocol,
+                    channelName: channel.name,
+                    requestID: "#\(reqId)",
+                    model: model
+                )
+                let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
+                let latency = Date().timeIntervalSince(startTime)
+
+                if completion.isSuccess {
+                    self.routerRecordSuccess(channelID: channel.id)
+                } else {
+                    let bodyText = String(data: completion.body, encoding: .utf8)?.prefix(500) ?? ""
+                    Log.error("[#\(reqId)] Streaming failed from \(channel.name): HTTP \(completion.statusCode) \(bodyText)")
+                }
+
+                let usage = RequestForwarder.parseUsage(from: completion.body, isAnthropic: upstreamProtocol == .anthropic)
+                self.services.usageTracker.recordUsage(
+                    channelID: channel.id,
+                    channelName: channel.name,
+                    model: model,
+                    inputTokens: usage.input,
+                    outputTokens: usage.output,
+                    estimatedCost: self.estimateCost(channel: channel, inputTokens: usage.input, outputTokens: usage.output),
+                    latency: latency * 1000,
+                    statusCode: completion.statusCode,
+                    isError: !completion.isSuccess
+                )
+
+                if completion.isSuccess || completion.didWriteBody {
+                    self.routerCompleteRequest(requestID: reqIdString)
+                    return
+                }
+
+                finalMessage = StreamingForwarder.errorMessage(from: completion)
+                if let retryDecision = self.routerHandleError(
+                    requestID: reqIdString,
+                    statusCode: completion.statusCode,
+                    modelName: self.extractModelName(from: bodyData),
+                    errorBody: completion.body,
+                    requestProtocol: targetProtocol
+                ) {
+                    Log.info("[#\(reqId)] Retrying streaming request with channel \(retryDecision.channel.name)")
+                    currentDecision = retryDecision
+                    continue
+                }
+
+                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                self.routerCompleteRequest(requestID: reqIdString)
+                return
+            }
+
+            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+            self.routerCompleteRequest(requestID: "req-\(reqId)")
+        }
+    }
+
+    private func convertResponseBodyIfNeeded(
+        data: Data,
+        isStream: Bool,
+        incomingProtocol: RequestForwarder.RequestProtocol,
+        upstreamProtocol: RequestForwarder.RequestProtocol,
+        model: String,
+        requestID: String
+    ) -> Data {
+        if isStream {
+            switch (incomingProtocol, upstreamProtocol) {
+            case (.anthropic, .openai):
+                return ProtocolConverter.openAItoAnthropicStreamingResponse(data: data, model: model)
+            default:
+                return data
+            }
+        }
+
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw NSError(domain: "ProxyServer", code: -1, userInfo: [:])
+            }
+            let converted: [String: Any] = switch (incomingProtocol, upstreamProtocol) {
+            case (.openai, .anthropic):
+                ProtocolConverter.anthropicToOpenAIResponse(body: json)
+            case (.anthropic, .openai):
+                ProtocolConverter.openAItoAnthropicResponse(body: json)
+            default:
+                json
+            }
+            return try JSONSerialization.data(withJSONObject: converted)
+        } catch {
+            Log.error("[\(requestID)] Response conversion failed")
+            return data
+        }
     }
 
     // MARK: - Route parameter extraction
