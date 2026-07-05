@@ -29,7 +29,7 @@ final class MenuBarManager: NSObject {
         statusItem.button?.target = self
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 360, height: 540)
+        popover.contentSize = NSSize(width: DesignToken.Layout.menuWidth, height: 540)
         popover.behavior = .transient
         popover.animates = true
 

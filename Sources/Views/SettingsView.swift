@@ -354,7 +354,6 @@ struct ChannelsTab: View {
             .frame(width: 112)
             .accessibilityIdentifier("settings.channels.add")
         }
-        .padding(.horizontal, DesignToken.Layout.cardPadding)
     }
 
     private var speedTestSplitButton: some View {
@@ -470,7 +469,6 @@ struct ChannelsTab: View {
             RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
                 .stroke(DesignToken.Colors.accent.opacity(0.16), lineWidth: 1)
         )
-        .padding(.horizontal, DesignToken.Layout.cardPadding)
     }
 
     private var channelListToolbar: some View {
@@ -484,7 +482,7 @@ struct ChannelsTab: View {
                     .font(DesignToken.Font.caption())
             }
             .padding(.horizontal, DesignToken.Spacing.sm)
-            .frame(height: DesignToken.Layout.buttonMinHeight)
+            .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
             .background(DesignToken.Colors.bgSecondary)
             .cornerRadius(DesignToken.Layout.buttonCornerRadius)
             .overlay(
@@ -509,7 +507,6 @@ struct ChannelsTab: View {
             .frame(width: 156)
             .accessibilityIdentifier("settings.channels.filter")
         }
-        .padding(.horizontal, DesignToken.Layout.cardPadding)
     }
 
     @ViewBuilder
@@ -579,7 +576,6 @@ struct ChannelsTab: View {
                 .font(DesignToken.Font.micro())
                 .foregroundColor(DesignToken.Colors.textTertiary)
         }
-        .padding(.horizontal, DesignToken.Layout.cardPadding)
         .padding(.bottom, DesignToken.Spacing.xs)
     }
 
