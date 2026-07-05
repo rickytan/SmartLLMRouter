@@ -77,10 +77,10 @@ enum DesignToken {
     // MARK: - Layout
 
     enum Layout {
-        static let menuWidth: CGFloat = 360
+        static let menuWidth: CGFloat = 280
         static let menuPadding: CGFloat = 14
-        static let settingsWidth: CGFloat = 560
-        static let settingsHeight: CGFloat = 420
+        static let settingsWidth: CGFloat = 720
+        static let settingsHeight: CGFloat = 520
         static let onboardingWidth: CGFloat = 520
         static let onboardingHeight: CGFloat = 500
         static let addChannelWidth: CGFloat = 520
@@ -112,8 +112,8 @@ enum DesignToken {
         static let rowCornerRadius: CGFloat = 4
 
         // Settings & Usage
-        static let settingsFrameWidth: CGFloat = 560
-        static let settingsFrameHeight: CGFloat = 420
+        static let settingsFrameWidth: CGFloat = 720
+        static let settingsFrameHeight: CGFloat = 520
         static let chartHeight: CGFloat = 140
         static let statusIndicatorSmall: CGFloat = 6
         static let chartBarCornerRadius: CGFloat = 3
