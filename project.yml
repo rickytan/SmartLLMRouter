@@ -9,13 +9,6 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.9
-    GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_LSUIElement: YES
-    INFOPLIST_KEY_CFBundleDisplayName: "SmartLLMRouter"
-    INFOPLIST_KEY_NSHumanReadableCopyright: "SmartLLMRouter"
-    # Sparkle auto-update feed URL
-    SUFeedURL: "https://smartllmrouter.github.io/appcast.xml"
-    SUPublicEDKey: "N9VmllR+tHZrPVcLnuTP3Zp2CPFQ8ULyZHGr/sfYzNY="
     # Signing: identity determined at build time (match/gym for release, ad-hoc for CI)
     CODE_SIGNING_REQUIRED: YES
     CODE_SIGNING_ALLOWED: YES
@@ -25,6 +18,25 @@ targets:
   SmartLLMRouter:
     type: application
     platform: macOS
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        CFBundleDisplayName: "SmartLLMRouter"
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleIconFile: AppIcon
+        CFBundleIconName: AppIcon
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        LSUIElement: true
+        NSHumanReadableCopyright: "SmartLLMRouter"
+        SUFeedURL: "https://smartllmrouter.github.io/appcast.xml"
+        SUPublicEDKey: "N9VmllR+tHZrPVcLnuTP3Zp2CPFQ8ULyZHGr/sfYzNY="
     scheme:
       testTargets:
         - SmartLLMRouterTests
