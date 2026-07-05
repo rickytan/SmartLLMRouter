@@ -1,0 +1,111 @@
+// swiftlint:disable all
+// Generated using SwiftGen — https://github.com/SwiftGen/SwiftGen
+
+{% if tables.count > 0 %}
+{% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
+import Foundation
+
+// swiftlint:disable superfluous_disable_command file_length implicit_return prefer_self_in_static_references
+
+// MARK: - Strings
+
+{% macro enumCaseName raw %}
+  {%- if raw == "addchannel" -%}
+  AddChannel
+  {%- elif raw == "channelExport" -%}
+  ChannelExport
+  {%- elif raw == "circuitbreaker" -%}
+  CircuitBreaker
+  {%- elif raw == "claudecode" -%}
+  ClaudeCode
+  {%- elif raw == "configimporter" -%}
+  ConfigImporter
+  {%- elif raw == "modelEditor" -%}
+  ModelEditor
+  {%- else -%}
+  {{ raw|swiftIdentifier:"pretty"|escapeReservedKeywords }}
+  {%- endif -%}
+{% endmacro %}
+{% macro parametersBlock types %}
+  {%- for type in types -%}
+    {%- if type == "String" -%}
+    _ p{{forloop.counter}}: Any
+    {%- else -%}
+    _ p{{forloop.counter}}: {{type}}
+    {%- endif -%}
+    {{ ", " if not forloop.last }}
+  {%- endfor -%}
+{% endmacro %}
+{% macro argumentsBlock types %}
+  {%- for type in types -%}
+    {%- if type == "String" -%}
+    String(describing: p{{forloop.counter}})
+    {%- elif type == "UnsafeRawPointer" -%}
+    Int(bitPattern: p{{forloop.counter}})
+    {%- else -%}
+    p{{forloop.counter}}
+    {%- endif -%}
+    {{ ", " if not forloop.last }}
+  {%- endfor -%}
+{% endmacro %}
+{% macro flattenedStrings table item prefix %}
+  {% for string in item.strings %}
+  {% if not param.noComments %}
+  {% for line in string.comment|default:string.translation|split:"\n" %}
+  /// {{ line }}
+  {% endfor %}
+  {% endif %}
+  {% set translation string.translation|replace:'"','\"'|replace:'	','\t' %}
+  {% set localKey %}{{ string.key|replace:prefix,"" }}{% endset %}
+  {% if string.types %}
+  {{accessModifier}} static func {{localKey|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}({% call parametersBlock string.types %}) -> String {
+    return L10n.tr("{{table}}", "{{string.key}}", {%+ call argumentsBlock string.types %}, fallback: "{{translation}}")
+  }
+  {% else %}
+  {{accessModifier}} static var {{localKey|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}: String {
+    L10n.tr("{{table}}", "{{string.key}}", fallback: "{{translation}}")
+  }
+  {% endif %}
+  {% endfor %}
+  {% for child in item.children %}
+  {% call flattenedStrings table child prefix %}
+  {% endfor %}
+{% endmacro %}
+// swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
+// swiftlint:disable nesting type_body_length type_name vertical_whitespace_opening_braces
+{{accessModifier}} enum L10n {
+  {% for table in tables %}
+  {% for child in table.levels.children %}
+  {{accessModifier}} enum {% call enumCaseName child.name %} {
+    {% set prefix %}{{ child.name }}.{% endset %}
+    {% filter indent:2," ",true %}{% call flattenedStrings table.name child prefix %}{% endfilter %}
+  }
+  {% endfor %}
+  {% endfor %}
+}
+// swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
+// swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces
+
+// MARK: - Implementation Details
+
+extension L10n {
+  private static func tr(_ table: String, _ key: String, _ args: CVarArg..., fallback value: String) -> String {
+    let format = BundleToken.bundle.localizedString(forKey: key, value: value, table: table)
+    return String(format: format, locale: Locale.current, arguments: args)
+  }
+}
+
+// swiftlint:disable convenience_type
+private final class BundleToken {
+  static let bundle: Bundle = {
+    #if SWIFT_PACKAGE
+    return Bundle.module
+    #else
+    return Bundle(for: BundleToken.self)
+    #endif
+  }()
+}
+// swiftlint:enable convenience_type
+{% else %}
+// No string found
+{% endif %}

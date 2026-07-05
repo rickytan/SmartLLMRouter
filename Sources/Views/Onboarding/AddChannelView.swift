@@ -6,7 +6,6 @@ struct AddChannelView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
-    @ObservedObject private var freeLLMKeySyncService: FreeLLMKeySyncService
     private let channelServices: ChannelServices
 
     let editingChannel: Channel?
@@ -33,7 +32,6 @@ struct AddChannelView: View {
     @State private var isSaving: Bool = false
     @State private var isTesting: Bool = false
     @State private var testResult: ChannelManager.ConnectionTestResult?
-    @State private var freeKeysErrorMessage: String?
     @State private var originalAPIKeys: [String] = []
 
     // Search (for provider picker)
@@ -45,7 +43,6 @@ struct AddChannelView: View {
         self.editingChannel = editingChannel
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
-        _freeLLMKeySyncService = ObservedObject(wrappedValue: services.freeLLMKeySyncService)
         channelServices = services.channelServices
     }
 
@@ -73,9 +70,6 @@ struct AddChannelView: View {
 
                     // Connection details
                     connectionSection
-
-                    // Free key source
-                    freeKeysSection
 
                     // Test connection
                     testConnectionSection
@@ -299,9 +293,19 @@ struct AddChannelView: View {
             VStack(spacing: DesignToken.Spacing.xs) {
                 ForEach(apiKeys.indices, id: \.self) { index in
                     HStack(spacing: DesignToken.Spacing.xs) {
-                        SecureField(L10n.AddChannel.apiKeyPlaceholder, text: apiKeyBinding(at: index))
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("addChannel.apiKeyField.\(index)")
+                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                            SecureField(L10n.AddChannel.apiKeyPlaceholder, text: apiKeyBinding(at: index))
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("addChannel.apiKeyField.\(index)")
+
+                            if let summary = apiKeySummary(for: apiKeys[index]) {
+                                Text(summary)
+                                    .font(DesignToken.Font.monoMicro())
+                                    .foregroundColor(DesignToken.Colors.textTertiary)
+                                    .lineLimit(1)
+                                    .accessibilityIdentifier("addChannel.apiKeySummary.\(index)")
+                            }
+                        }
 
                         IconButton(
                             icon: "chevron.up",
@@ -337,63 +341,6 @@ struct AddChannelView: View {
                 }
             }
         }
-    }
-
-    private var freeKeysSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
-            HStack(spacing: DesignToken.Spacing.sm) {
-                Image(systemName: "key.fill")
-                    .font(DesignToken.Font.system(size: 14, weight: .semibold))
-                    .foregroundColor(DesignToken.Colors.accent)
-
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-                    Text(L10n.AddChannel.freeKeysTitle)
-                        .font(DesignToken.Font.h3())
-                    Text(L10n.AddChannel.freeKeysSubtitle)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                }
-
-                Spacer()
-
-                Link(destination: FreeLLMKeySyncService.repositoryURL) {
-                    Image(systemName: "info.circle")
-                        .font(DesignToken.Font.system(size: 14, weight: .medium))
-                        .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.AddChannel.freeKeysSourceHelp)
-                .accessibilityLabel(L10n.AddChannel.freeKeysSourceHelp)
-                .accessibilityIdentifier("addChannel.freeKeys.sourceInfoButton")
-            }
-
-            ToggleRow(
-                L10n.AddChannel.freeKeysAutoSync,
-                subtitle: L10n.AddChannel.freeKeysAutoSyncSubtitle,
-                isOn: $freeLLMKeySyncService.autoSyncEnabled
-            )
-            .accessibilityIdentifier("addChannel.freeKeys.autoSyncToggle")
-
-            HoverButton(
-                title: freeLLMKeySyncService.isSyncing ? L10n.AddChannel.freeKeysFetching : L10n.AddChannel.freeKeysFetchAndAdd,
-                icon: freeLLMKeySyncService.isSyncing ? "ellipsis.circle.fill" : "arrow.clockwise"
-            ) {
-                Task { await fetchAndAddFreeKeys() }
-            }
-            .disabled(freeLLMKeySyncService.isSyncing)
-            .accessibilityIdentifier("addChannel.freeKeys.fetchButton")
-
-            if let freeKeysErrorMessage {
-                Text(freeKeysErrorMessage)
-                    .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.statusOffline)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(DesignToken.Spacing.sm)
-        .background(DesignToken.Colors.bgSecondary)
-        .cornerRadius(DesignToken.Layout.rowCornerRadius)
     }
 
     // MARK: - Test Connection
@@ -810,16 +757,6 @@ struct AddChannelView: View {
         }
     }
 
-    private func fetchAndAddFreeKeys() async {
-        freeKeysErrorMessage = nil
-        do {
-            _ = try await freeLLMKeySyncService.syncNow()
-            dismiss()
-        } catch {
-            freeKeysErrorMessage = error.localizedDescription
-        }
-    }
-
     private var sanitizedAPIKeys: [String] {
         sanitizeAPIKeys(apiKeys)
     }
@@ -948,6 +885,16 @@ struct AddChannelView: View {
             return
         }
         apiKeys.swapAt(source, destination)
+    }
+
+    private func apiKeySummary(for key: String) -> String? {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count > 10 else {
+            return String(repeating: "•", count: max(4, trimmed.count))
+        }
+
+        return "\(trimmed.prefix(6))...\(trimmed.suffix(4))"
     }
 }
 

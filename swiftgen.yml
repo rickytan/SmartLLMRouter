@@ -1,6 +1,11 @@
 # SwiftGen Configuration
-# Generates type-safe code for assets
-# Note: L10n.swift is hand-written to match project API conventions
+# Generates type-safe code for localized strings and assets
+
+strings:
+  inputs: Resources/en.lproj/Localizable.strings
+  outputs:
+    templatePath: swiftgen/templates/l10n-compat.stencil
+    output: Sources/Generated/L10n.swift
 
 xcassets:
   inputs: Resources/Assets.xcassets

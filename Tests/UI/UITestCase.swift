@@ -28,12 +28,14 @@ class UITestCase: XCTestCase {
         static let menuStatusRunning = "menu.status.running"
         static let menuStatusStopped = "menu.status.stopped"
         static let menuPortLabel = "menu.port.label"
+        static let menuProxyToggleButton = "menu.proxy.toggle"
+        static let menuStatsLabel = "menu.statsLabel"
         static let menuFailoverToggle = "menu.failover.toggle"
-        static let menuCopyEnvButton = "menu.copy环境变量"
-        static let menuTestKeyButton = "menu测试密钥"
-        static let menuSettingsButton = "menu.settings"
-        static let menuQuitButton = "menu.quit"
-        static let menuRecentRequests = "menu.recent.requests"
+        static let menuCopyEnvButton = "menu.copyEnvButton"
+        static let menuTestKeyButton = "menu.testKeyButton"
+        static let menuSettingsButton = "menu.settingsButton"
+        static let menuQuitButton = "menu.quitButton"
+        static let menuRecentRequests = "menu.recentRequestsList"
         
         // SettingsView
         static let settingsWindow = "settings.window"
@@ -52,6 +54,15 @@ class UITestCase: XCTestCase {
         // Channels Tab
         static let settingsAddChannelButton = "settings.channels.add"
         static let settingsTestAllButton = "settings.channels.testAll"
+        static let settingsSortBySpeedButton = "settings.channels.sortBySpeed"
+        static let settingsChannelSearchField = "settings.channels.searchField"
+        static let settingsChannelFilter = "settings.channels.filter"
+        static let settingsChannelCount = "settings.channels.count"
+        static let settingsFreeKeysFetchButton = "settings.channels.freeKeys.fetchButton"
+        static let settingsFreeKeysSourceInfoButton = "settings.channels.freeKeys.sourceInfoButton"
+        static let settingsFreeKeysAutoSyncToggle = "settings.channels.freeKeys.autoSyncToggle"
+        static let settingsFreeKeysStatus = "settings.channels.freeKeys.status"
+        static let settingsImportConfigButton = "settings.channels.importConfig"
         static let settingsChannelList = "settings.channels.list"
         
         // Channel Row

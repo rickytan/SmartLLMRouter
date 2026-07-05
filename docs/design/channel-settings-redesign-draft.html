@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartLLMRouter Channels Settings Redesign</title>
+  <style>
+    :root {
+      --window: #f5f5f7;
+      --panel: #ffffff;
+      --panel-muted: #f8f9fb;
+      --line: #d9dce2;
+      --line-soft: #eceef2;
+      --text: #1f2328;
+      --muted: #69717d;
+      --subtle: #8c95a1;
+      --blue: #0a84ff;
+      --blue-soft: #e9f3ff;
+      --green: #2fc568;
+      --orange: #ff9f0a;
+      --red: #ff453a;
+      --shadow: 0 22px 60px rgba(15, 23, 42, 0.16);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #e7e9ee;
+      color: var(--text);
+    }
+
+    .window {
+      width: 860px;
+      height: 680px;
+      background: var(--window);
+      border: 1px solid #c8ccd3;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .chrome {
+      height: 44px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(#fbfbfc, #f1f2f5);
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .traffic {
+      position: absolute;
+      left: 14px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #ffbd2e; }
+    .green { background: #28c840; }
+
+    .tabs {
+      height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: #f6f7f9;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tab {
+      width: 74px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      border-radius: 10px;
+      color: #747b85;
+      font-size: 13px;
+      font-weight: 560;
+    }
+
+    .tab .icon {
+      font-size: 24px;
+      line-height: 1;
+      color: #747b85;
+    }
+
+    .tab.active {
+      background: #e9eef7;
+      color: #0866d7;
+    }
+
+    .tab.active .icon {
+      color: var(--blue);
+    }
+
+    .content {
+      height: calc(100% - 126px);
+      padding: 18px 24px 14px;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      gap: 12px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .title-block h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    .title-block p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button {
+      height: 30px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 7px;
+      padding: 0 12px;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 560;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset;
+    }
+
+    .icon-button {
+      width: 30px;
+      padding: 0;
+      justify-content: center;
+      color: var(--muted);
+    }
+
+    .free-band {
+      min-height: 72px;
+      border: 1px solid #c8ddf8;
+      background: var(--blue-soft);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .free-main {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .key-badge {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: #fff;
+      color: var(--blue);
+      border: 1px solid #d7e7fb;
+      font-size: 17px;
+    }
+
+    .free-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 3px;
+      min-width: 0;
+    }
+
+    .free-title strong {
+      font-size: 13px;
+    }
+
+    .source {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .info {
+      width: 17px;
+      height: 17px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 1px solid #abc8eb;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.72);
+      flex: 0 0 auto;
+    }
+
+    .status-line {
+      color: var(--subtle);
+      font-size: 11px;
+    }
+
+    .sync {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .switch {
+      width: 34px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--green);
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      right: 2px;
+      top: 2px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+    }
+
+    .list-tools {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search {
+      flex: 1;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 7px;
+      color: var(--subtle);
+      font-size: 12px;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: 12px;
+      margin-right: 2px;
+    }
+
+    .segment {
+      display: flex;
+      height: 30px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 7px;
+      padding: 2px;
+    }
+
+    .segment span {
+      min-width: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 560;
+    }
+
+    .segment .selected {
+      background: #eef1f6;
+      color: var(--text);
+    }
+
+    .list {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .row {
+      height: 72px;
+      display: grid;
+      grid-template-columns: 28px 1fr 84px 76px 156px;
+      align-items: center;
+      column-gap: 10px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+    }
+
+    .handle {
+      color: #c0c6cf;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .channel {
+      display: grid;
+      grid-template-columns: 12px 1fr;
+      gap: 9px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .health {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(47, 197, 104, 0.13);
+    }
+
+    .health.off {
+      background: var(--subtle);
+      box-shadow: 0 0 0 3px rgba(140, 149, 161, 0.12);
+    }
+
+    .name {
+      font-size: 14px;
+      font-weight: 680;
+      margin-bottom: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .url {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .models {
+      color: #7b8490;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .latency {
+      justify-self: start;
+      min-width: 68px;
+      height: 26px;
+      border-radius: 7px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 650;
+      background: #fff3df;
+      color: #76510a;
+    }
+
+    .latency.fast {
+      background: #e8f8ef;
+      color: #176d37;
+    }
+
+    .latency.slow {
+      background: #ffe8ea;
+      color: #8d2320;
+    }
+
+    .mini-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--orange);
+    }
+
+    .fast .mini-dot { background: var(--green); }
+    .slow .mini-dot { background: var(--red); }
+
+    .state {
+      justify-self: start;
+      font-size: 12px;
+      font-weight: 620;
+      color: #176d37;
+      background: #e8f8ef;
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+
+    .state.disabled {
+      color: #6f7782;
+      background: #eef0f3;
+    }
+
+    .row-actions {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .row-actions .icon-button {
+      width: 28px;
+      height: 28px;
+      border-color: transparent;
+      background: transparent;
+      color: #737b86;
+      font-size: 14px;
+    }
+
+    .row-actions .danger {
+      color: var(--red);
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--subtle);
+      font-size: 12px;
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main class="window" aria-label="Channels Settings Redesign Draft">
+    <section class="chrome">
+      <div class="traffic" aria-hidden="true">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+      通道
+    </section>
+
+    <nav class="tabs" aria-label="Settings tabs">
+      <div class="tab"><span class="icon">⚙</span><span>通用</span></div>
+      <div class="tab active"><span class="icon">▤</span><span>通道</span></div>
+      <div class="tab"><span class="icon">☷</span><span>高级</span></div>
+      <div class="tab"><span class="icon">▮▮▮</span><span>使用情况</span></div>
+      <div class="tab"><span class="icon">ⓘ</span><span>关于</span></div>
+    </nav>
+
+    <section class="content">
+      <header class="header">
+        <div class="title-block">
+          <h1>API 通道</h1>
+          <p>管理供应商、密钥与模型路由优先级</p>
+        </div>
+        <div class="actions">
+          <button class="primary">＋ 添加通道</button>
+          <button>⚡ 全部测速</button>
+          <button class="icon-button" title="导入 API 供应商">⇩</button>
+        </div>
+      </header>
+
+      <section class="free-band" aria-label="Free LLM sync">
+        <div class="free-main">
+          <div class="key-badge">●</div>
+          <div>
+            <div class="free-title">
+              <strong>免费密钥</strong>
+              <span class="source">来自 alistaitsacle/free-llm-api-keys</span>
+              <span class="info">i</span>
+            </div>
+            <div class="status-line">上次同步：刚刚 · 12 keys · 8 models</div>
+          </div>
+        </div>
+        <label class="sync">
+          <span class="switch"></span>
+          <span>每日同步</span>
+        </label>
+        <button>立即拉取</button>
+      </section>
+
+      <section class="list-tools">
+        <div class="search">⌕ 搜索通道或模型</div>
+        <span class="count">8 个通道</span>
+        <div class="segment">
+          <span class="selected">全部</span>
+          <span>启用</span>
+          <span>禁用</span>
+        </div>
+      </section>
+
+      <section class="list" aria-label="Channel list">
+        <article class="row">
+          <div class="handle">≡</div>
+          <div class="channel">
+            <span class="health"></span>
+            <div>
+              <div class="name">Free LLM API Keys</div>
+              <div class="url">OpenAI: https://aiapiv2.pekpik.com/v1</div>
+              <div class="models">claude-opus-4-7, gemini-2.5-flash, deepseek-chat</div>
+            </div>
+          </div>
+          <div class="latency"><span class="mini-dot"></span>762ms</div>
+          <div class="state">启用</div>
+          <div class="row-actions">
+            <button class="icon-button" title="测试">⚡</button>
+            <button class="icon-button" title="编辑">✎</button>
+            <button class="icon-button" title="禁用">⏸</button>
+            <button class="icon-button danger" title="删除">⌫</button>
+          </div>
+        </article>
+
+        <article class="row">
+          <div class="handle">≡</div>
+          <div class="channel">
+            <span class="health"></span>
+            <div>
+              <div class="name">Doubao</div>
+              <div class="url">OpenAI: https://ark.cn-beijing.volces.com/api/coding</div>
+              <div class="models">doubao-lite-128k-240428, doubao-pro-128k-240515, doubao-lite-4k</div>
+            </div>
+          </div>
+          <div class="latency"><span class="mini-dot"></span>305ms</div>
+          <div class="state">启用</div>
+          <div class="row-actions">
+            <button class="icon-button" title="测试">⚡</button>
+            <button class="icon-button" title="编辑">✎</button>
+            <button class="icon-button" title="禁用">⏸</button>
+            <button class="icon-button danger" title="删除">⌫</button>
+          </div>
+        </article>
+
+        <article class="row">
+          <div class="handle">≡</div>
+          <div class="channel">
+            <span class="health"></span>
+            <div>
+              <div class="name">Shang</div>
+              <div class="url">OpenAI: https://token.sensenova.cn/v1</div>
+              <div class="models">sensenova-6.7-flash-lite, deepseek-v4-flash, glm-5.2</div>
+            </div>
+          </div>
+          <div class="latency fast"><span class="mini-dot"></span>22ms</div>
+          <div class="state">启用</div>
+          <div class="row-actions">
+            <button class="icon-button" title="测试">⚡</button>
+            <button class="icon-button" title="编辑">✎</button>
+            <button class="icon-button" title="禁用">⏸</button>
+            <button class="icon-button danger" title="删除">⌫</button>
+          </div>
+        </article>
+
+        <article class="row">
+          <div class="handle">≡</div>
+          <div class="channel">
+            <span class="health"></span>
+            <div>
+              <div class="name">Zen</div>
+              <div class="url">OpenAI: https://opencode.ai/zen/v1</div>
+              <div class="models">claude-fable-5, claude-opus-4-8, claude-opus-4-7</div>
+            </div>
+          </div>
+          <div class="latency slow"><span class="mini-dot"></span>840ms</div>
+          <div class="state">启用</div>
+          <div class="row-actions">
+            <button class="icon-button" title="测试">⚡</button>
+            <button class="icon-button" title="编辑">✎</button>
+            <button class="icon-button" title="禁用">⏸</button>
+            <button class="icon-button danger" title="删除">⌫</button>
+          </div>
+        </article>
+
+        <article class="row">
+          <div class="handle">≡</div>
+          <div class="channel">
+            <span class="health off"></span>
+            <div>
+              <div class="name">DeepSeek</div>
+              <div class="url">OpenAI: https://api.deepseek.com</div>
+              <div class="models">deepseek-v4-flash, deepseek-v4-pro</div>
+            </div>
+          </div>
+          <div class="latency fast"><span class="mini-dot"></span>146ms</div>
+          <div class="state disabled">禁用</div>
+          <div class="row-actions">
+            <button class="icon-button" title="测试">⚡</button>
+            <button class="icon-button" title="编辑">✎</button>
+            <button class="icon-button" title="启用">▶</button>
+            <button class="icon-button danger" title="删除">⌫</button>
+          </div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <div class="footer-actions">
+          <button class="icon-button" title="导出">⇧</button>
+          <button class="icon-button" title="导入">⇩</button>
+        </div>
+        <span>拖动左侧手柄调整优先级</span>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

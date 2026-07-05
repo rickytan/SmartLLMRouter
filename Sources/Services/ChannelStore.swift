@@ -172,4 +172,37 @@ final class ChannelStore: ObservableObject {
         }
         saveChannels()
     }
+
+    func sortChannelsByLatency() {
+        channels = channels
+            .enumerated()
+            .sorted { lhs, rhs in
+                let left = lhs.element
+                let right = rhs.element
+                let leftHasLatency = left.lastLatencyMs > 0
+                let rightHasLatency = right.lastLatencyMs > 0
+
+                if leftHasLatency != rightHasLatency {
+                    return leftHasLatency
+                }
+
+                if leftHasLatency,
+                   rightHasLatency,
+                   left.lastLatencyMs != right.lastLatencyMs {
+                    return left.lastLatencyMs < right.lastLatencyMs
+                }
+
+                if left.priority != right.priority {
+                    return left.priority < right.priority
+                }
+
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+
+        for index in channels.indices {
+            channels[index].priority = index + 1
+        }
+        saveChannels()
+    }
 }

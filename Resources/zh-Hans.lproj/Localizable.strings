@@ -9,16 +9,30 @@
 "menu.stats.requests" = "请求数: %lld";
 "menu.stats.tokens" = "Token数: %lld";
 "menu.stats.summary" = "%lld 次请求 · %lld tokens";
+"menu.stats.requests.label" = "今日请求";
+"menu.stats.tokens.label" = "tokens";
+"menu.proxy.pause" = "暂停";
+"menu.proxy.start" = "启动";
+"menu.proxy.running.subtitle" = "代理正在监听本机请求";
+"menu.proxy.stopped.subtitle" = "代理已暂停，App 仍在运行";
+"menu.routing.title" = "路由";
+"menu.routing.protocols" = "OpenAI / Anthropic";
+"menu.routing.default.subtitle" = "按请求模型自动选择可用通道";
+"menu.routing.override.subtitle" = "客户端请求会强制使用该模型";
+"menu.failover.subtitle" = "429 / 5xx / 401 后自动跳过不可用通道";
 "menu.failover.auto" = "自动故障转移";
 "menu.failover.manual" = "手动模式";
 "menu.requests.recent" = "最近请求";
 "menu.requests.none" = "暂无请求记录";
+"menu.requests.count" = "%lld 条";
 "menu.request.entry" = "%s · %s · %s";
 "menu.time.seconds" = "%d秒前";
 "menu.time.minutes" = "%d分钟前";
 "menu.time.hours" = "%d小时前";
 "menu.copy.env" = "复制环境变量配置";
+"menu.copy.config" = "复制配置";
 "menu.test.key" = "测试所有通道";
+"menu.test.channels" = "测试通道";
 "menu.settings" = "设置...";
 "menu.quit" = "退出";
 "menu.speed" = "延迟: %lldms";
@@ -54,6 +68,7 @@
 
 // Channel Settings
 "settings.channels.add" = "添加通道";
+"settings.channels.subtitle" = "管理供应商、密钥与模型路由优先级。";
 "settings.channels.edit" = "编辑通道";
 "settings.channels.delete" = "删除";
 "settings.channels.enable" = "启用";
@@ -69,6 +84,31 @@
 "settings.channels.testAll" = "全部测速";
 "settings.channels.testing" = "测试中...";
 "settings.channels.reorderHint" = "调整顺序：拖动左侧 ⠿ 手柄";
+"settings.channels.reorderFilteredHint" = "清空搜索/过滤后可调整优先级";
+"settings.channels.searchPlaceholder" = "搜索通道或模型";
+"settings.channels.filterAll" = "全部";
+"settings.channels.filterEnabled" = "启用";
+"settings.channels.filterDisabled" = "禁用";
+"settings.channels.count" = "%lld 个通道";
+"settings.channels.filteredCount" = "%lld/%lld 个";
+"settings.channels.sortBySpeed" = "按速度排序";
+"settings.channels.sortBySpeedConfirmTitle" = "按速度重新排序通道？";
+"settings.channels.sortBySpeedConfirmMessage" = "将根据已有测速结果按从快到慢调整通道优先级。没有测速结果的通道会排在已测速通道之后。此操作会影响路由优先级。";
+"settings.channels.sortBySpeedConfirm" = "确定排序";
+"settings.channels.noMatchesTitle" = "没有匹配的通道";
+"settings.channels.noMatchesSubtitle" = "换一个搜索词或过滤条件试试。";
+"settings.channels.freeKeysTitle" = "免费密钥";
+"settings.channels.freeKeysSource" = "来自 alistaitsacle/free-llm-api-keys";
+"settings.channels.freeKeysFetchAndAdd" = "免费密钥";
+"settings.channels.freeKeysFetching" = "拉取中...";
+"settings.channels.freeKeysSyncNow" = "立即拉取";
+"settings.channels.freeKeysAutoSync" = "每日同步";
+"settings.channels.freeKeysAutoSyncSubtitle" = "冷启动或应用运行时，每天同步一次免费密钥。";
+"settings.channels.freeKeysSourceHelp" = "来源：github.com/alistaitsacle/free-llm-api-keys。点击打开仓库页面。";
+"settings.channels.freeKeysLastSync" = "上次同步：%@";
+"settings.channels.freeKeysNeverSynced" = "尚未同步";
+"settings.channels.freeKeysSuccessAdded" = "已添加 Free LLM 通道：%lld 个密钥，%lld 个模型。";
+"settings.channels.freeKeysSuccessUpdated" = "已更新 Free LLM 通道：%lld 个密钥，%lld 个模型。";
 "settings.channels.emptyTitle" = "未配置通道";
 "settings.channels.emptySubtitle" = "添加一个通道以开始使用";
 
@@ -149,8 +189,8 @@
 "onboarding.done" = "全部完成！";
 "onboarding.done_description" = "SmartLLM Router 已就绪。开始向 localhost:1897 发送请求吧";
 "onboarding.feature_failover" = "API 密钥之间自动故障转移";
-"onboarding.feature_multikey" = "多提供商密钥管理";
-"onboarding.feature_privacy" = "100% 本地 — 您的密钥永远不会离开您的 Mac";
+"onboarding.feature_multi_key" = "多提供商密钥管理";
+"onboarding.feature_privacy" = "100%% 本地 — 您的密钥永远不会离开您的 Mac";
 
 // 引导页 - 批量添加通道 (v2)
 "onboarding.addChannel.title" = "添加通道";

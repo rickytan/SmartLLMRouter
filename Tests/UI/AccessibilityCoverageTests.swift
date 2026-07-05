@@ -13,6 +13,8 @@ final class AccessibilityCoverageTests: UITestCase {
             UI.menuStatusRunning,
             UI.menuStatusStopped,
             UI.menuPortLabel,
+            UI.menuProxyToggleButton,
+            UI.menuStatsLabel,
             UI.menuFailoverToggle,
             UI.menuCopyEnvButton,
             UI.menuTestKeyButton,
@@ -91,6 +93,15 @@ final class AccessibilityCoverageTests: UITestCase {
         
         let requiredIdentifiers = [
             UI.settingsAddChannelButton,
+            UI.settingsTestAllButton,
+            UI.settingsSortBySpeedButton,
+            UI.settingsChannelSearchField,
+            UI.settingsChannelFilter,
+            UI.settingsChannelCount,
+            UI.settingsFreeKeysFetchButton,
+            UI.settingsFreeKeysSourceInfoButton,
+            UI.settingsFreeKeysAutoSyncToggle,
+            UI.settingsImportConfigButton,
             UI.settingsChannelList,
         ]
         
