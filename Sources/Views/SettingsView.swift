@@ -251,112 +251,424 @@ struct GeneralSettingsTab: View {
 
 // MARK: - Channels Tab
 
+private enum ChannelListFilter: String, CaseIterable, Identifiable {
+    case all
+    case enabled
+    case disabled
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all:
+            L10n.Settings.channelsFilterAll
+        case .enabled:
+            L10n.Settings.channelsFilterEnabled
+        case .disabled:
+            L10n.Settings.channelsFilterDisabled
+        }
+    }
+}
+
 struct ChannelsTab: View {
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
+    @ObservedObject private var freeLLMKeySyncService: FreeLLMKeySyncService
     private let channelExportService: ChannelExportService
     @State private var showingAddChannel = false
     @State private var showingConfigImporter = false
     @State private var isTestingAll = false
+    @State private var freeKeysStatusMessage: String?
+    @State private var freeKeysStatusIsError = false
+    @State private var channelSearchText = ""
+    @State private var channelFilter: ChannelListFilter = .all
+    @State private var showingSortBySpeedConfirmation = false
 
     @MainActor
     init(services: AppServices? = nil) {
         let services = services ?? .shared
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
+        _freeLLMKeySyncService = ObservedObject(wrappedValue: services.freeLLMKeySyncService)
         channelExportService = services.channelExportService
     }
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
-            // Toolbar - Top: Main actions
-            HStack(spacing: DesignToken.Spacing.sm) {
-                HoverButton(
-                    title: isTestingAll ? L10n.Settings.channelsTesting : L10n.Settings.channelsTestAll,
-                    icon: isTestingAll ? "ellipsis.circle.fill" : "bolt.fill"
-                ) {
-                    Task {
-                        isTestingAll = true
-                        await channelManager.speedTestAllChannels()
-                        isTestingAll = false
-                    }
-                }
-                .disabled(isTestingAll)
-                .accessibilityIdentifier("settings.channels.testAll")
+            channelsHeaderActions
+            freeKeysUtilityBand
+            channelListToolbar
 
-                HoverButton(
-                    title: L10n.ConfigImporter.title,
-                    icon: "square.and.arrow.down.on.square"
-                ) {
-                    showingConfigImporter = true
-                }
-                .accessibilityIdentifier("settings.channels.importConfig")
+            channelList
 
-                Spacer()
-
-                HoverButton(
-                    title: L10n.Settings.channelsAdd,
-                    icon: "plus"
-                ) {
-                    showingAddChannel = true
-                }
-                .accessibilityIdentifier("settings.channels.addButton")
-            }
-            .padding(.horizontal, DesignToken.Layout.cardPadding)
-
-            Divider()
-
-            // Channel List
-            if channelStore.channels.isEmpty {
-                EmptyChannelView()
-            } else {
-                List {
-                    ForEach(channelStore.channels) { channel in
-                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
-                    }
-                    .onMove(perform: channelStore.moveChannel)
-                }
-                .listStyle(.bordered(alternatesRowBackgrounds: false))
-                .accessibilityIdentifier("settings.channels.list")
-            }
-
-            // Footer - Fixed at bottom
-            HStack(spacing: DesignToken.Spacing.xs) {
-                IconButton(
-                    icon: "square.and.arrow.up",
-                    tooltip: L10n.ChannelExport.exportChannels,
-                    isDisabled: channelStore.channels.isEmpty
-                ) {
-                    channelExportService.showExportOptions(channels: channelStore.channels)
-                }
-                .help(L10n.ChannelExport.exportChannels)
-                .accessibilityIdentifier("settings.channels.exportChannels")
-
-                IconButton(
-                    icon: "square.and.arrow.down",
-                    tooltip: L10n.ChannelExport.importChannels
-                ) {
-                    channelExportService.importChannelsWithPanel()
-                }
-                .help(L10n.ChannelExport.importChannels)
-                .accessibilityIdentifier("settings.channels.importChannels")
-
-                Spacer()
-
-                Text(L10n.Settings.channelsReorderHint)
-                    .font(DesignToken.Font.micro())
-                    .foregroundColor(DesignToken.Colors.textTertiary)
-            }
-            .padding(.horizontal, DesignToken.Layout.cardPadding)
-            .padding(.bottom, DesignToken.Spacing.xs)
+            channelsFooter
         }
         .padding(DesignToken.Layout.cardPadding)
+        .alert(L10n.Settings.channelsSortBySpeedConfirmTitle, isPresented: $showingSortBySpeedConfirmation) {
+            Button(L10n.AddChannel.cancel, role: .cancel) {}
+            Button(L10n.Settings.channelsSortBySpeedConfirm) {
+                channelStore.sortChannelsByLatency()
+            }
+        } message: {
+            Text(L10n.Settings.channelsSortBySpeedConfirmMessage)
+        }
         .sheet(isPresented: $showingAddChannel) {
             AddChannelView()
         }
         .sheet(isPresented: $showingConfigImporter) {
             ConfigImporterView()
         }
+    }
+
+    private var channelsHeaderActions: some View {
+        HStack(alignment: .center, spacing: DesignToken.Spacing.md) {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.channels)
+                    .font(DesignToken.Font.h2())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+
+                Text(L10n.Settings.channelsSubtitle)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: DesignToken.Spacing.md)
+
+            speedTestSplitButton
+
+            IconButton(
+                icon: "square.and.arrow.down.on.square",
+                tooltip: L10n.ConfigImporter.title
+            ) {
+                showingConfigImporter = true
+            }
+            .accessibilityIdentifier("settings.channels.importConfig")
+
+            primaryToolbarButton(
+                title: L10n.Settings.channelsAdd,
+                icon: "plus"
+            ) {
+                showingAddChannel = true
+            }
+            .frame(width: 112)
+            .accessibilityIdentifier("settings.channels.add")
+        }
+        .padding(.horizontal, DesignToken.Layout.cardPadding)
+    }
+
+    private var speedTestSplitButton: some View {
+        HStack(spacing: 0) {
+            Button {
+                runSpeedTests()
+            } label: {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Image(systemName: isTestingAll ? "ellipsis.circle.fill" : "bolt.fill")
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                    Text(isTestingAll ? L10n.Settings.channelsTesting : L10n.Settings.channelsTestAll)
+                        .font(DesignToken.Font.system(size: 12, weight: .medium))
+                }
+                .frame(width: 98, height: DesignToken.Layout.buttonMinHeight)
+            }
+            .buttonStyle(.plain)
+            .disabled(isTestingAll || channelStore.enabledChannels.isEmpty)
+            .accessibilityIdentifier("settings.channels.testAll")
+
+            Divider()
+                .frame(height: DesignToken.Layout.buttonMinHeight - 8)
+
+            Button {
+                showingSortBySpeedConfirmation = true
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                    .frame(width: DesignToken.Layout.buttonMinHeight, height: DesignToken.Layout.buttonMinHeight)
+            }
+            .buttonStyle(.plain)
+            .disabled(channelStore.channels.filter { $0.lastLatencyMs > 0 }.count < 2)
+            .help(L10n.Settings.channelsSortBySpeed)
+            .accessibilityLabel(L10n.Settings.channelsSortBySpeed)
+            .accessibilityIdentifier("settings.channels.sortBySpeed")
+        }
+        .background(DesignToken.Colors.bgSecondary)
+        .foregroundColor(DesignToken.Colors.textPrimary)
+        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                .stroke(DesignToken.Colors.border, lineWidth: 1)
+        )
+    }
+
+    private var freeKeysUtilityBand: some View {
+        HStack(spacing: DesignToken.Spacing.md) {
+            Image(systemName: "key.fill")
+                .font(DesignToken.Font.system(size: 15, weight: .semibold))
+                .foregroundColor(DesignToken.Colors.accent)
+                .frame(width: 30, height: 30)
+                .background(DesignToken.Colors.bgPrimary)
+                .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Text(L10n.Settings.channelsFreeKeysTitle)
+                        .font(DesignToken.Font.h3())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+
+                    Text(L10n.Settings.channelsFreeKeysSource)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .lineLimit(1)
+
+                    Link(destination: FreeLLMKeySyncService.repositoryURL) {
+                        Image(systemName: "info.circle")
+                            .font(DesignToken.Font.system(size: 12, weight: .medium))
+                            .foregroundColor(DesignToken.Colors.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.Settings.channelsFreeKeysSourceHelp)
+                    .accessibilityLabel(L10n.Settings.channelsFreeKeysSourceHelp)
+                    .accessibilityIdentifier("settings.channels.freeKeys.sourceInfoButton")
+                }
+
+                Text(freeKeysStatusText)
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(freeKeysStatusIsError ? DesignToken.Colors.statusOffline : DesignToken.Colors.textSecondary)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("settings.channels.freeKeys.status")
+            }
+
+            Spacer(minLength: DesignToken.Spacing.sm)
+
+            Toggle("", isOn: $freeLLMKeySyncService.autoSyncEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .help(L10n.Settings.channelsFreeKeysAutoSyncSubtitle)
+                .accessibilityLabel(L10n.Settings.channelsFreeKeysAutoSync)
+                .accessibilityIdentifier("settings.channels.freeKeys.autoSyncToggle")
+
+            Text(L10n.Settings.channelsFreeKeysAutoSync)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .lineLimit(1)
+                .help(L10n.Settings.channelsFreeKeysAutoSyncSubtitle)
+
+            HoverButton(
+                title: freeLLMKeySyncService.isSyncing ? L10n.Settings.channelsFreeKeysFetching : L10n.Settings.channelsFreeKeysSyncNow,
+                icon: freeLLMKeySyncService.isSyncing ? "ellipsis.circle.fill" : "arrow.clockwise"
+            ) {
+                Task { await fetchAndAddFreeKeys() }
+            }
+            .frame(width: 98)
+            .disabled(freeLLMKeySyncService.isSyncing)
+            .accessibilityIdentifier("settings.channels.freeKeys.fetchButton")
+        }
+        .padding(.horizontal, DesignToken.Spacing.md)
+        .padding(.vertical, DesignToken.Spacing.sm)
+        .background(DesignToken.Colors.accent.opacity(0.08))
+        .cornerRadius(DesignToken.Layout.cardCornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
+                .stroke(DesignToken.Colors.accent.opacity(0.16), lineWidth: 1)
+        )
+        .padding(.horizontal, DesignToken.Layout.cardPadding)
+    }
+
+    private var channelListToolbar: some View {
+        HStack(spacing: DesignToken.Spacing.sm) {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .font(DesignToken.Font.system(size: 12, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.textTertiary)
+                TextField(L10n.Settings.channelsSearchPlaceholder, text: $channelSearchText)
+                    .textFieldStyle(.plain)
+                    .font(DesignToken.Font.caption())
+            }
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .frame(height: DesignToken.Layout.buttonMinHeight)
+            .background(DesignToken.Colors.bgSecondary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                    .stroke(DesignToken.Colors.border, lineWidth: 1)
+            )
+            .accessibilityIdentifier("settings.channels.searchField")
+
+            Text(channelCountText)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .lineLimit(1)
+                .frame(minWidth: 58, alignment: .trailing)
+                .accessibilityIdentifier("settings.channels.count")
+
+            Picker("", selection: $channelFilter) {
+                ForEach(ChannelListFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 156)
+            .accessibilityIdentifier("settings.channels.filter")
+        }
+        .padding(.horizontal, DesignToken.Layout.cardPadding)
+    }
+
+    @ViewBuilder
+    private var channelList: some View {
+        if channelStore.channels.isEmpty {
+            EmptyChannelView()
+        } else if filteredChannels.isEmpty {
+            noMatchingChannelsView
+        } else {
+            List {
+                if isFilteringChannels {
+                    ForEach(filteredChannels) { channel in
+                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
+                    }
+                } else {
+                    ForEach(channelStore.channels) { channel in
+                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
+                    }
+                    .onMove(perform: channelStore.moveChannel)
+                }
+            }
+            .listStyle(.bordered(alternatesRowBackgrounds: false))
+            .accessibilityIdentifier("settings.channels.list")
+        }
+    }
+
+    private var noMatchingChannelsView: some View {
+        VStack(spacing: DesignToken.Spacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(DesignToken.Font.system(size: 28, weight: .regular))
+                .foregroundColor(DesignToken.Colors.textTertiary)
+            Text(L10n.Settings.channelsNoMatchesTitle)
+                .font(DesignToken.Font.h3())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+            Text(L10n.Settings.channelsNoMatchesSubtitle)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("settings.channels.noMatches")
+    }
+
+    private var channelsFooter: some View {
+        HStack(spacing: DesignToken.Spacing.xs) {
+            IconButton(
+                icon: "square.and.arrow.up",
+                tooltip: L10n.ChannelExport.exportChannels,
+                isDisabled: channelStore.channels.isEmpty
+            ) {
+                channelExportService.showExportOptions(channels: channelStore.channels)
+            }
+            .help(L10n.ChannelExport.exportChannels)
+            .accessibilityIdentifier("settings.channels.exportChannels")
+
+            IconButton(
+                icon: "square.and.arrow.down",
+                tooltip: L10n.ChannelExport.importChannels
+            ) {
+                channelExportService.importChannelsWithPanel()
+            }
+            .help(L10n.ChannelExport.importChannels)
+            .accessibilityIdentifier("settings.channels.importChannels")
+
+            Spacer()
+
+            Text(isFilteringChannels ? L10n.Settings.channelsReorderFilteredHint : L10n.Settings.channelsReorderHint)
+                .font(DesignToken.Font.micro())
+                .foregroundColor(DesignToken.Colors.textTertiary)
+        }
+        .padding(.horizontal, DesignToken.Layout.cardPadding)
+        .padding(.bottom, DesignToken.Spacing.xs)
+    }
+
+    private func fetchAndAddFreeKeys() async {
+        freeKeysStatusMessage = nil
+        freeKeysStatusIsError = false
+        do {
+            let result = try await freeLLMKeySyncService.syncNow()
+            freeKeysStatusMessage = result.addedChannel
+                ? L10n.Settings.channelsFreeKeysSuccessAdded(result.keyCount, result.modelCount)
+                : L10n.Settings.channelsFreeKeysSuccessUpdated(result.keyCount, result.modelCount)
+        } catch {
+            freeKeysStatusMessage = error.localizedDescription
+            freeKeysStatusIsError = true
+        }
+    }
+
+    private func runSpeedTests() {
+        Task {
+            isTestingAll = true
+            await channelManager.speedTestAllChannels()
+            isTestingAll = false
+        }
+    }
+
+    private func primaryToolbarButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: icon)
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                Text(title)
+                    .font(DesignToken.Font.system(size: 12, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
+            .foregroundColor(DesignToken.Colors.buttonLabel)
+            .background(DesignToken.Colors.accent)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var filteredChannels: [Channel] {
+        channelStore.channels.filter { channel in
+            let matchesFilter: Bool
+            switch channelFilter {
+            case .all:
+                matchesFilter = true
+            case .enabled:
+                matchesFilter = channel.isEnabled
+            case .disabled:
+                matchesFilter = !channel.isEnabled
+            }
+
+            guard matchesFilter else { return false }
+
+            let query = channelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !query.isEmpty else { return true }
+
+            let searchableText = ([channel.name, channel.displayEndpointSummary] + channel.models.map(\.identifier))
+                .joined(separator: " ")
+                .lowercased()
+            return searchableText.contains(query)
+        }
+    }
+
+    private var isFilteringChannels: Bool {
+        !channelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || channelFilter != .all
+    }
+
+    private var channelCountText: String {
+        if isFilteringChannels {
+            return L10n.Settings.channelsFilteredCount(filteredChannels.count, channelStore.channels.count)
+        }
+        return L10n.Settings.channelsCount(channelStore.channels.count)
+    }
+
+    private var freeKeysStatusText: String {
+        if let freeKeysStatusMessage {
+            return freeKeysStatusMessage
+        }
+
+        if let lastSyncAt = freeLLMKeySyncService.lastSyncAt {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            let relative = formatter.localizedString(for: lastSyncAt, relativeTo: Date())
+            return L10n.Settings.channelsFreeKeysLastSync(relative)
+        }
+
+        return L10n.Settings.channelsFreeKeysNeverSynced
     }
 }
 

@@ -9,16 +9,30 @@
 "menu.stats.requests" = "Requests: %lld";
 "menu.stats.tokens" = "Tokens: %lld";
 "menu.stats.summary" = "%lld requests · %lld tokens";
+"menu.stats.requests.label" = "Requests today";
+"menu.stats.tokens.label" = "Tokens";
+"menu.proxy.pause" = "Pause";
+"menu.proxy.start" = "Start";
+"menu.proxy.running.subtitle" = "Listening for local requests";
+"menu.proxy.stopped.subtitle" = "Proxy paused. App stays open.";
+"menu.routing.title" = "Routing";
+"menu.routing.protocols" = "OpenAI / Anthropic";
+"menu.routing.default.subtitle" = "Auto-route by requested model";
+"menu.routing.override.subtitle" = "Force this model for client requests";
+"menu.failover.subtitle" = "Skip failed channels after 429 / 5xx / 401";
 "menu.failover.auto" = "Auto-Failover";
 "menu.failover.manual" = "Manual Mode";
 "menu.requests.recent" = "Recent Requests";
 "menu.requests.none" = "No recent requests";
+"menu.requests.count" = "%lld items";
 "menu.request.entry" = "%s · %s · %s";
 "menu.time.seconds" = "%ds ago";
 "menu.time.minutes" = "%dm ago";
 "menu.time.hours" = "%dh ago";
 "menu.copy.env" = "Copy Env Config";
+"menu.copy.config" = "Copy Config";
 "menu.test.key" = "Test Channels";
+"menu.test.channels" = "Test Channels";
 "menu.settings" = "Settings...";
 "menu.quit" = "Quit";
 "menu.speed" = "Speed: %lldms";
@@ -54,6 +68,7 @@
 
 // Channel Settings
 "settings.channels.add" = "Add Channel";
+"settings.channels.subtitle" = "Manage providers, API keys, and model routing priority.";
 "settings.channels.edit" = "Edit Channel";
 "settings.channels.delete" = "Delete";
 "settings.channels.enable" = "Enable";
@@ -69,6 +84,31 @@
 "settings.channels.testAll" = "Test All";
 "settings.channels.testing" = "Testing...";
 "settings.channels.reorderHint" = "Reorder: drag using ⠿ handle on left";
+"settings.channels.reorderFilteredHint" = "Clear search/filter to adjust priority";
+"settings.channels.searchPlaceholder" = "Search channels or models";
+"settings.channels.filterAll" = "All";
+"settings.channels.filterEnabled" = "Enabled";
+"settings.channels.filterDisabled" = "Disabled";
+"settings.channels.count" = "%lld channels";
+"settings.channels.filteredCount" = "%lld/%lld";
+"settings.channels.sortBySpeed" = "Sort by speed";
+"settings.channels.sortBySpeedConfirmTitle" = "Sort channels by speed?";
+"settings.channels.sortBySpeedConfirmMessage" = "Channels with speed test results will be sorted from fastest to slowest. Channels without results will stay after measured channels. This changes routing priority.";
+"settings.channels.sortBySpeedConfirm" = "Sort";
+"settings.channels.noMatchesTitle" = "No matching channels";
+"settings.channels.noMatchesSubtitle" = "Try another search term or filter.";
+"settings.channels.freeKeysTitle" = "Free Keys";
+"settings.channels.freeKeysSource" = "from alistaitsacle/free-llm-api-keys";
+"settings.channels.freeKeysFetchAndAdd" = "Free Keys";
+"settings.channels.freeKeysFetching" = "Fetching...";
+"settings.channels.freeKeysSyncNow" = "Sync Now";
+"settings.channels.freeKeysAutoSync" = "Daily sync";
+"settings.channels.freeKeysAutoSyncSubtitle" = "Sync free keys once per day on cold start or while the app is running.";
+"settings.channels.freeKeysSourceHelp" = "Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.";
+"settings.channels.freeKeysLastSync" = "Last sync: %@";
+"settings.channels.freeKeysNeverSynced" = "Not synced yet";
+"settings.channels.freeKeysSuccessAdded" = "Added Free LLM channel with %lld keys and %lld models.";
+"settings.channels.freeKeysSuccessUpdated" = "Updated Free LLM channel with %lld keys and %lld models.";
 "settings.channels.emptyTitle" = "No channels configured";
 "settings.channels.emptySubtitle" = "Add one to get started";
 
@@ -151,8 +191,8 @@
 "onboarding.done" = "You're All Set!";
 "onboarding.done_description" = "SmartLLM Router is ready. Start sending requests to localhost:1897";
 "onboarding.feature_failover" = "Automatic failover between API keys";
-"onboarding.feature_multikey" = "Multi-provider key management";
-"onboarding.feature_privacy" = "100% local — your keys never leave your Mac";
+"onboarding.feature_multi_key" = "Multi-provider key management";
+"onboarding.feature_privacy" = "100%% local — your keys never leave your Mac";
 
 // Onboarding - Batch Channel Add (v2)
 "onboarding.addChannel.title" = "Add Channels";

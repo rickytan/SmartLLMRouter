@@ -14,6 +14,7 @@ final class MenuBarManager: NSObject {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var closePopoverObserver: NSObjectProtocol?
+    private var proxyRunningStateObserver: NSObjectProtocol?
 
     init(services: AppServices) {
         self.services = services
@@ -28,7 +29,7 @@ final class MenuBarManager: NSObject {
         statusItem.button?.target = self
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 300, height: 520)
+        popover.contentSize = NSSize(width: 360, height: 540)
         popover.behavior = .transient
         popover.animates = true
 
@@ -46,6 +47,17 @@ final class MenuBarManager: NSObject {
                 self?.closePopover()
             }
         }
+
+        proxyRunningStateObserver = NotificationCenter.default.addObserver(
+            forName: .proxyRunningStateChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateIcon(isRunning: self.services.proxyServer.isRunning)
+            }
+        }
     }
 
     deinit {
@@ -59,6 +71,10 @@ final class MenuBarManager: NSObject {
 
         if let closePopoverObserver {
             NotificationCenter.default.removeObserver(closePopoverObserver)
+        }
+
+        if let proxyRunningStateObserver {
+            NotificationCenter.default.removeObserver(proxyRunningStateObserver)
         }
     }
 
@@ -162,4 +178,5 @@ final class MenuBarManager: NSObject {
 
 extension Notification.Name {
     static let closeMenuBarPopover = Notification.Name("SmartLLMRouter.closeMenuBarPopover")
+    static let proxyRunningStateChanged = Notification.Name("SmartLLMRouter.proxyRunningStateChanged")
 }

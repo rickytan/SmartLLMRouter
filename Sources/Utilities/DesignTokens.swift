@@ -77,8 +77,8 @@ enum DesignToken {
     // MARK: - Layout
 
     enum Layout {
-        static let menuWidth: CGFloat = 300
-        static let menuPadding: CGFloat = 12
+        static let menuWidth: CGFloat = 360
+        static let menuPadding: CGFloat = 14
         static let settingsWidth: CGFloat = 560
         static let settingsHeight: CGFloat = 420
         static let onboardingWidth: CGFloat = 520

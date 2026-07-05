@@ -56,6 +56,7 @@ final class ProxyServer: ObservableObject {
         do {
             try httpServer.start(in_port_t(usePort), forceIPv4: true)
             isRunning = true
+            lastError = nil
             self.port = usePort
             Log.info("Proxy started on port \(usePort)")
         } catch {
@@ -68,6 +69,7 @@ final class ProxyServer: ObservableObject {
     func stop() {
         httpServer.stop()
         isRunning = false
+        lastError = nil
         Log.info("Proxy stopped")
     }
 

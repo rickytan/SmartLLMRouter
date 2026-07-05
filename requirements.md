@@ -509,10 +509,10 @@
 #### SwiftGen 配置
 1.  **strings + xcassets 共存**: `SwiftGen.yml` 必须同时配置两个输入源
 2.  **v6 语法注意**: 输入路径不可直接写多个 `.lproj`，否则报 `Duplicate file` 错误
-3.  **L10n.swift 双轨制**:
-    - SwiftGen `structured-swift5` 生成的嵌套命名与现有 `L10n.X.Y` 约定不兼容
-    - 决定：`strings` 仅保留在 `SwiftGen.yml` 作占位，实际代码维护**手写** `L10n.swift`
-    - **新增 UI 文案必须手动同步至 `L10n.swift`**，否则编译报 `use of unresolved identifier`
+3.  **L10n.swift 生成规则**:
+    - SwiftGen `structured-swift5` 默认嵌套命名与现有 `L10n.X.y` 约定不兼容
+    - 决定：使用项目内自定义模板 `swiftgen/templates/l10n-compat.stencil`
+    - **新增 UI 文案必须更新 `.strings` 后执行 `swiftgen config run`**，不要手动编辑 `Sources/Generated/L10n.swift`
 
 #### 构建顺序铁律
 ```
@@ -731,7 +731,7 @@ case .addChannel:
 #### 必须遵守的约束
 1. **不能跳转新页面**: 表单必须在当前页面内展开/收起（使用 `if isAddingChannel` 或 `.sheet` 但不要用 NavigationLink 跳转）
 2. **窗口尺寸**: 确保 `DesignToken.Layout.onboardingHeight` >= 500px
-3. **L10n 同步**: 新增文案必须手动添加到 `Sources/Generated/L10n.swift`
+3. **L10n 同步**: 新增文案必须添加到 `.strings` 后执行 `swiftgen config run`
 4. **编译通过**: 提交前必须 `xcodebuild` 编译通过
 
 ---
@@ -1624,7 +1624,7 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 构建顺序明确定义（xcodegen → pod install → swiftgen → build）
 - [ ] SwiftGen 配置完整性（strings + xcassets 共存）
 - [ ] 工程文件版本控制策略（哪些进 Git，哪些不进）
-- [ ] L10n 维护策略（自动生成 vs 手写）
+- [ ] L10n 维护策略（SwiftGen + 项目兼容模板）
 
 ### 7.5 安全与隐私
 - [ ] API Key 存储方案（Keychain）
@@ -1653,4 +1653,3 @@ struct ModelEntry: Identifiable, Codable {
 - [ ] 所有可交互元素是否有稳定 accessibilityIdentifier
 - [ ] UI Test 是否避免 `sleep(0.5)`、`.isDisabled` 等已知编译陷阱
 - [ ] Hermes 是否只负责 Review、测试、编译与质量门禁，业务/UI 实现交给 Claude Code
-

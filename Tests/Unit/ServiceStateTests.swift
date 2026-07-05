@@ -67,6 +67,27 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(isolated.store.activeChannelID, second.id)
     }
 
+    func testSortChannelsByLatencyPrioritizesMeasuredFastestChannels() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        defer { isolated.cleanup() }
+
+        var unmeasured = makeChannel(id: "unmeasured", name: "Unmeasured", priority: 1)
+        unmeasured.lastLatencyMs = 0
+        var slow = makeChannel(id: "slow", name: "Slow", priority: 2)
+        slow.lastLatencyMs = 800
+        var fast = makeChannel(id: "fast", name: "Fast", priority: 3)
+        fast.lastLatencyMs = 42
+
+        isolated.store.addChannel(unmeasured)
+        isolated.store.addChannel(slow)
+        isolated.store.addChannel(fast)
+
+        isolated.store.sortChannelsByLatency()
+
+        XCTAssertEqual(isolated.store.channels.map(\.id), ["fast", "slow", "unmeasured"])
+        XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
+    }
+
     func testModelSwitcherExcludesDisabledChannelsAndClearsInvalidSelection() {
         let isolatedStore = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
         let isolatedKeychain = KeychainManagerTestSupport.makeIsolatedKeychainManager()
