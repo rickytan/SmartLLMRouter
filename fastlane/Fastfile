@@ -148,6 +148,22 @@ lane :build do
   FileUtils.rm_rf(File.join(build_dir, APP_NAME))
   run("ditto", "#{built_products_dir}/#{APP_NAME}", "build/#{APP_NAME}")
 
+  # Inject SUChannel into the app's Info.plist based on version tag
+  version = app_version
+  channel = nil
+  if version.match?(/alpha/i)
+    channel = "alpha"
+  elsif version.match?(/beta/i)
+    channel = "beta"
+  elsif version.match?(/rc/i)
+    channel = "rc"
+  end
+  if channel
+    plist_path = root_path("build/#{APP_NAME}/Contents/Info.plist")
+    run("/usr/libexec/PlistBuddy", "-c", "Add :SUChannel string #{channel}", plist_path)
+    UI.important("Injected SUChannel=#{channel} into app Info.plist")
+  end
+
   dsym_src = "#{built_products_dir}/#{APP_NAME}.dSYM"
   if Dir.exist?(dsym_src)
     FileUtils.rm_rf(File.join(build_dir, "#{APP_NAME}.dSYM"))
@@ -353,9 +369,7 @@ lane :release do
     UI.important("Skipping notarization (ad-hoc build)")
   end
 
-  if is_prerelease?
-    UI.important("Skipping Appcast generation (prerelease: #{app_version})")
-  elsif signed_build?
+  if signed_build?
     appcast
   end
 

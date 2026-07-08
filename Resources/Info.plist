@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>SmartLLMRouter</string>
+	<key>SUEnableChannel</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://smartllmrouter.github.io/appcast.xml</string>
 	<key>SUPublicEDKey</key>

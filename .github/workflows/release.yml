@@ -214,4 +214,3 @@ jobs:
           git add appcast.xml
           git diff --staged --quiet || git commit -m "Update appcast for ${{ steps.version.outputs.tag }}"
           git push
-        if: ${{ steps.prerelease.outputs.value == 'false' }}
