@@ -136,9 +136,11 @@ final class HTTPForwardingClient {
             lastIndex = keyEntry.index
 
             if case let .success(data, statusCode, _) = result {
-                if statusCode == 401, let channelID, let apiKeyAvailabilityStore {
+                if ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: statusCode, body: data),
+                   let channelID,
+                   let apiKeyAvailabilityStore {
                     apiKeyAvailabilityStore.markUnauthorized(channelID: channelID, apiKey: apiKey)
-                    Log.warn("[\(requestID)] \(channelName) API key #\(keyEntry.index + 1) returned HTTP 401; marking unavailable for this app session")
+                    Log.warn("[\(requestID)] \(channelName) API key #\(keyEntry.index + 1) returned non-recoverable HTTP \(statusCode); marking unavailable for this app session")
                 }
 
                 if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),

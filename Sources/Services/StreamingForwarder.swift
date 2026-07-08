@@ -255,9 +255,11 @@ final class StreamingForwarder {
                 return completion
             }
 
-            if completion.statusCode == 401, let channelID, let apiKeyAvailabilityStore {
+            if ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: completion.statusCode, body: completion.body),
+               let channelID,
+               let apiKeyAvailabilityStore {
                 apiKeyAvailabilityStore.markUnauthorized(channelID: channelID, apiKey: apiKey)
-                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned HTTP 401; marking unavailable for this app session")
+                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned non-recoverable HTTP \(completion.statusCode); marking unavailable for this app session")
             }
 
             if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: completion.statusCode, body: completion.body),

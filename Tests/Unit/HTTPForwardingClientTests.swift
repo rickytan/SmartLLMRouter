@@ -29,6 +29,7 @@ final class HTTPForwardingClientTests: XCTestCase {
 
         let port = try start(server)
         let client = HTTPForwardingClient()
+        let availability = APIKeyAvailabilityStore()
         let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
 
         let forwardResult = client.forwardSyncWithAPIKeyFailover(
@@ -39,7 +40,9 @@ final class HTTPForwardingClientTests: XCTestCase {
             apiKeys: ["key-a", "key-b"],
             targetProtocol: .openai,
             channelName: "Test Channel",
-            requestID: "#test"
+            requestID: "#test",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability
         )
 
         guard case let .success(_, statusCode, _) = forwardResult.result else {
@@ -50,6 +53,23 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(forwardResult.apiKey, "key-b")
         XCTAssertEqual(forwardResult.keyIndex, 1)
         XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b"])
+        XCTAssertFalse(availability.isUnauthorized(channelID: "channel-a", apiKey: "key-a"))
+    }
+
+    func testAPIKeyUnavailableDetectionCoversOnlyNonRecoverableCredentialErrors() {
+        let invalidKeyBody = Data(#"{"error":{"message":"invalid_api_key"}}"#.utf8)
+        let quotaBody = Data(#"{"error":{"code":"insufficient_quota"}}"#.utf8)
+        let billingBody = Data(#"{"error":{"message":"billing is not active"}}"#.utf8)
+        let rateLimitBody = Data(#"{"error":{"message":"rate limit exceeded"}}"#.utf8)
+
+        XCTAssertTrue(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 401, body: nil))
+        XCTAssertTrue(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 402, body: nil))
+        XCTAssertTrue(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 400, body: invalidKeyBody))
+        XCTAssertTrue(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 403, body: quotaBody))
+        XCTAssertTrue(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 403, body: billingBody))
+        XCTAssertFalse(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 429, body: rateLimitBody))
+        XCTAssertFalse(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 500, body: billingBody))
+        XCTAssertFalse(ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: 403, body: nil))
     }
 
     func testForwardSyncMarks401KeyUnavailableForLaterRequests() throws {
