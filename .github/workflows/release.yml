@@ -202,11 +202,16 @@ jobs:
           draft: false
           prerelease: ${{ steps.prerelease.outputs.value }}
 
-      - name: Deploy Appcast to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: release-artifacts
-          keep_files: false
-          force_orphan: true
+      - name: Deploy Appcast to smartllmrouter.github.io
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git clone https://x-access-token:${GH_PAT}@github.com/SmartLLMRouter/smartllmrouter.github.io.git /tmp/pages
+          cp release-artifacts/appcast.xml /tmp/pages/
+          cd /tmp/pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git diff --staged --quiet || git commit -m "Update appcast for ${{ steps.version.outputs.tag }}"
+          git push
         if: ${{ steps.prerelease.outputs.value == 'false' }}
