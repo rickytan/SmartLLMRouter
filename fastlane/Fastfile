@@ -353,9 +353,7 @@ lane :release do
     UI.important("Skipping notarization (ad-hoc build)")
   end
 
-  if is_prerelease?
-    UI.important("Skipping Appcast generation (prerelease: #{app_version})")
-  elsif signed_build?
+  if signed_build?
     appcast
   end
 
