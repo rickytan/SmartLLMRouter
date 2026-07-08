@@ -6,11 +6,21 @@
 set -euo pipefail
 
 PREV_TAG="${1:-}"
-CURRENT_SHA="${2:-$GITHUB_SHA}"
+CURRENT_SHA="${2:-${GITHUB_SHA:-HEAD}}"
+CURRENT_TAG=""
+
+if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+  CURRENT_TAG="${GITHUB_REF#refs/tags/}"
+else
+  CURRENT_TAG=$(git describe --tags --exact-match "$CURRENT_SHA" 2>/dev/null || true)
+fi
 
 if [ -z "$PREV_TAG" ]; then
-  # Try to find previous tag
-  PREV_TAG=$(git tag --sort=-creatordate | grep -A1 "${GITHUB_REF#refs/tags/}" | tail -1)
+  if [ -n "$CURRENT_TAG" ] && git rev-parse -q --verify "$CURRENT_TAG^" >/dev/null; then
+    PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || true)
+  else
+    PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_SHA^" 2>/dev/null || true)
+  fi
 fi
 
 if [ -z "$PREV_TAG" ]; then
@@ -45,11 +55,7 @@ if [ -z "$NOTES" ]; then
   NOTES="No user-facing changes in this release."
 fi
 
-# Escape for GitHub Actions multiline output
-NOTES="${NOTES//'%'/'%25'}"
-NOTES="${NOTES//$'\n'/'%0A'}"
-NOTES="${NOTES//$'\r'/'%0D'}"
-
-echo "body<<EOF"
+DELIMITER="RELEASE_NOTES_$(date +%s)"
+echo "body<<$DELIMITER"
 echo "$NOTES"
-echo "EOF"
+echo "$DELIMITER"
