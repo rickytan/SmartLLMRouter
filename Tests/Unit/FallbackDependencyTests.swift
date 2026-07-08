@@ -40,6 +40,7 @@ final class FallbackDependencyTests: XCTestCase {
             modelOverrideState: ModelOverrideRuntimeState(),
             circuitBreaker: CircuitBreaker(),
             switchLock: SwitchLock(),
+            apiKeyAvailabilityStore: APIKeyAvailabilityStore(),
             modelAggregator: aggregator,
             modelSwitcher: switcher,
             usageTracker: UsageTracker(defaults: isolatedStore.defaults)
@@ -227,4 +228,3 @@ private enum ScriptedTransportError: Error {
     case missingDataResult
     case missingResponseResult
 }
-

@@ -164,6 +164,8 @@ final class StreamingForwarder {
     private let incomingProtocol: RequestForwarder.RequestProtocol
     private let upstreamProtocol: RequestForwarder.RequestProtocol
     private let channelName: String
+    private let channelID: String?
+    private let apiKeyAvailabilityStore: APIKeyAvailabilityStore?
     private let requestID: String
     private let model: String
     private let maxAPIKeyAttempts: Int
@@ -178,6 +180,8 @@ final class StreamingForwarder {
         incomingProtocol: RequestForwarder.RequestProtocol,
         upstreamProtocol: RequestForwarder.RequestProtocol,
         channelName: String,
+        channelID: String? = nil,
+        apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil,
         requestID: String,
         model: String,
         maxAPIKeyAttempts: Int = 3
@@ -191,23 +195,36 @@ final class StreamingForwarder {
         self.incomingProtocol = incomingProtocol
         self.upstreamProtocol = upstreamProtocol
         self.channelName = channelName
+        self.channelID = channelID
+        self.apiKeyAvailabilityStore = apiKeyAvailabilityStore
         self.requestID = requestID
         self.model = model
         self.maxAPIKeyAttempts = max(1, maxAPIKeyAttempts)
     }
 
     func stream(to writer: HttpResponseBodyWriter, writesErrorOnFailure: Bool = true) -> Completion {
-        guard !apiKeys.isEmpty else {
+        let availableKeys: [(index: Int, key: String)]
+        if let channelID, let apiKeyAvailabilityStore {
+            availableKeys = apiKeyAvailabilityStore.availableKeys(for: channelID, apiKeys: apiKeys)
+        } else {
+            availableKeys = apiKeys.enumerated().compactMap { index, key in
+                let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmedKey.isEmpty ? nil : (index, trimmedKey)
+            }
+        }
+
+        guard !availableKeys.isEmpty else {
             if writesErrorOnFailure {
-                writeError("No API key configured", to: writer)
+                writeError("No available API key", to: writer)
             }
             return Completion(statusCode: 502, headers: [:], body: Data(), keyIndex: 0, didWriteBody: writesErrorOnFailure, error: nil)
         }
 
         var lastCompletion = Completion(statusCode: 502, headers: [:], body: Data(), keyIndex: 0, didWriteBody: false, error: nil)
-        let attempts = Array(apiKeys.prefix(maxAPIKeyAttempts))
+        let attempts = Array(availableKeys.prefix(maxAPIKeyAttempts))
 
-        for (index, apiKey) in attempts.enumerated() {
+        for (attemptIndex, keyEntry) in attempts.enumerated() {
+            let apiKey = keyEntry.key
             var keyedHeaders = headers
             ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
 
@@ -228,7 +245,7 @@ final class StreamingForwarder {
                 statusCode: completion.statusCode,
                 headers: completion.headers,
                 body: completion.body,
-                keyIndex: index,
+                keyIndex: keyEntry.index,
                 didWriteBody: completion.didWriteBody,
                 error: completion.error
             )
@@ -238,9 +255,14 @@ final class StreamingForwarder {
                 return completion
             }
 
+            if completion.statusCode == 401, let channelID, let apiKeyAvailabilityStore {
+                apiKeyAvailabilityStore.markUnauthorized(channelID: channelID, apiKey: apiKey)
+                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned HTTP 401; marking unavailable for this app session")
+            }
+
             if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: completion.statusCode, body: completion.body),
-               index < attempts.count - 1 {
-                Log.warn("[\(requestID)] \(channelName) streaming API key #\(index + 1) returned HTTP \(completion.statusCode); retrying next key")
+               attemptIndex < attempts.count - 1 {
+                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned HTTP \(completion.statusCode); retrying next key")
                 continue
             }
 

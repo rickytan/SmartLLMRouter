@@ -71,7 +71,9 @@ final class AuxiliaryEndpointHandler {
             apiKeys: state.apiKeys,
             targetProtocol: targetProtocol,
             channelName: channel.name,
-            requestID: "#\(reqId)"
+            requestID: "#\(reqId)",
+            channelID: channel.id,
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
         )
         let result = keyForwardResult.result
 
