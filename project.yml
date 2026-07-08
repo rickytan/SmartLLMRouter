@@ -35,6 +35,7 @@ targets:
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         LSUIElement: true
         NSHumanReadableCopyright: "SmartLLMRouter"
+        SUEnableChannel: true
         SUFeedURL: "https://smartllmrouter.github.io/appcast.xml"
         SUPublicEDKey: "N9VmllR+tHZrPVcLnuTP3Zp2CPFQ8ULyZHGr/sfYzNY="
     scheme:
