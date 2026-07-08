@@ -390,7 +390,9 @@ final class ProxyServer: ObservableObject {
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
-            requestID: "#\(reqId)"
+            requestID: "#\(reqId)",
+            channelID: channel.id,
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
         )
         let result = keyForwardResult.result
 
@@ -634,7 +636,9 @@ final class ProxyServer: ObservableObject {
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
-            requestID: "#\(reqId)"
+            requestID: "#\(reqId)",
+            channelID: channel.id,
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
         )
         let result = keyForwardResult.result
 
@@ -827,7 +831,9 @@ final class ProxyServer: ObservableObject {
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
-            requestID: "#\(reqId)"
+            requestID: "#\(reqId)",
+            channelID: channel.id,
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
         )
         let result = keyForwardResult.result
 
@@ -1076,6 +1082,8 @@ final class ProxyServer: ObservableObject {
                     incomingProtocol: incomingProtocol,
                     upstreamProtocol: upstreamProtocol,
                     channelName: channel.name,
+                    channelID: channel.id,
+                    apiKeyAvailabilityStore: self.services.apiKeyAvailabilityStore,
                     requestID: "#\(reqId)",
                     model: model
                 )

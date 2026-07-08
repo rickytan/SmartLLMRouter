@@ -52,6 +52,69 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b"])
     }
 
+    func testForwardSyncMarks401KeyUnavailableForLaterRequests() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            let authorization = request.headers["authorization"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "Bearer bad-key" {
+                return Self.jsonResponse(
+                    statusCode: 401,
+                    json: ["error": ["message": "invalid token"]]
+                )
+            }
+            return Self.jsonResponse(statusCode: 200, json: ["ok": true])
+        }
+
+        let port = try start(server)
+        let client = HTTPForwardingClient()
+        let availability = APIKeyAvailabilityStore()
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+
+        let firstResult = client.forwardSyncWithAPIKeyFailover(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{}".utf8),
+            timeout: 5,
+            apiKeys: ["bad-key", "good-key"],
+            targetProtocol: .openai,
+            channelName: "Test Channel",
+            requestID: "#test-1",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability
+        )
+
+        guard case let .success(_, firstStatusCode, _) = firstResult.result else {
+            XCTFail("Expected success after retry")
+            return
+        }
+        XCTAssertEqual(firstStatusCode, 200)
+        XCTAssertTrue(availability.isUnauthorized(channelID: "channel-a", apiKey: "bad-key"))
+
+        let secondResult = client.forwardSyncWithAPIKeyFailover(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{}".utf8),
+            timeout: 5,
+            apiKeys: ["bad-key", "good-key"],
+            targetProtocol: .openai,
+            channelName: "Test Channel",
+            requestID: "#test-2",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability
+        )
+
+        guard case let .success(_, secondStatusCode, _) = secondResult.result else {
+            XCTFail("Expected success without retrying bad key")
+            return
+        }
+        XCTAssertEqual(secondStatusCode, 200)
+        XCTAssertEqual(secondResult.apiKey, "good-key")
+        XCTAssertEqual(secondResult.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer bad-key", "Bearer good-key", "Bearer good-key"])
+    }
+
     func testForwardSyncDoesNotRetryAfterSuccess() throws {
         let server = HttpServer()
         var authorizations: [String] = []
@@ -83,6 +146,18 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(forwardResult.apiKey, "key-a")
         XCTAssertEqual(forwardResult.keyIndex, 0)
         XCTAssertEqual(authorizations, ["Bearer key-a"])
+    }
+
+    func testForwardSyncDoesNotShareUnauthorizedStateAcrossChannels() throws {
+        let availability = APIKeyAvailabilityStore()
+        availability.markUnauthorized(channelID: "channel-a", apiKey: "shared-key")
+
+        XCTAssertTrue(availability.isUnauthorized(channelID: "channel-a", apiKey: "shared-key"))
+        XCTAssertFalse(availability.isUnauthorized(channelID: "channel-b", apiKey: "shared-key"))
+        XCTAssertEqual(
+            availability.availableKeys(for: "channel-b", apiKeys: ["shared-key"]).map { $0.key },
+            ["shared-key"]
+        )
     }
 
     func testStreamingForwarderConvertsOpenAIStreamToAnthropicEvents() throws {
@@ -177,6 +252,7 @@ final class HTTPForwardingClientTests: XCTestCase {
         }
 
         let port = try start(server)
+        let availability = APIKeyAvailabilityStore()
         let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
         let writer = CapturingBodyWriter()
         let forwarder = StreamingForwarder(
@@ -188,6 +264,8 @@ final class HTTPForwardingClientTests: XCTestCase {
             incomingProtocol: .anthropic,
             upstreamProtocol: .openai,
             channelName: "Test Channel",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability,
             requestID: "#stream-test",
             model: "gpt-test"
         )
@@ -198,9 +276,72 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertTrue(completion.isSuccess)
         XCTAssertEqual(completion.keyIndex, 1)
         XCTAssertEqual(authorizations, ["Bearer bad-key", "Bearer good-key"])
+        XCTAssertTrue(availability.isUnauthorized(channelID: "channel-a", apiKey: "bad-key"))
         XCTAssertTrue(output.contains("event: message_start"))
         XCTAssertTrue(output.contains("\"text\":\"ok\""))
         XCTAssertFalse(output.contains("invalid token"))
+
+        let secondWriter = CapturingBodyWriter()
+        let secondForwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["bad-key", "good-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .openai,
+            channelName: "Test Channel",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability,
+            requestID: "#stream-test-2",
+            model: "gpt-test"
+        )
+
+        let secondCompletion = secondForwarder.stream(to: secondWriter)
+
+        XCTAssertTrue(secondCompletion.isSuccess)
+        XCTAssertEqual(secondCompletion.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer bad-key", "Bearer good-key", "Bearer good-key"])
+        XCTAssertTrue(secondWriter.string.contains("\"text\":\"ok\""))
+    }
+
+    func testStreamingForwarderSkipsPreviouslyUnauthorizedAPIKey() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            authorizations.append(request.headers["authorization"] ?? "")
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data("data: {\"id\":\"chatcmpl-1\",\"model\":\"gpt-test\",\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n".utf8))
+                try writer.write(Data("data: [DONE]\n\n".utf8))
+            }
+        }
+
+        let port = try start(server)
+        let availability = APIKeyAvailabilityStore()
+        availability.markUnauthorized(channelID: "channel-a", apiKey: "bad-key")
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["bad-key", "good-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .openai,
+            channelName: "Test Channel",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability,
+            requestID: "#stream-test",
+            model: "gpt-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertEqual(completion.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer good-key"])
+        XCTAssertTrue(writer.string.contains("\"text\":\"ok\""))
     }
 
     func testStreamingForwarderPassesThroughAnthropicStreamAndHeaders() throws {

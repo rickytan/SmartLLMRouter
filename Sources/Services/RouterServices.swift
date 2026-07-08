@@ -11,6 +11,7 @@ final class RouterServices {
     let modelOverrideState: ModelOverrideRuntimeState
     let circuitBreaker: CircuitBreaker
     let switchLock: SwitchLock
+    let apiKeyAvailabilityStore: APIKeyAvailabilityStore
     let modelAggregator: ModelAggregator
     let modelSwitcher: ModelSwitcher
     let usageTracker: UsageTracker
@@ -21,6 +22,7 @@ final class RouterServices {
         modelOverrideState: ModelOverrideRuntimeState,
         circuitBreaker: CircuitBreaker,
         switchLock: SwitchLock,
+        apiKeyAvailabilityStore: APIKeyAvailabilityStore,
         modelAggregator: ModelAggregator,
         modelSwitcher: ModelSwitcher,
         usageTracker: UsageTracker
@@ -30,6 +32,7 @@ final class RouterServices {
         self.modelOverrideState = modelOverrideState
         self.circuitBreaker = circuitBreaker
         self.switchLock = switchLock
+        self.apiKeyAvailabilityStore = apiKeyAvailabilityStore
         self.modelAggregator = modelAggregator
         self.modelSwitcher = modelSwitcher
         self.usageTracker = usageTracker

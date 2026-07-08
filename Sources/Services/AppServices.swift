@@ -57,6 +57,7 @@ final class AppServices {
             circuitBreaker: circuitBreaker,
             switchLock: switchLock
         )
+        let apiKeyAvailabilityStore = APIKeyAvailabilityStore()
         let modelOverrideState = ModelOverrideRuntimeState()
         let store = ChannelStore(runtimeState: runtimeState)
         let cooldownEngine = CooldownEngine(channelStore: store)
@@ -79,6 +80,7 @@ final class AppServices {
             modelOverrideState: modelOverrideState,
             circuitBreaker: circuitBreaker,
             switchLock: switchLock,
+            apiKeyAvailabilityStore: apiKeyAvailabilityStore,
             modelAggregator: aggregator,
             modelSwitcher: switcher,
             usageTracker: usageTracker

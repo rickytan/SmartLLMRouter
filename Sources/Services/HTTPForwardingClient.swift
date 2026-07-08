@@ -86,15 +86,25 @@ final class HTTPForwardingClient {
         apiKeys: [String],
         targetProtocol: RequestForwarder.RequestProtocol,
         channelName: String,
-        requestID: String
+        requestID: String,
+        channelID: String? = nil,
+        apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil
     ) -> APIKeyForwardResult {
-        let keys = apiKeys.filter { !$0.isEmpty }
+        let keys: [(index: Int, key: String)]
+        if let channelID, let apiKeyAvailabilityStore {
+            keys = apiKeyAvailabilityStore.availableKeys(for: channelID, apiKeys: apiKeys)
+        } else {
+            keys = apiKeys.enumerated().compactMap { index, key in
+                let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmedKey.isEmpty ? nil : (index, trimmedKey)
+            }
+        }
         guard let firstKey = keys.first else {
             return APIKeyForwardResult(
                 result: .failure(NSError(
                     domain: "HTTPForwardingClient",
                     code: -2,
-                    userInfo: [NSLocalizedDescriptionKey: "No API key"]
+                    userInfo: [NSLocalizedDescriptionKey: "No available API key"]
                 )),
                 apiKey: "",
                 keyIndex: 0
@@ -106,10 +116,11 @@ final class HTTPForwardingClient {
             code: -1,
             userInfo: [NSLocalizedDescriptionKey: "No request attempted"]
         ))
-        var lastKey = firstKey
-        var lastIndex = 0
+        var lastKey = firstKey.key
+        var lastIndex = firstKey.index
 
-        for (index, apiKey) in keys.enumerated() {
+        for (attemptIndex, keyEntry) in keys.enumerated() {
+            let apiKey = keyEntry.key
             var keyedHeaders = headers
             ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: targetProtocol)
             let result = forwardSync(
@@ -122,13 +133,19 @@ final class HTTPForwardingClient {
 
             lastResult = result
             lastKey = apiKey
-            lastIndex = index
+            lastIndex = keyEntry.index
 
-            if case let .success(data, statusCode, _) = result,
-               ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),
-               index < keys.count - 1 {
-                Log.warn("[\(requestID)] \(channelName) API key #\(index + 1) returned HTTP \(statusCode); retrying next key")
-                continue
+            if case let .success(data, statusCode, _) = result {
+                if statusCode == 401, let channelID, let apiKeyAvailabilityStore {
+                    apiKeyAvailabilityStore.markUnauthorized(channelID: channelID, apiKey: apiKey)
+                    Log.warn("[\(requestID)] \(channelName) API key #\(keyEntry.index + 1) returned HTTP 401; marking unavailable for this app session")
+                }
+
+                if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: statusCode, body: data),
+                   attemptIndex < keys.count - 1 {
+                    Log.warn("[\(requestID)] \(channelName) API key #\(keyEntry.index + 1) returned HTTP \(statusCode); retrying next key")
+                    continue
+                }
             }
 
             break

@@ -543,6 +543,7 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             modelOverrideState: overrideState,
             circuitBreaker: circuitBreaker,
             switchLock: switchLock,
+            apiKeyAvailabilityStore: APIKeyAvailabilityStore(),
             modelAggregator: aggregator,
             modelSwitcher: switcher,
             usageTracker: UsageTracker(defaults: isolatedStore.defaults)
