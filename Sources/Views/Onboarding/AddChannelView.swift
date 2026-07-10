@@ -36,6 +36,7 @@ struct AddChannelView: View {
 
     // Search (for provider picker)
     @State private var searchQuery: String = ""
+    @State private var didRequestProviderRefresh: Bool = false
 
     @MainActor
     init(editingChannel: Channel? = nil, services: AppServices? = nil) {
@@ -132,6 +133,7 @@ struct AddChannelView: View {
                 selectedProviderId = channelManager.providerTemplates.first?.id
                 applyTemplateSelection()
             }
+            refreshProviderTemplatesIfNeeded()
         }
 
     }
@@ -156,9 +158,46 @@ struct AddChannelView: View {
 
     private var providerSection: some View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
-            Text(L10n.AddChannel.providerName)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
+            HStack(spacing: DesignToken.Spacing.sm) {
+                Text(L10n.AddChannel.providerName)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+
+                Spacer()
+
+                if let summary = channelManager.providerTemplateRefreshSummary {
+                    Text(summary)
+                        .font(DesignToken.Font.micro())
+                        .foregroundColor(DesignToken.Colors.textTertiary)
+                        .lineLimit(1)
+                }
+
+                Button {
+                    Task { await refreshProviderTemplates(selectFallback: false) }
+                } label: {
+                    HStack(spacing: DesignToken.Spacing.xs) {
+                        if channelManager.isRefreshingProviderTemplates {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                                .frame(width: DesignToken.Layout.buttonIconSize, height: DesignToken.Layout.buttonIconSize)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                        }
+                        Text(L10n.AddChannel.refreshProviders)
+                            .font(DesignToken.Font.micro())
+                    }
+                    .foregroundColor(DesignToken.Colors.accent)
+                    .padding(.horizontal, DesignToken.Spacing.sm)
+                    .frame(height: DesignToken.Layout.buttonMinHeight)
+                    .background(DesignToken.Colors.accent.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius))
+                }
+                .buttonStyle(.plain)
+                .disabled(channelManager.isRefreshingProviderTemplates)
+                .help(L10n.AddChannel.refreshProvidersHelp)
+                .accessibilityIdentifier("addChannel.refreshProvidersButton")
+            }
 
             if isCustomProvider {
                 ClearableTextField(
@@ -198,6 +237,26 @@ struct AddChannelView: View {
                     testResult = nil
                 }
             }
+        }
+    }
+
+    private func refreshProviderTemplatesIfNeeded() {
+        guard !didRequestProviderRefresh, editingChannel == nil else { return }
+        didRequestProviderRefresh = true
+        Task { await refreshProviderTemplates(selectFallback: true) }
+    }
+
+    private func refreshProviderTemplates(selectFallback: Bool) async {
+        let currentSelection = selectedProviderId
+        await channelManager.refreshProviderTemplatesFromModelsDev()
+        if let currentSelection,
+           channelManager.providerTemplates.contains(where: { $0.id == currentSelection }) {
+            selectedProviderId = currentSelection
+            return
+        }
+        if selectFallback {
+            selectedProviderId = channelManager.providerTemplates.first?.id
+            applyTemplateSelection()
         }
     }
 

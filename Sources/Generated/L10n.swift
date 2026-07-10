@@ -97,6 +97,22 @@ internal enum L10n {
     internal static var providerNamePlaceholder: String {
       L10n.tr("Localizable", "addchannel.providerNamePlaceholder", fallback: "e.g. Local Ollama")
     }
+    /// models.dev
+    internal static var refreshProviders: String {
+      L10n.tr("Localizable", "addchannel.refreshProviders", fallback: "models.dev")
+    }
+    /// models.dev update failed
+    internal static var refreshProvidersFailed: String {
+      L10n.tr("Localizable", "addchannel.refreshProvidersFailed", fallback: "models.dev update failed")
+    }
+    /// Refresh providers from models.dev
+    internal static var refreshProvidersHelp: String {
+      L10n.tr("Localizable", "addchannel.refreshProvidersHelp", fallback: "Refresh providers from models.dev")
+    }
+    /// Updated %lld providers from models.dev
+    internal static func refreshProvidersSuccess(_ p1: Int) -> String {
+      return L10n.tr("Localizable", "addchannel.refreshProvidersSuccess", p1, fallback: "Updated %lld providers from models.dev")
+    }
     /// Remove API Key
     internal static var removeApiKey: String {
       L10n.tr("Localizable", "addchannel.removeApiKey", fallback: "Remove API Key")
@@ -915,6 +931,10 @@ internal enum L10n {
     internal static var advancedSmartFallbackWarning: String {
       L10n.tr("Localizable", "settings.advanced.smartFallbackWarning", fallback: "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.")
     }
+    /// Routing resilience, fallback policy, and channel cooldown behavior.
+    internal static var advancedSubtitle: String {
+      L10n.tr("Localizable", "settings.advanced.subtitle", fallback: "Routing resilience, fallback policy, and channel cooldown behavior.")
+    }
     /// Request Timeout (seconds)
     internal static var advancedTimeout: String {
       L10n.tr("Localizable", "settings.advanced.timeout", fallback: "Request Timeout (seconds)")
@@ -1114,6 +1134,10 @@ internal enum L10n {
     /// Stop Service
     internal static var generalStopService: String {
       L10n.tr("Localizable", "settings.general.stopService", fallback: "Stop Service")
+    }
+    /// Service, shell environment, and Claude Code integration.
+    internal static var generalSubtitle: String {
+      L10n.tr("Localizable", "settings.general.subtitle", fallback: "Service, shell environment, and Claude Code integration.")
     }
     /// Update Shell Config
     internal static var generalUpdateShellConfig: String {
