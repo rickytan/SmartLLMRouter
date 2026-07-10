@@ -14,15 +14,15 @@ private enum SettingsTab: Int, Hashable {
     var size: CGSize {
         switch self {
         case .general:
-            CGSize(width: 760, height: 560)
+            CGSize(width: 640, height: 540)
         case .channels:
-            CGSize(width: DesignToken.Layout.settingsWidth, height: DesignToken.Layout.settingsHeight)
+            CGSize(width: 800, height: 600)
         case .advanced:
-            CGSize(width: 760, height: 560)
+            CGSize(width: 640, height: 600)
         case .usage:
-            CGSize(width: 840, height: 620)
+            CGSize(width: 800, height: 600)
         case .about:
-            CGSize(width: 520, height: 420)
+            CGSize(width: 480, height: 360)
         }
     }
 }
@@ -68,102 +68,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.tabAbout")
         }
         .frame(width: selectedTab.size.width, height: selectedTab.size.height)
-        .background(SettingsWindowResizer(targetContentSize: selectedTab.size))
         .animation(.easeInOut(duration: 0.18), value: selectedTab)
-    }
-}
-
-private struct SettingsWindowResizer: NSViewRepresentable {
-    let targetContentSize: CGSize
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        NSView(frame: .zero)
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else { return }
-            context.coordinator.resize(window: window, to: targetContentSize)
-        }
-    }
-
-    final class Coordinator {
-        private var lastContentSize: CGSize?
-
-        func resize(window: NSWindow, to targetContentSize: CGSize) {
-            guard lastContentSize != targetContentSize else { return }
-            guard let contentView = window.contentView else { return }
-
-            lastContentSize = targetContentSize
-
-            let currentContentSize = contentView.bounds.size
-            guard abs(currentContentSize.width - targetContentSize.width) > 0.5
-                || abs(currentContentSize.height - targetContentSize.height) > 0.5
-            else { return }
-
-            let widthDelta = targetContentSize.width - currentContentSize.width
-            let heightDelta = targetContentSize.height - currentContentSize.height
-            var targetFrame = window.frame
-            targetFrame.size.width += widthDelta
-            targetFrame.size.height += heightDelta
-            targetFrame.origin.y -= heightDelta
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.22
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                window.animator().setFrame(targetFrame, display: true)
-            }
-        }
-    }
-}
-
-private func settingsTabHeader(title: String, subtitle: String) -> some View {
-    VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-        Text(title)
-            .font(DesignToken.Font.h2())
-            .foregroundColor(DesignToken.Colors.textPrimary)
-
-        Text(subtitle)
-            .font(DesignToken.Font.caption())
-            .foregroundColor(DesignToken.Colors.textSecondary)
-            .lineLimit(1)
-    }
-}
-
-private struct SettingsPanel<Content: View>: View {
-    let title: String
-    let icon: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            HStack(spacing: DesignToken.Spacing.xs) {
-                Image(systemName: icon)
-                    .font(DesignToken.Font.system(size: DesignToken.Layout.featureIconSize, weight: .semibold))
-                    .foregroundColor(DesignToken.Colors.accent)
-                    .frame(width: DesignToken.Layout.iconFrameWidth, alignment: .center)
-
-                Text(title)
-                    .font(DesignToken.Font.h3())
-                    .foregroundColor(DesignToken.Colors.textPrimary)
-
-                Spacer()
-            }
-
-            content()
-        }
-        .padding(DesignToken.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(DesignToken.Colors.bgSecondary.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
-                .stroke(DesignToken.Colors.border, lineWidth: 1)
-        )
     }
 }
 
@@ -186,25 +91,21 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                settingsTabHeader(
-                    title: L10n.Settings.general,
-                    subtitle: L10n.Settings.generalSubtitle
-                )
+            VStack(spacing: DesignToken.Spacing.xl) {
+                // Service Control Section
+                serviceSection
 
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: DesignToken.Spacing.md),
-                        GridItem(.flexible(), spacing: DesignToken.Spacing.md),
-                    ],
-                    alignment: .leading,
-                    spacing: DesignToken.Spacing.md
-                ) {
-                    serviceSection
-                    shellSection
-                    claudeCodeSection
-                        .gridCellColumns(2)
-                }
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Shell Environment Section
+                shellSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Claude Code Integration Section
+                claudeCodeSection
             }
             .padding(DesignToken.Layout.cardPadding)
         }
@@ -216,60 +117,64 @@ struct GeneralSettingsTab: View {
     // MARK: - Service Section
 
     private var serviceSection: some View {
-        SettingsPanel(title: L10n.Settings.generalService, icon: "power") {
-            HStack(alignment: .center, spacing: DesignToken.Spacing.md) {
-                HoverButton(
-                    title: proxy.isRunning ? L10n.Settings.generalStopService : L10n.Settings.generalStartService,
-                    icon: proxy.isRunning ? "stop.fill" : "play.fill"
-                ) {
-                    if proxy.isRunning {
-                        proxy.stop()
-                    } else {
-                        proxy.start()
-                    }
-                }
-                .frame(width: 148)
-                .accessibilityIdentifier("settings.general.startStopButton")
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.Settings.generalService)
+                .font(DesignToken.Font.h2())
+                .accessibilityIdentifier("settings.general.serviceHeader")
 
-                HStack(spacing: DesignToken.Spacing.xs) {
-                    StatusIndicatorView(isRunning: proxy.isRunning, isCooldown: false)
-                        .frame(width: DesignToken.Layout.statusIndicatorSmall, height: DesignToken.Layout.statusIndicatorSmall)
-                        .accessibilityIdentifier(proxy.isRunning ? "menu.status.running" : "menu.status.stopped")
-
-                    Text(proxy.isRunning
-                         ? L10n.Settings.generalRunningOnPort(proxy.port)
-                         : L10n.Settings.generalServiceStopped)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(proxy.isRunning
-                            ? DesignToken.Colors.statusOnline
-                            : DesignToken.Colors.textSecondary)
-                        .lineLimit(1)
+            // Start/Stop Button
+            HoverButton(
+                title: proxy.isRunning ? L10n.Settings.generalStopService : L10n.Settings.generalStartService,
+                icon: proxy.isRunning ? "stop.fill" : "play.fill"
+            ) {
+                if proxy.isRunning {
+                    proxy.stop()
+                } else {
+                    proxy.start()
                 }
             }
+            .accessibilityIdentifier("settings.general.startStopButton")
 
-            HStack(alignment: .top, spacing: DesignToken.Spacing.md) {
-                LabeledNumberField(
-                    L10n.Settings.generalPort,
-                    placeholder: L10n.Settings.generalPortPlaceholder,
-                    value: $appState.port,
-                    accessibilityID: "settings.general.portField"
-                )
-                .frame(width: 120)
+            // Status Line
+            HStack(spacing: DesignToken.Spacing.xs) {
+                StatusIndicatorView(isRunning: proxy.isRunning, isCooldown: false)
+                    .frame(width: DesignToken.Layout.statusIndicatorSmall, height: DesignToken.Layout.statusIndicatorSmall)
+                    .accessibilityIdentifier(proxy.isRunning ? "menu.status.running" : "menu.status.stopped")
 
-                ToggleRow(
-                    L10n.Settings.generalAutoStart,
-                    isOn: $appState.launchAtLogin
-                )
-                .accessibilityIdentifier("settings.general.autoStartToggle")
+                Text(proxy.isRunning
+                     ? L10n.Settings.generalRunningOnPort(proxy.port)
+                     : L10n.Settings.generalServiceStopped)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(proxy.isRunning
+                        ? DesignToken.Colors.statusOnline
+                        : DesignToken.Colors.textSecondary)
             }
+
+            // Port Input
+            LabeledNumberField(
+                L10n.Settings.generalPort,
+                placeholder: L10n.Settings.generalPortPlaceholder,
+                value: $appState.port,
+                accessibilityID: "settings.general.portField"
+            )
+
+            // Launch at Login Toggle
+            ToggleRow(
+                L10n.Settings.generalAutoStart,
+                isOn: $appState.launchAtLogin
+            )
+            .accessibilityIdentifier("settings.general.autoStartToggle")
         }
-        .accessibilityIdentifier("settings.general.serviceHeader")
     }
 
     // MARK: - Shell Section
 
     private var shellSection: some View {
-        SettingsPanel(title: L10n.Settings.generalShellEnv, icon: "terminal") {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.Settings.generalShellEnv)
+                .font(DesignToken.Font.h2())
+                .accessibilityIdentifier("settings.general.shellHeader")
+
             HoverButton(
                 title: shellConfig.isConfigured ? L10n.Settings.generalUpdateShellConfig : L10n.Settings.generalSetupShellEnv,
                 icon: shellConfig.isConfigured ? "checkmark.circle.fill" : "gearshape"
@@ -279,8 +184,8 @@ struct GeneralSettingsTab: View {
                 }
             }
             .accessibilityIdentifier("settings.general.shellConfigure")
-            .frame(width: 180)
 
+            // Status
             HStack(spacing: DesignToken.Spacing.xs) {
                 if shellConfig.isConfigured {
                     Image(systemName: "checkmark.circle.fill")
@@ -296,13 +201,17 @@ struct GeneralSettingsTab: View {
             }
             .accessibilityIdentifier("settings.general.shellStatus")
         }
-        .accessibilityIdentifier("settings.general.shellHeader")
     }
 
     // MARK: - Claude Code Section
 
     private var claudeCodeSection: some View {
-        SettingsPanel(title: L10n.ClaudeCode.sectionTitle, icon: "curlybraces") {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.ClaudeCode.sectionTitle)
+                .font(DesignToken.Font.h2())
+                .accessibilityIdentifier("settings.general.claudeCodeHeader")
+
+            // Current URL status
             HStack(spacing: DesignToken.Spacing.xs) {
                 if claudeCode.configExists {
                     Image(systemName: claudeCode.isActive ? "checkmark.circle.fill" : "circle")
@@ -326,6 +235,7 @@ struct GeneralSettingsTab: View {
             }
             .accessibilityIdentifier("settings.general.claudeCodeStatus")
 
+            // Toggle
             ToggleRow(
                 L10n.ClaudeCode.takeoverToggle,
                 subtitle: L10n.ClaudeCode.takeoverDescription,
@@ -336,6 +246,7 @@ struct GeneralSettingsTab: View {
             )
             .accessibilityIdentifier("settings.general.claudeCodeToggle")
 
+            // Error message
             if let error = claudeCode.lastError {
                 HStack(spacing: DesignToken.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -347,7 +258,6 @@ struct GeneralSettingsTab: View {
                 .accessibilityIdentifier("settings.general.claudeCodeError")
             }
         }
-        .accessibilityIdentifier("settings.general.claudeCodeHeader")
     }
 }
 
@@ -685,24 +595,45 @@ struct AdvancedTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                settingsTabHeader(
-                    title: L10n.Settings.advanced,
-                    subtitle: L10n.Settings.advancedSubtitle
-                )
+            VStack(spacing: DesignToken.Spacing.xl) {
+                // Failover Section
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+                    Text(L10n.Settings.advancedFailover)
+                        .font(DesignToken.Font.h2())
 
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: DesignToken.Spacing.md),
-                        GridItem(.flexible(), spacing: DesignToken.Spacing.md),
-                    ],
-                    alignment: .leading,
-                    spacing: DesignToken.Spacing.md
-                ) {
-                    failoverSection
-                    smartFallbackSection
-                    circuitBreakerSection
-                    cooldownSection
+                    ToggleRow(
+                        L10n.Settings.advancedFailover,
+                        isOn: $appState.autoFailover
+                    )
+                    .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
+                }
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Smart Model Fallback Section
+                smartFallbackSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Circuit Breaker Section
+                circuitBreakerSection
+
+                Divider()
+                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+
+                // Cooldown Section
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+                    Text(L10n.Settings.advancedCooldown)
+                        .font(DesignToken.Font.h2())
+
+                    cooldownRow(title: L10n.Settings.advancedCooldown429, value: "30m")
+                        .accessibilityIdentifier("settings.advanced.cooldown.429")
+                    cooldownRow(title: L10n.Settings.advancedCooldown5xx, value: "10m")
+                        .accessibilityIdentifier("settings.advanced.cooldown.5xx")
+                    cooldownRow(title: L10n.Settings.advancedCooldown401, value: "24h")
+                        .accessibilityIdentifier("settings.advanced.cooldown.401")
                 }
             }
             .padding(DesignToken.Layout.cardPadding)
@@ -720,18 +651,11 @@ struct AdvancedTab: View {
         }
     }
 
-    private var failoverSection: some View {
-        SettingsPanel(title: L10n.Settings.advancedFailover, icon: "arrow.triangle.2.circlepath") {
-            ToggleRow(
-                L10n.Settings.advancedFailover,
-                isOn: $appState.autoFailover
-            )
-            .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
-        }
-    }
-
     private var smartFallbackSection: some View {
-        SettingsPanel(title: L10n.Settings.advancedSmartFallback, icon: "point.3.connected.trianglepath.dotted") {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+            Text(L10n.Settings.advancedSmartFallback)
+                .font(DesignToken.Font.h2())
+
             ToggleRow(
                 L10n.Settings.advancedSmartFallback,
                 isOn: Binding(
@@ -746,21 +670,16 @@ struct AdvancedTab: View {
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(alignment: .top) {
-                LabeledDoubleField(
-                    L10n.Settings.advancedMaxFallbackCost,
-                    placeholder: "$2.00",
-                    hint: L10n.Settings.advancedMaxFallbackCostHint,
-                    value: Binding(
-                        get: { smartRouter.maxFallbackCost },
-                        set: { smartRouter.maxFallbackCost = $0; smartRouter.saveSettings() }
-                    ),
-                    accessibilityID: "settings.advanced.maxFallbackCost"
-                )
-                .frame(width: 160)
-
-                Spacer()
-            }
+            LabeledDoubleField(
+                L10n.Settings.advancedMaxFallbackCost,
+                placeholder: "$2.00",
+                hint: L10n.Settings.advancedMaxFallbackCostHint,
+                value: Binding(
+                    get: { smartRouter.maxFallbackCost },
+                    set: { smartRouter.maxFallbackCost = $0; smartRouter.saveSettings() }
+                ),
+                accessibilityID: "settings.advanced.maxFallbackCost"
+            )
         }
     }
 
@@ -780,8 +699,13 @@ struct AdvancedTab: View {
     // MARK: - Circuit Breaker Section
 
     private var circuitBreakerSection: some View {
-        SettingsPanel(title: L10n.CircuitBreaker.title, icon: "waveform.path.ecg") {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
             HStack {
+                Text(L10n.CircuitBreaker.title)
+                    .font(DesignToken.Font.h2())
+
+                Spacer()
+
                 Button {
                     resetAllCircuits()
                 } label: {
@@ -789,9 +713,6 @@ struct AdvancedTab: View {
                         .font(DesignToken.Font.caption())
                         .foregroundColor(DesignToken.Colors.accent)
                 }
-                .buttonStyle(.plain)
-
-                Spacer()
             }
 
             Text(L10n.CircuitBreaker.description)
@@ -812,17 +733,6 @@ struct AdvancedTab: View {
                     circuitStateRow(channelID: channelID, state: state)
                 }
             }
-        }
-    }
-
-    private var cooldownSection: some View {
-        SettingsPanel(title: L10n.Settings.advancedCooldown, icon: "timer") {
-            cooldownRow(title: L10n.Settings.advancedCooldown429, value: "30m")
-                .accessibilityIdentifier("settings.advanced.cooldown.429")
-            cooldownRow(title: L10n.Settings.advancedCooldown5xx, value: "10m")
-                .accessibilityIdentifier("settings.advanced.cooldown.5xx")
-            cooldownRow(title: L10n.Settings.advancedCooldown401, value: "24h")
-                .accessibilityIdentifier("settings.advanced.cooldown.401")
         }
     }
 

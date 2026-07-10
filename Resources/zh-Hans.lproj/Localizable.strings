@@ -65,7 +65,6 @@
 "settings.general.setupShellEnv" = "配置 Shell 环境";
 "settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
 "settings.general.notConfigured" = "未配置";
-"settings.general.subtitle" = "服务、Shell 环境与 Claude Code 集成。";
 
 // Channel Settings
 "settings.channels.add" = "添加通道";
@@ -113,7 +112,6 @@
 "settings.advanced.smartFallbackWarning" = "启用后，代理将自动使用其他提供商的更大上下文模型重试失败的请求。您的客户端将看到原始模型名称，但实际模型可能不同。不同模型之间的工具调用兼容性无法保证。";
 "settings.advanced.maxFallbackCost" = "最大回退成本";
 "settings.advanced.maxFallbackCostHint" = "每次请求";
-"settings.advanced.subtitle" = "路由韧性、回退策略与通道冷却行为。";
 
 // Usage Settings
 "settings.usage.today" = "今天";
