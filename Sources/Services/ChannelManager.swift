@@ -40,6 +40,24 @@ struct ProviderTemplate: Codable, Identifiable {
         case defaultModels = "default_models"
     }
 
+    init(
+        id: String,
+        nameEn: String,
+        nameZh: String,
+        baseUrls: [String: String]? = nil,
+        baseURL: String? = nil,
+        supportsProtocols: [String],
+        defaultModels: [ProviderModel]
+    ) {
+        self.id = id
+        self.nameEn = nameEn
+        self.nameZh = nameZh
+        self.baseUrls = baseUrls
+        self.baseURL = baseURL
+        self.supportsProtocols = supportsProtocols
+        self.defaultModels = defaultModels
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -109,17 +127,23 @@ final class ChannelManager: ObservableObject {
     @Published private(set) var providerTemplates: [ProviderTemplate] = []
     @Published var isLoadingModels: Bool = false
     @Published var isSpeedTesting: Bool = false
+    @Published private(set) var isRefreshingProviderTemplates: Bool = false
+    @Published private(set) var providerTemplateRefreshSummary: String?
     @Published var lastSpeedTestResults: [String: TimeInterval] = [:]
 
     private let channelServices: ChannelServices
     private let connectionTransport: any ConnectionTestHTTPTransport
+    private let providerCatalogService: ModelsDevProviderCatalogService
+    private var bundledProviderTemplates: [ProviderTemplate] = []
 
     init(
         channelServices: ChannelServices,
-        connectionTransport: (any ConnectionTestHTTPTransport)? = nil
+        connectionTransport: (any ConnectionTestHTTPTransport)? = nil,
+        providerCatalogService: ModelsDevProviderCatalogService = ModelsDevProviderCatalogService()
     ) {
         self.channelServices = channelServices
         self.connectionTransport = connectionTransport ?? URLSessionConnectionTestHTTPTransport()
+        self.providerCatalogService = providerCatalogService
         loadProviderTemplates()
     }
 
@@ -135,11 +159,64 @@ final class ChannelManager: ObservableObject {
         do {
             let data = try Data(contentsOf: url)
             let json = try JSONDecoder().decode(ProvidersFile.self, from: data)
-            providerTemplates = json.providers
+            bundledProviderTemplates = json.providers
+            if let cachedTemplates = providerCatalogService.loadCachedTemplates(), !cachedTemplates.isEmpty {
+                providerTemplates = Self.mergeProviderTemplates(base: json.providers, updates: cachedTemplates)
+            } else {
+                providerTemplates = json.providers
+            }
             let count = providerTemplates.count
             Log.info("Loaded \(count) provider templates")
         } catch {
             Log.error("Failed to load providers.json: \(error.localizedDescription)")
+        }
+    }
+
+    func refreshProviderTemplatesFromModelsDev() async {
+        guard !isRefreshingProviderTemplates else { return }
+        isRefreshingProviderTemplates = true
+        providerTemplateRefreshSummary = nil
+        defer { isRefreshingProviderTemplates = false }
+
+        do {
+            let remoteTemplates = try await providerCatalogService.fetchTemplates()
+            let merged = Self.mergeProviderTemplates(
+                base: bundledProviderTemplates.isEmpty ? providerTemplates : bundledProviderTemplates,
+                updates: remoteTemplates
+            )
+            providerTemplates = merged
+            providerCatalogService.cacheTemplates(remoteTemplates)
+            providerTemplateRefreshSummary = L10n.AddChannel.refreshProvidersSuccess(remoteTemplates.count)
+            Log.info("Updated provider templates from models.dev: remote=\(remoteTemplates.count), merged=\(merged.count)")
+        } catch {
+            providerTemplateRefreshSummary = L10n.AddChannel.refreshProvidersFailed
+            Log.error("Failed to update provider templates from models.dev: \(error.localizedDescription)")
+        }
+    }
+
+    static func mergeProviderTemplates(base: [ProviderTemplate], updates: [ProviderTemplate]) -> [ProviderTemplate] {
+        var mergedById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
+        for update in updates {
+            if let existing = mergedById[update.id] {
+                let endpoints = update.protocolBaseURLMap().isEmpty ? existing.protocolBaseURLMap() : update.protocolBaseURLMap()
+                let models = update.defaultModels.isEmpty ? existing.defaultModels : update.defaultModels
+                let protocols = update.supportsProtocols.isEmpty ? existing.supportsProtocols : update.supportsProtocols
+                mergedById[update.id] = ProviderTemplate(
+                    id: existing.id,
+                    nameEn: update.nameEn.isEmpty ? existing.nameEn : update.nameEn,
+                    nameZh: update.nameZh.isEmpty ? existing.nameZh : update.nameZh,
+                    baseUrls: endpoints.isEmpty ? existing.baseUrls : endpoints,
+                    baseURL: update.baseURL ?? existing.baseURL,
+                    supportsProtocols: protocols,
+                    defaultModels: models
+                )
+            } else {
+                mergedById[update.id] = update
+            }
+        }
+
+        return mergedById.values.sorted {
+            $0.nameEn.localizedCaseInsensitiveCompare($1.nameEn) == .orderedAscending
         }
     }
 
