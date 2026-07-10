@@ -2,7 +2,7 @@
 
 A **lightweight, native macOS menu bar proxy** for Claude Code — protocol conversion, silent failover, and token stats across 42+ LLM providers. **100% local, privacy-first.**
 
-> 🇨🇳 [查看中文文档](README_ZH.md)
+> 🇨🇳 [查看中文文档](README_ZH.md) | 🌐 [Official Website](https://smartllmrouter.github.io)
 
 ---
 
@@ -31,6 +31,8 @@ A **lightweight, native macOS menu bar proxy** for Claude Code — protocol conv
 *   🔀 **Protocol Adapter**: Seamless conversion between Anthropic (Claude) and OpenAI formats.
 *   📊 **Real-time Stats**: Track daily token usage and estimated costs (30-day history).
 *   📦 **Built-in Provider Metadata**: One-click setup for major providers via `providers.json`.
+*   📤 **Config Export & Import**: One-click export all channels (optional AES-GCM encryption). Share with teammates — they import in one click. Duplicate detection prevents overwrites.
+*   🔄 **Sparkle Auto-Update**: Stay up to date with built-in Sparkle update checks.
 *   🛡️ **Local & Secure**: API Keys stored in macOS Keychain.
 
 ---
