@@ -65,7 +65,6 @@
 "settings.general.setupShellEnv" = "Setup Shell Environment";
 "settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
-"settings.general.subtitle" = "Service, shell environment, and Claude Code integration.";
 
 // Channel Settings
 "settings.channels.add" = "Add Channel";
@@ -113,7 +112,6 @@
 "settings.advanced.smartFallbackWarning" = "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.";
 "settings.advanced.maxFallbackCost" = "Max Fallback Cost";
 "settings.advanced.maxFallbackCostHint" = "per request";
-"settings.advanced.subtitle" = "Routing resilience, fallback policy, and channel cooldown behavior.";
 
 // Usage Settings
 "settings.usage.today" = "Today";
