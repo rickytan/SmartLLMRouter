@@ -10,7 +10,7 @@ default_platform(:mac)
 ROOT = File.expand_path("..", __dir__)
 PROJECT_NAME = "SmartLLMRouter"
 SCHEME       = "SmartLLMRouter"
-WORKSPACE    = "#{PROJECT_NAME}.xcworkspace"
+WORKSPACE    = File.join(ROOT, "#{PROJECT_NAME}.xcworkspace")
 ENTITLEMENTS = "Resources/#{PROJECT_NAME}.entitlements"
 APP_NAME     = "#{PROJECT_NAME}.app"
 
@@ -54,6 +54,19 @@ end
 def signed_build?
   identity = code_sign_identity
   identity && !identity.empty? && identity != "-"
+end
+
+def sign_app_bundle(app_path, identity)
+  run(
+    "codesign",
+    "--force",
+    "--sign", identity,
+    "--timestamp",
+    "--options", "runtime",
+    "--entitlements", ENTITLEMENTS,
+    app_path
+  )
+  run("codesign", "--verify", "--deep", "--strict", "--verbose=2", app_path)
 end
 
 def app_store_connect_key_available?
@@ -213,6 +226,8 @@ lane :build do
         run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", fw)
       end
     end
+    UI.important("Signing outer app bundle after post-build mutations")
+    sign_app_bundle(app_path, identity)
   end
 
   UI.success("Build complete: build/#{APP_NAME}")
