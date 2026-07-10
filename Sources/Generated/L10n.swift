@@ -57,46 +57,6 @@ internal enum L10n {
     internal static var fetchModels: String {
       L10n.tr("Localizable", "addchannel.fetchModels", fallback: "Fetch Models")
     }
-    /// Daily free key sync
-    internal static var freeKeysAutoSync: String {
-      L10n.tr("Localizable", "addchannel.freeKeysAutoSync", fallback: "Daily free key sync")
-    }
-    /// When enabled, sync once per day on cold start or while the app is running.
-    internal static var freeKeysAutoSyncSubtitle: String {
-      L10n.tr("Localizable", "addchannel.freeKeysAutoSyncSubtitle", fallback: "When enabled, sync once per day on cold start or while the app is running.")
-    }
-    /// Fetch & Add Free Keys
-    internal static var freeKeysFetchAndAdd: String {
-      L10n.tr("Localizable", "addchannel.freeKeysFetchAndAdd", fallback: "Fetch & Add Free Keys")
-    }
-    /// Fetching free keys...
-    internal static var freeKeysFetching: String {
-      L10n.tr("Localizable", "addchannel.freeKeysFetching", fallback: "Fetching free keys...")
-    }
-    /// Failed to fetch free key source.
-    internal static var freeKeysInvalidResponse: String {
-      L10n.tr("Localizable", "addchannel.freeKeysInvalidResponse", fallback: "Failed to fetch free key source.")
-    }
-    /// Free key source must use HTTPS.
-    internal static var freeKeysInvalidSource: String {
-      L10n.tr("Localizable", "addchannel.freeKeysInvalidSource", fallback: "Free key source must use HTTPS.")
-    }
-    /// No unexpired free keys were found.
-    internal static var freeKeysNoUsableKeys: String {
-      L10n.tr("Localizable", "addchannel.freeKeysNoUsableKeys", fallback: "No unexpired free keys were found.")
-    }
-    /// Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.
-    internal static var freeKeysSourceHelp: String {
-      L10n.tr("Localizable", "addchannel.freeKeysSourceHelp", fallback: "Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.")
-    }
-    /// Fetch keys from the configured public free-key source and add them as a channel.
-    internal static var freeKeysSubtitle: String {
-      L10n.tr("Localizable", "addchannel.freeKeysSubtitle", fallback: "Fetch keys from the configured public free-key source and add them as a channel.")
-    }
-    /// Free LLM API Keys
-    internal static var freeKeysTitle: String {
-      L10n.tr("Localizable", "addchannel.freeKeysTitle", fallback: "Free LLM API Keys")
-    }
     /// e.g. gpt-4, llama3
     internal static var modelNamePlaceholder: String {
       L10n.tr("Localizable", "addchannel.modelNamePlaceholder", fallback: "e.g. gpt-4, llama3")
@@ -1030,54 +990,6 @@ internal enum L10n {
     /// Enabled
     internal static var channelsFilterEnabled: String {
       L10n.tr("Localizable", "settings.channels.filterEnabled", fallback: "Enabled")
-    }
-    /// Daily sync
-    internal static var channelsFreeKeysAutoSync: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysAutoSync", fallback: "Daily sync")
-    }
-    /// Sync free keys once per day on cold start or while the app is running.
-    internal static var channelsFreeKeysAutoSyncSubtitle: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysAutoSyncSubtitle", fallback: "Sync free keys once per day on cold start or while the app is running.")
-    }
-    /// Free Keys
-    internal static var channelsFreeKeysFetchAndAdd: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysFetchAndAdd", fallback: "Free Keys")
-    }
-    /// Fetching...
-    internal static var channelsFreeKeysFetching: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysFetching", fallback: "Fetching...")
-    }
-    /// Last sync: %@
-    internal static func channelsFreeKeysLastSync(_ p1: Any) -> String {
-      return L10n.tr("Localizable", "settings.channels.freeKeysLastSync", String(describing: p1), fallback: "Last sync: %@")
-    }
-    /// Not synced yet
-    internal static var channelsFreeKeysNeverSynced: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysNeverSynced", fallback: "Not synced yet")
-    }
-    /// from alistaitsacle/free-llm-api-keys
-    internal static var channelsFreeKeysSource: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysSource", fallback: "from alistaitsacle/free-llm-api-keys")
-    }
-    /// Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.
-    internal static var channelsFreeKeysSourceHelp: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysSourceHelp", fallback: "Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.")
-    }
-    /// Added Free LLM channel with %lld keys and %lld models.
-    internal static func channelsFreeKeysSuccessAdded(_ p1: Int, _ p2: Int) -> String {
-      return L10n.tr("Localizable", "settings.channels.freeKeysSuccessAdded", p1, p2, fallback: "Added Free LLM channel with %lld keys and %lld models.")
-    }
-    /// Updated Free LLM channel with %lld keys and %lld models.
-    internal static func channelsFreeKeysSuccessUpdated(_ p1: Int, _ p2: Int) -> String {
-      return L10n.tr("Localizable", "settings.channels.freeKeysSuccessUpdated", p1, p2, fallback: "Updated Free LLM channel with %lld keys and %lld models.")
-    }
-    /// Sync Now
-    internal static var channelsFreeKeysSyncNow: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysSyncNow", fallback: "Sync Now")
-    }
-    /// Free Keys
-    internal static var channelsFreeKeysTitle: String {
-      L10n.tr("Localizable", "settings.channels.freeKeysTitle", fallback: "Free Keys")
     }
     /// Models
     internal static var channelsModels: String {

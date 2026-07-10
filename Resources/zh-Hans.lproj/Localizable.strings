@@ -97,18 +97,6 @@
 "settings.channels.sortBySpeedConfirm" = "确定排序";
 "settings.channels.noMatchesTitle" = "没有匹配的通道";
 "settings.channels.noMatchesSubtitle" = "换一个搜索词或过滤条件试试。";
-"settings.channels.freeKeysTitle" = "免费密钥";
-"settings.channels.freeKeysSource" = "来自 alistaitsacle/free-llm-api-keys";
-"settings.channels.freeKeysFetchAndAdd" = "免费密钥";
-"settings.channels.freeKeysFetching" = "拉取中...";
-"settings.channels.freeKeysSyncNow" = "立即拉取";
-"settings.channels.freeKeysAutoSync" = "每日同步";
-"settings.channels.freeKeysAutoSyncSubtitle" = "冷启动或应用运行时，每天同步一次免费密钥。";
-"settings.channels.freeKeysSourceHelp" = "来源：github.com/alistaitsacle/free-llm-api-keys。点击打开仓库页面。";
-"settings.channels.freeKeysLastSync" = "上次同步：%@";
-"settings.channels.freeKeysNeverSynced" = "尚未同步";
-"settings.channels.freeKeysSuccessAdded" = "已添加 Free LLM 通道：%lld 个密钥，%lld 个模型。";
-"settings.channels.freeKeysSuccessUpdated" = "已更新 Free LLM 通道：%lld 个密钥，%lld 个模型。";
 "settings.channels.emptyTitle" = "未配置通道";
 "settings.channels.emptySubtitle" = "添加一个通道以开始使用";
 
@@ -262,16 +250,6 @@
 "addchannel.removeApiKey" = "移除 API 密钥";
 "addchannel.moveApiKeyUp" = "上移 API 密钥";
 "addchannel.moveApiKeyDown" = "下移 API 密钥";
-"addchannel.freeKeysTitle" = "免费 LLM API 密钥";
-"addchannel.freeKeysSubtitle" = "从配置的公开免费密钥源拉取并添加为通道。";
-"addchannel.freeKeysFetchAndAdd" = "拉取并添加免费密钥";
-"addchannel.freeKeysFetching" = "正在拉取免费密钥...";
-"addchannel.freeKeysAutoSync" = "每日同步免费密钥";
-"addchannel.freeKeysAutoSyncSubtitle" = "开启后，冷启动或应用运行时每天同步一次。";
-"addchannel.freeKeysSourceHelp" = "来源：github.com/alistaitsacle/free-llm-api-keys。点击打开仓库页面。";
-"addchannel.freeKeysInvalidSource" = "免费密钥源必须使用 HTTPS。";
-"addchannel.freeKeysInvalidResponse" = "拉取免费密钥源失败。";
-"addchannel.freeKeysNoUsableKeys" = "未找到未过期的免费密钥。";
 "addchannel.priority" = "优先级";
 "addchannel.protocol" = "协议";
 "addchannel.delete" = "删除";

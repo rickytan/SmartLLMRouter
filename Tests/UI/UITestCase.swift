@@ -58,10 +58,6 @@ class UITestCase: XCTestCase {
         static let settingsChannelSearchField = "settings.channels.searchField"
         static let settingsChannelFilter = "settings.channels.filter"
         static let settingsChannelCount = "settings.channels.count"
-        static let settingsFreeKeysFetchButton = "settings.channels.freeKeys.fetchButton"
-        static let settingsFreeKeysSourceInfoButton = "settings.channels.freeKeys.sourceInfoButton"
-        static let settingsFreeKeysAutoSyncToggle = "settings.channels.freeKeys.autoSyncToggle"
-        static let settingsFreeKeysStatus = "settings.channels.freeKeys.status"
         static let settingsImportConfigButton = "settings.channels.importConfig"
         static let settingsChannelList = "settings.channels.list"
         

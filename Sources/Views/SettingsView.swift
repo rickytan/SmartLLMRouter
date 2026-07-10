@@ -4,20 +4,31 @@ import Sparkle
 
 // MARK: - SettingsView
 
-struct SettingsView: View {
-    @ObservedObject private var appState: AppState
-    @ObservedObject private var channelStore: ChannelStore
-    @ObservedObject private var usage: UsageTracker
-    @State private var selectedTab = 0
-    @State private var showingAddChannel = false
+private enum SettingsTab: Int, Hashable {
+    case general
+    case channels
+    case advanced
+    case usage
+    case about
 
-    @MainActor
-    init(services: AppServices? = nil) {
-        let services = services ?? .shared
-        _appState = ObservedObject(wrappedValue: services.appState)
-        _channelStore = ObservedObject(wrappedValue: services.channelStore)
-        _usage = ObservedObject(wrappedValue: services.usageTracker)
+    var size: CGSize {
+        switch self {
+        case .general:
+            CGSize(width: 720, height: 540)
+        case .channels:
+            CGSize(width: 880, height: 620)
+        case .advanced:
+            CGSize(width: 720, height: 540)
+        case .usage:
+            CGSize(width: 840, height: 620)
+        case .about:
+            CGSize(width: 520, height: 420)
+        }
     }
+}
+
+struct SettingsView: View {
+    @State private var selectedTab: SettingsTab = .general
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -25,38 +36,39 @@ struct SettingsView: View {
                 .tabItem {
                     Label(L10n.Settings.general, systemImage: "gearshape")
                 }
-                .tag(0)
+                .tag(SettingsTab.general)
                 .accessibilityIdentifier("settings.tabGeneral")
 
             ChannelsTab()
                 .tabItem {
                     Label(L10n.Settings.channels, systemImage: "server.rack")
                 }
-                .tag(1)
+                .tag(SettingsTab.channels)
                 .accessibilityIdentifier("settings.tabChannels")
 
             AdvancedTab()
                 .tabItem {
                     Label(L10n.Settings.advanced, systemImage: "slider.horizontal.3")
                 }
-                .tag(2)
+                .tag(SettingsTab.advanced)
                 .accessibilityIdentifier("settings.tabAdvanced")
 
             UsageTab()
                 .tabItem {
                     Label(L10n.Settings.usage, systemImage: "chart.bar.fill")
                 }
-                .tag(3)
+                .tag(SettingsTab.usage)
                 .accessibilityIdentifier("settings.tabUsage")
 
             AboutTab()
                 .tabItem {
                     Label(L10n.Settings.about, systemImage: "info.circle")
                 }
-                .tag(4)
+                .tag(SettingsTab.about)
                 .accessibilityIdentifier("settings.tabAbout")
         }
-        .frame(width: DesignToken.Layout.settingsFrameWidth, height: DesignToken.Layout.settingsFrameHeight)
+        .frame(width: selectedTab.size.width, height: selectedTab.size.height)
+        .animation(.easeInOut(duration: 0.18), value: selectedTab)
     }
 }
 
@@ -273,13 +285,10 @@ private enum ChannelListFilter: String, CaseIterable, Identifiable {
 struct ChannelsTab: View {
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
-    @ObservedObject private var freeLLMKeySyncService: FreeLLMKeySyncService
     private let channelExportService: ChannelExportService
     @State private var showingAddChannel = false
     @State private var showingConfigImporter = false
     @State private var isTestingAll = false
-    @State private var freeKeysStatusMessage: String?
-    @State private var freeKeysStatusIsError = false
     @State private var channelSearchText = ""
     @State private var channelFilter: ChannelListFilter = .all
     @State private var showingSortBySpeedConfirmation = false
@@ -289,14 +298,12 @@ struct ChannelsTab: View {
         let services = services ?? .shared
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
-        _freeLLMKeySyncService = ObservedObject(wrappedValue: services.freeLLMKeySyncService)
         channelExportService = services.channelExportService
     }
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.md) {
             channelsHeaderActions
-            freeKeysUtilityBand
             channelListToolbar
 
             channelList
@@ -395,79 +402,6 @@ struct ChannelsTab: View {
         .overlay(
             RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
                 .stroke(DesignToken.Colors.border, lineWidth: 1)
-        )
-    }
-
-    private var freeKeysUtilityBand: some View {
-        HStack(spacing: DesignToken.Spacing.md) {
-            Image(systemName: "key.fill")
-                .font(DesignToken.Font.system(size: 15, weight: .semibold))
-                .foregroundColor(DesignToken.Colors.accent)
-                .frame(width: 30, height: 30)
-                .background(DesignToken.Colors.bgPrimary)
-                .cornerRadius(DesignToken.Layout.buttonCornerRadius)
-
-            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-                HStack(spacing: DesignToken.Spacing.xs) {
-                    Text(L10n.Settings.channelsFreeKeysTitle)
-                        .font(DesignToken.Font.h3())
-                        .foregroundColor(DesignToken.Colors.textPrimary)
-
-                    Text(L10n.Settings.channelsFreeKeysSource)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                        .lineLimit(1)
-
-                    Link(destination: FreeLLMKeySyncService.repositoryURL) {
-                        Image(systemName: "info.circle")
-                            .font(DesignToken.Font.system(size: 12, weight: .medium))
-                            .foregroundColor(DesignToken.Colors.accent)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.Settings.channelsFreeKeysSourceHelp)
-                    .accessibilityLabel(L10n.Settings.channelsFreeKeysSourceHelp)
-                    .accessibilityIdentifier("settings.channels.freeKeys.sourceInfoButton")
-                }
-
-                Text(freeKeysStatusText)
-                    .font(DesignToken.Font.micro())
-                    .foregroundColor(freeKeysStatusIsError ? DesignToken.Colors.statusOffline : DesignToken.Colors.textSecondary)
-                    .lineLimit(1)
-                    .accessibilityIdentifier("settings.channels.freeKeys.status")
-            }
-
-            Spacer(minLength: DesignToken.Spacing.sm)
-
-            Toggle("", isOn: $freeLLMKeySyncService.autoSyncEnabled)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .help(L10n.Settings.channelsFreeKeysAutoSyncSubtitle)
-                .accessibilityLabel(L10n.Settings.channelsFreeKeysAutoSync)
-                .accessibilityIdentifier("settings.channels.freeKeys.autoSyncToggle")
-
-            Text(L10n.Settings.channelsFreeKeysAutoSync)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .lineLimit(1)
-                .help(L10n.Settings.channelsFreeKeysAutoSyncSubtitle)
-
-            HoverButton(
-                title: freeLLMKeySyncService.isSyncing ? L10n.Settings.channelsFreeKeysFetching : L10n.Settings.channelsFreeKeysSyncNow,
-                icon: freeLLMKeySyncService.isSyncing ? "ellipsis.circle.fill" : "arrow.clockwise"
-            ) {
-                Task { await fetchAndAddFreeKeys() }
-            }
-            .frame(width: 98)
-            .disabled(freeLLMKeySyncService.isSyncing)
-            .accessibilityIdentifier("settings.channels.freeKeys.fetchButton")
-        }
-        .padding(.horizontal, DesignToken.Spacing.md)
-        .padding(.vertical, DesignToken.Spacing.sm)
-        .background(DesignToken.Colors.accent.opacity(0.08))
-        .cornerRadius(DesignToken.Layout.cardCornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
-                .stroke(DesignToken.Colors.accent.opacity(0.16), lineWidth: 1)
         )
     }
 
@@ -579,20 +513,6 @@ struct ChannelsTab: View {
         .padding(.bottom, DesignToken.Spacing.xs)
     }
 
-    private func fetchAndAddFreeKeys() async {
-        freeKeysStatusMessage = nil
-        freeKeysStatusIsError = false
-        do {
-            let result = try await freeLLMKeySyncService.syncNow()
-            freeKeysStatusMessage = result.addedChannel
-                ? L10n.Settings.channelsFreeKeysSuccessAdded(result.keyCount, result.modelCount)
-                : L10n.Settings.channelsFreeKeysSuccessUpdated(result.keyCount, result.modelCount)
-        } catch {
-            freeKeysStatusMessage = error.localizedDescription
-            freeKeysStatusIsError = true
-        }
-    }
-
     private func runSpeedTests() {
         Task {
             isTestingAll = true
@@ -652,20 +572,6 @@ struct ChannelsTab: View {
         return L10n.Settings.channelsCount(channelStore.channels.count)
     }
 
-    private var freeKeysStatusText: String {
-        if let freeKeysStatusMessage {
-            return freeKeysStatusMessage
-        }
-
-        if let lastSyncAt = freeLLMKeySyncService.lastSyncAt {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .full
-            let relative = formatter.localizedString(for: lastSyncAt, relativeTo: Date())
-            return L10n.Settings.channelsFreeKeysLastSync(relative)
-        }
-
-        return L10n.Settings.channelsFreeKeysNeverSynced
-    }
 }
 
 // MARK: - Advanced Tab
@@ -1239,7 +1145,7 @@ struct AboutTab: View {
             Text(L10n.About.appName)
                 .font(DesignToken.Font.h1())
 
-            Text(L10n.Settings.aboutVersion("1.0.0"))
+            Text(L10n.Settings.aboutVersion(appVersion))
                 .font(DesignToken.Font.body())
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .accessibilityIdentifier("about.version")
@@ -1275,6 +1181,10 @@ struct AboutTab: View {
             Spacer()
         }
         .padding(DesignToken.Spacing.xl)
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 }
 
