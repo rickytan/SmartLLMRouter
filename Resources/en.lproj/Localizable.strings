@@ -97,18 +97,6 @@
 "settings.channels.sortBySpeedConfirm" = "Sort";
 "settings.channels.noMatchesTitle" = "No matching channels";
 "settings.channels.noMatchesSubtitle" = "Try another search term or filter.";
-"settings.channels.freeKeysTitle" = "Free Keys";
-"settings.channels.freeKeysSource" = "from alistaitsacle/free-llm-api-keys";
-"settings.channels.freeKeysFetchAndAdd" = "Free Keys";
-"settings.channels.freeKeysFetching" = "Fetching...";
-"settings.channels.freeKeysSyncNow" = "Sync Now";
-"settings.channels.freeKeysAutoSync" = "Daily sync";
-"settings.channels.freeKeysAutoSyncSubtitle" = "Sync free keys once per day on cold start or while the app is running.";
-"settings.channels.freeKeysSourceHelp" = "Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.";
-"settings.channels.freeKeysLastSync" = "Last sync: %@";
-"settings.channels.freeKeysNeverSynced" = "Not synced yet";
-"settings.channels.freeKeysSuccessAdded" = "Added Free LLM channel with %lld keys and %lld models.";
-"settings.channels.freeKeysSuccessUpdated" = "Updated Free LLM channel with %lld keys and %lld models.";
 "settings.channels.emptyTitle" = "No channels configured";
 "settings.channels.emptySubtitle" = "Add one to get started";
 
@@ -264,16 +252,6 @@
 "addchannel.removeApiKey" = "Remove API Key";
 "addchannel.moveApiKeyUp" = "Move API Key Up";
 "addchannel.moveApiKeyDown" = "Move API Key Down";
-"addchannel.freeKeysTitle" = "Free LLM API Keys";
-"addchannel.freeKeysSubtitle" = "Fetch keys from the configured public free-key source and add them as a channel.";
-"addchannel.freeKeysFetchAndAdd" = "Fetch & Add Free Keys";
-"addchannel.freeKeysFetching" = "Fetching free keys...";
-"addchannel.freeKeysAutoSync" = "Daily free key sync";
-"addchannel.freeKeysAutoSyncSubtitle" = "When enabled, sync once per day on cold start or while the app is running.";
-"addchannel.freeKeysSourceHelp" = "Source: github.com/alistaitsacle/free-llm-api-keys. Opens the repository page.";
-"addchannel.freeKeysInvalidSource" = "Free key source must use HTTPS.";
-"addchannel.freeKeysInvalidResponse" = "Failed to fetch free key source.";
-"addchannel.freeKeysNoUsableKeys" = "No unexpired free keys were found.";
 "addchannel.priority" = "Priority";
 "addchannel.protocol" = "Protocol";
 "addchannel.delete" = "Delete";

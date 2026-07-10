@@ -38,6 +38,14 @@ def app_version
   yml[/MARKETING_VERSION:\s*(\S+)/, 1] || "0.0.0"
 end
 
+def version_xcargs
+  "MARKETING_VERSION=#{Shellwords.escape(app_version)}"
+end
+
+def build_xcargs(*parts)
+  (parts + [version_xcargs]).join(" ")
+end
+
 def code_sign_identity
   ENV["CODE_SIGN_IDENTITY"] || ENV["CODE_SIGN_IDENTITY_NAME"] || ENV["DEVELOPER_ID_APPLICATION"] ||
     (app_store_connect_key_available? ? "Developer ID Application" : nil)
@@ -109,7 +117,7 @@ lane :build do
       skip_package_ipa: true,
       skip_archive: true,
       export_method: "developer-id",
-      xcargs: "ONLY_ACTIVE_ARCH=NO",
+      xcargs: build_xcargs("ONLY_ACTIVE_ARCH=NO"),
       output_directory: "build",
       silent: false
     )
@@ -123,10 +131,12 @@ lane :build do
       skip_package_ipa: true,
       skip_archive: true,
       skip_codesigning: true,
-      xcargs: "CODE_SIGN_IDENTITY='-' " \
-              "CODE_SIGNING_REQUIRED=NO " \
-              "CODE_SIGNING_ALLOWED=NO " \
-              "ONLY_ACTIVE_ARCH=NO",
+      xcargs: build_xcargs(
+        "CODE_SIGN_IDENTITY='-'",
+        "CODE_SIGNING_REQUIRED=NO",
+        "CODE_SIGNING_ALLOWED=NO",
+        "ONLY_ACTIVE_ARCH=NO"
+      ),
       output_directory: "build",
       silent: false
     )

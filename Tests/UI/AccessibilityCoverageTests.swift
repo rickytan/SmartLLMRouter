@@ -98,9 +98,6 @@ final class AccessibilityCoverageTests: UITestCase {
             UI.settingsChannelSearchField,
             UI.settingsChannelFilter,
             UI.settingsChannelCount,
-            UI.settingsFreeKeysFetchButton,
-            UI.settingsFreeKeysSourceInfoButton,
-            UI.settingsFreeKeysAutoSyncToggle,
             UI.settingsImportConfigButton,
             UI.settingsChannelList,
         ]

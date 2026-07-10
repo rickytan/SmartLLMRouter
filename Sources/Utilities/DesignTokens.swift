@@ -112,8 +112,6 @@ enum DesignToken {
         static let rowCornerRadius: CGFloat = 4
 
         // Settings & Usage
-        static let settingsFrameWidth: CGFloat = 720
-        static let settingsFrameHeight: CGFloat = 520
         static let chartHeight: CGFloat = 140
         static let statusIndicatorSmall: CGFloat = 6
         static let chartBarCornerRadius: CGFloat = 3
