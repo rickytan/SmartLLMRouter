@@ -44,9 +44,7 @@ enum ProxyEndpointSupport {
             return true
         }
 
-        guard let body,
-              let bodyText = String(data: body, encoding: .utf8)?.lowercased()
-        else {
+        guard let bodyText = normalizedBodyText(body) else {
             return false
         }
 
@@ -57,6 +55,37 @@ enum ProxyEndpointSupport {
             bodyText.contains("rate limit") ||
             bodyText.contains("rate_limit") ||
             bodyText.contains("billing")
+    }
+
+    static func shouldMarkAPIKeyUnavailable(statusCode: Int, body: Data?) -> Bool {
+        if [401, 402].contains(statusCode) {
+            return true
+        }
+
+        if statusCode == 429 || statusCode >= 500 {
+            return false
+        }
+
+        guard let bodyText = normalizedBodyText(body) else {
+            return false
+        }
+
+        return bodyText.contains("invalid api key") ||
+            bodyText.contains("invalid_api_key") ||
+            bodyText.contains("invalid token") ||
+            bodyText.contains("insufficient_quota") ||
+            bodyText.contains("exceeded your current quota") ||
+            bodyText.contains("payment required") ||
+            bodyText.contains("billing")
+    }
+
+    private static func normalizedBodyText(_ body: Data?) -> String? {
+        guard let body,
+              let bodyText = String(data: body, encoding: .utf8)?.lowercased()
+        else {
+            return nil
+        }
+        return bodyText
     }
 
     static func estimateCost(channel: Channel, inputTokens: Int, outputTokens: Int) -> Double {
