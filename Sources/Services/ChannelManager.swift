@@ -194,6 +194,13 @@ final class ChannelManager: ObservableObject {
         }
     }
 
+    func refreshProviderTemplatesFromModelsDevIfNeeded() async -> Bool {
+        guard providerCatalogService.shouldAutoRefreshTemplates() else { return false }
+        providerCatalogService.markAutoRefreshAttempted()
+        await refreshProviderTemplatesFromModelsDev()
+        return true
+    }
+
     static func mergeProviderTemplates(base: [ProviderTemplate], updates: [ProviderTemplate]) -> [ProviderTemplate] {
         var mergedById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
         for update in updates {
