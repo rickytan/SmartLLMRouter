@@ -148,17 +148,71 @@ final class ModelSwitcher: ObservableObject {
 
     // MARK: - Model Name Matching
 
-    /// Flexible model name matching that handles aggregated provider prefixes.
-    /// e.g. "z-ai/glm-5.1" matches "glm-5.1" and vice versa.
-    nonisolated static func modelMatches(requested: String, stored: String) -> Bool {
-        // Exact match
-        if requested == stored { return true }
+    /// Match quality for a requested model name against a stored model identifier.
+    /// Higher rawValue = stronger match. Used to prefer exact over looser matches.
+    enum ModelMatchScore: Int, Comparable {
+        case none = 0
+        case prefix = 1     // stored model adds a numeric build suffix
+        case normalized = 2 // equal after stripping separators/case
+        case exact = 3      // exact (or equal after provider-prefix strip)
 
-        // Strip prefix: "z-ai/glm-5.1" → "glm-5.1"
+        static func < (lhs: ModelMatchScore, rhs: ModelMatchScore) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
+    }
+
+    /// Flexible model name matching.
+    /// - Exact: "gpt-4o" == "gpt-4o"
+    /// - Provider prefix: "z-ai/glm-5.1" matches "glm-5.1"
+    /// - Normalized: "gpt-4o" matches "gpt_4o" (separator/case-insensitive)
+    /// - Prefix: "glm-5.2" matches "glm-5-2-260717" (base name + build/date suffix)
+    nonisolated static func modelMatches(requested: String, stored: String) -> Bool {
+        modelMatchScore(requested: requested, stored: stored) != .none
+    }
+
+    /// Score how well `requested` matches `stored`. Stronger matches win over looser ones
+    /// so an exact channel is always preferred over a prefix-only match.
+    nonisolated static func modelMatchScore(requested: String, stored: String) -> ModelMatchScore {
+        if requested == stored { return .exact }
+
+        // Strip provider prefix: "z-ai/glm-5.1" -> "glm-5.1"
         let requestedBase = requested.split(separator: "/").last.map(String.init) ?? requested
         let storedBase = stored.split(separator: "/").last.map(String.init) ?? stored
+        if requestedBase == storedBase { return .exact }
 
-        return requestedBase == storedBase
+        let requestedNorm = normalize(requestedBase)
+        let storedNorm = normalize(storedBase)
+        guard !requestedNorm.isEmpty, !storedNorm.isEmpty else { return .none }
+
+        if requestedNorm == storedNorm { return .normalized }
+
+        // Only accept a numeric build/date suffix. This lets "glm-5.2" match
+        // "glm-5-2-260717" without treating distinct models such as "gpt-4"
+        // and "gpt-4o" as aliases.
+        let requestedParts = components(requestedBase)
+        let storedParts = components(storedBase)
+        guard requestedNorm.count >= 3,
+              storedParts.starts(with: requestedParts),
+              storedParts.count > requestedParts.count
+        else { return .none }
+
+        let suffixParts = storedParts.dropFirst(requestedParts.count)
+        if suffixParts.allSatisfy({ $0.allSatisfy(\.isNumber) }),
+           suffixParts.reduce(0, { $0 + $1.count }) >= 4 {
+            return .prefix
+        }
+        return .none
+    }
+
+    /// Lowercase and keep only letters/digits (drops ".", "-", "_", "/", spaces, ...).
+    private nonisolated static func normalize(_ value: String) -> String {
+        value.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
+    private nonisolated static func components(_ value: String) -> [String] {
+        value.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
     }
 
     /// Check if a model identifier matches any model in the collection
