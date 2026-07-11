@@ -2,7 +2,7 @@
 
 **轻量、原生的 macOS 菜单栏代理**，专为 Claude Code 打造——协议转换、静默故障转移、Token 统计，覆盖 42+ LLM 厂商。**100% 本地运行，隐私安全。**
 
-> 🇺🇸 [View English Documentation](README.md)
+> 🇺🇸 [View English Documentation](README.md) | 🌐 [官方网站](https://smartllmrouter.github.io)
 
 ---
 
@@ -31,6 +31,8 @@
 *   🔄 **智能自动切换**：基于优先级的路由，结合通道冷却与 401、不可恢复配额/账单错误的 Key 级内存标记。
 *   🔀 **协议适配器**：Anthropic (Claude) 与 OpenAI 格式之间的无缝转换。
 *   📊 **实时统计**：追踪每日 Token 消耗和预估费用（30 天历史记录）。
+*   📤 **配置导入导出**：一键导出所有通道配置（可选 AES-GCM 加密）。分享给同事，对方一键导入。重复检测防止覆盖已有配置。
+*   🔄 **Sparkle 自动更新**：内置 Sparkle 更新检查，保持最新版本。
 *   📦 **供应商元数据**：内置 `providers.json` 模板，每日最多自动从 `models.dev` 更新一次，也可手动强制刷新。
 *   🛡️ **本地安全**：所有通道 API Key 以 JSON 形式集中存储在一个 macOS Keychain item 中。
 
