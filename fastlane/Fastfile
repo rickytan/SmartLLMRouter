@@ -39,9 +39,11 @@ def app_version
 end
 
 def app_build_version
-  sha = ENV["GITHUB_SHA"].to_s.strip
-  sha = `cd #{ROOT} && git rev-parse --short=6 HEAD 2>/dev/null`.strip if sha.empty?
-  sha[0, 6]
+  # CURRENT_PROJECT_VERSION must be numeric — Xcode injects it into C
+  # version files (e.g. KeychainAccess_vers.c) where a non-numeric value
+  # is treated as an undeclared identifier, breaking the build.
+  count = `cd #{ROOT} && git rev-list --count HEAD 2>/dev/null`.strip
+  count.empty? ? "1" : count
 end
 
 def version_xcargs
