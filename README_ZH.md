@@ -26,41 +26,40 @@
 5.  **隐私优先**：100% 本地运行。无遥测，无云同步。API Key 仅存储在您的 Mac Keychain 中。
 
 ### 功能特性
-*   ✅ **多厂商支持**：管理 Anthropic, OpenAI, DeepSeek, 阿里百炼, MiniMax 等渠道的 Key。
-*   🔄 **智能自动切换**：基于优先级的路由，具备智能冷却机制（自动静默处理 429/5xx/401 错误）。
+*   ✅ **多厂商支持**：管理 Anthropic 和 OpenAI 兼容通道，支持内置模板与 `models.dev` 元数据更新。
+*   🔑 **单通道多 Key**：API Key 可调整顺序，某个 Key 失效或额度用尽后自动跳过。
+*   🔄 **智能自动切换**：基于优先级的路由，结合通道冷却与 401、不可恢复配额/账单错误的 Key 级内存标记。
 *   🔀 **协议适配器**：Anthropic (Claude) 与 OpenAI 格式之间的无缝转换。
 *   📊 **实时统计**：追踪每日 Token 消耗和预估费用（30 天历史记录）。
-*   📦 **内置供应商配置**：通过 `providers.json` 实现主流厂商的一键初始化。
-*   🛡️ **本地安全**：API Key 存储在 macOS Keychain，数据绝不外发。
+*   📦 **供应商元数据**：内置 `providers.json` 模板，每日最多自动从 `models.dev` 更新一次，也可手动强制刷新。
+*   🛡️ **本地安全**：所有通道 API Key 以 JSON 形式集中存储在一个 macOS Keychain item 中。
 
 ---
 
 ## 📥 安装（首次使用）
 
-从 [Releases 页面](https://github.com/rickytan/SmartLLMRouter/releases) 下载最新 DMG，将 **SmartLLMRouter.app** 拖入 **Applications** 文件夹。
+从 [Releases 页面](https://github.com/rickytan/SmartLLMRouter/releases) 下载最新 DMG，打开后将 **SmartLLMRouter.app** 拖入 **Applications** 文件夹。
 
-> ⚠️ **首次启动时 macOS 会弹出 Gatekeeper 警告，这是预期行为。** SmartLLMRouter 目前使用 **ad-hoc 签名** —— 项目尚未购买 Apple 开发者证书 ($99/年)，因此 macOS 会提示：
->
-> > *"无法打开 SmartLLMRouter，因为它来自身份不明的开发者"*
->
-> 本项目完全开源，DMG 由 GitHub Actions 直接从仓库源码构建。在绕过提示前，你可以在 [Actions 页面](https://github.com/rickytan/SmartLLMRouter/actions) 核实构建记录。
+发布产物使用 **Developer ID Application** 证书签名，开启 Hardened Runtime，经过 Apple 公证并在发布前 stapling。Sparkle 通过 `https://smartllmrouter.github.io/appcast.xml` 检查已签名的更新。
 
-### 方法 A — 右键打开（推荐）
+`v1.0.1-alpha.6`、`v1.0.1-beta` 等预发布 Tag 会显示在“关于”页面；CI 使用构建对应 Git commit hash 的前 6 位设置 `CURRENT_PROJECT_VERSION`。
 
-1. 在 Finder 中**右键** `/Applications/SmartLLMRouter.app` → **打开**
-2. 警告框中再次点击**打开**
-3. 完成 —— 之后双击即可正常启动
+---
 
-### 方法 B — 命令行清除隔离属性（一次性）
+## 🔌 支持的代理接口
 
-```bash
-xattr -cr /Applications/SmartLLMRouter.app
-open /Applications/SmartLLMRouter.app
-```
+本地服务对外提供主要的 Anthropic 和 OpenAI 兼容接口：
 
-此命令移除 `com.apple.quarantine` 扩展属性 —— 这是 macOS 给从浏览器下载的文件打的标记，Gatekeeper 据此拦截未签名/未公证的应用。这是 ad-hoc 签名应用的标准操作，并非 SmartLLMRouter 特有问题。
+- `POST /v1/messages`
+- `POST /v1/chat/completions`
+- `GET /v1/models` 与 `GET /v1/models/:modelId`
+- `POST /v1/embeddings`
+- `POST /v1/images/generations`、`/v1/images/edits` 与 `/v1/images/variations`
+- `POST /v1/audio/speech`、`/v1/audio/transcriptions` 与 `/v1/audio/translations`
+- `POST /v1/moderations`
+- `GET`、`POST` 和 `DELETE /v1/files`，包括文件内容获取
 
-> 💡 **为什么用 ad-hoc 签名？** Apple Developer Program 年费 $99。Alpha 阶段我们使用 ad-hoc DMG，保持发布免费且构建可复现。本版本暂时禁用了 Sparkle 自动更新，请定期访问 Releases 页面手动检查新版本。
+`/v1/models` 会聚合所有可用通道中已启用的模型，并对模型标识去重。
 
 ---
 
@@ -96,6 +95,7 @@ flowchart LR
 **配置：**
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:1897
+export ANTHROPIC_API_KEY=placeholder # 真实厂商 Key 由 SmartLLM Router 提供
 claude
 ```
 
@@ -278,43 +278,38 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Client((Claude Code)) -- request --> ProxyNode[SmartLLM Proxy]
-    
-    subgraph ProxyCore [Proxy Core]
-        direction TB
-        Detect[1. 协议识别]
-        Extract[2. 意图提取]
-        Match[3. 通道匹配]
-        Check{4. 健康检查?}
-        L1[第一层: 同模型]
-        L2[第二层: 兼容模型]
-        L3[第三层: 透传]
-        Convert[5. 协议转换]
-        
-        Detect --> Extract --> Match --> Check
-        Check -- No --> L1 --> L2 --> L3 --> Convert
-        Check -- Yes --> Convert
+    Client[Claude Code / OpenAI SDK] -->|localhost:1897| Server[本地代理服务]
+
+    subgraph Services [AppServices]
+        Server --> Forwarder[请求转发器]
+        Forwarder --> Router[路由与故障转移]
+        Router --> Availability[通道与 API Key 可用性]
+        Forwarder --> Adapter[OpenAI / Anthropic 协议适配]
+        Adapter --> Upstream[供应商 API]
+        Upstream -->|JSON 或 SSE| Adapter
+        Adapter --> Server
     end
 
-    ProxyNode --> ProxyCore
-    Convert -- forward --> UpstreamAPI((上游 API))
-    UpstreamAPI -- response --> ProxyNode
-    
-    subgraph Metrics [指标 & 隐私 异步]
-        Usage[7. 用量统计]
-        Log[8. 本地日志]
+    subgraph Storage [本地存储]
+        Channels[通道存储]
+        Keys[单个 Keychain Item\n通道 ID 到有序 Key 列表]
+        Stats[用量存储]
+        Templates[providers.json + models.dev 缓存]
     end
-    
-    ProxyNode -. track .-> Metrics
-    ProxyNode -- stream --> Client
+
+    Channels --> Router
+    Keys --> Availability
+    Templates --> Channels
+    Server -. 用量 .-> Stats
+    Server --> Client
 ```
 
 ### 核心工作流
-1.  **识别与提取**：Claude Code 发送请求到本地代理，自动识别协议，提取请求模型。
-2.  **模型驱动路由**：根据模型匹配最佳厂商，包含三层降级保障。
-3.  **协议转换**：透明处理 OpenAI 与 Anthropic 协议的互转。
-4.  **隐私统计**：本地记录 Token 消耗与预估费用。
-5.  **响应返回**：转换后的响应流回传给 Claude Code。
+1.  **检测与提取**：本地服务接收 Anthropic 和 OpenAI 兼容接口，并提取请求的模型。
+2.  **模型驱动路由**：按用户设定的优先级选择已启用通道，通道内按配置顺序尝试 API Key。
+3.  **故障隔离**：临时通道错误进入冷却，已拒绝或额度用尽的 Key 会在内存中被跳过。
+4.  **协议转换**：按需适配 OpenAI 与 Anthropic 的请求、响应、工具调用、thinking、用量与 SSE 流。
+5.  **本地持久化**：通道元数据与用量保存在本地；所有 API Key 按通道 ID 存入同一个 Keychain item。
 
 ---
 
@@ -329,9 +324,13 @@ flowchart TD
     Error -- 否 --> Success[返回成功响应]
     Error -- 是 --> TypeCheck{检查错误类型}
     
-    TypeCheck -- "401 / 403 认证失败" --> Block[直接拦截: 凭证无效]
+    TypeCheck -- "401 / 不可恢复配额错误" --> BadKey[标记 API Key 不可用]
     TypeCheck -- "400 上下文超限" --> L2[L2: 兼容模型降级]
     TypeCheck -- "429 / 5xx" --> RetryCheck{重试次数 < 最大值?}
+
+    BadKey --> NextKey{通道内还有其他 Key?}
+    NextKey -- 是 --> Retry
+    NextKey -- 否 --> Pool
     
     RetryCheck -- 否 --> MaxRetries[返回错误: 达到最大重试]
     
@@ -360,6 +359,8 @@ flowchart TD
 *   **Open (断开)**：通道失败次数过多。暂时从可用池中剔除。
 *   **Half-Open (半开)**：经过冷却后，允许一次"探测"请求。成功则恢复；失败则保持断开。
 
+API Key 可用性与通道健康状态分开记录。被拒绝的 Key 在当前应用运行期间会被后续请求跳过，不会禁用或删除所属通道。
+
 ---
 
 ## 🛠️ 开发指南
@@ -387,7 +388,14 @@ xcodebuild -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destina
 
 ### 运行测试
 ```bash
-xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destination 'platform=macOS' -only-testing:SmartLLMRouterTests
+xcodebuild test \
+  -workspace SmartLLMRouter.xcworkspace \
+  -scheme SmartLLMRouter \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath /private/tmp/SmartLLMRouter-tests \
+  -only-testing:SmartLLMRouterTests \
+  -skip-testing:SmartLLMRouterUITests \
+  CODE_SIGNING_ALLOWED=NO
 ```
 
 ---
@@ -420,7 +428,8 @@ export ANTHROPIC_API_KEY=placeholder # 代理将处理真实的 Key
 *   [x] **Phase 3**: 路由引擎, 菜单栏 UI, 设置 UI, 深色模式。
 *   [x] **Phase 4**: 自动故障转移, 冷却引擎, 使用统计, 自动配置 Shell, Sparkle。
 *   [x] **Phase 5**: 智能模型降级, 27 组件 UI 库, 连接测试。
-*   [ ] **Phase 6**: 高级指标仪表盘, 零成本健康检查。
+*   [x] **Phase 6**: 单通道多 Key、通道启停持久化、供应商模板更新、扩展接口转发、签名 Sparkle 发布。
+*   [ ] **下一步**: 高级指标仪表盘与更广泛的端到端兼容性测试。
 
 ---
 

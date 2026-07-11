@@ -26,41 +26,40 @@ A **lightweight, native macOS menu bar proxy** for Claude Code — protocol conv
 5.  **Privacy First**: 100% Local Execution. No telemetry, no cloud sync. Your API Keys stay in your Mac's Keychain.
 
 ### Key Features
-*   ✅ **Multi-Provider Support**: Manage keys for Anthropic, OpenAI, DeepSeek, Aliyun DashScope, MiniMax, and more.
-*   🔄 **Smart Auto-Failover**: Priority-based routing with intelligent cooldown (handles 429/5xx/401 errors silently).
+*   ✅ **Multi-Provider Support**: Manage Anthropic and OpenAI-compatible channels, with built-in templates plus optional metadata refresh from `models.dev`.
+*   🔑 **Multiple Keys per Channel**: Keep API keys in an explicit order and automatically skip a key that is rejected or exhausted.
+*   🔄 **Smart Auto-Failover**: Priority-based routing with channel cooldowns and in-memory credential availability tracking for 401 and unrecoverable quota/billing errors.
 *   🔀 **Protocol Adapter**: Seamless conversion between Anthropic (Claude) and OpenAI formats.
 *   📊 **Real-time Stats**: Track daily token usage and estimated costs (30-day history).
-*   📦 **Built-in Provider Metadata**: One-click setup for major providers via `providers.json`.
-*   🛡️ **Local & Secure**: API Keys stored in macOS Keychain.
+*   📦 **Provider Metadata**: Built-in `providers.json` templates, refreshed from `models.dev` at most once per day or on demand.
+*   🛡️ **Local & Secure**: All channel API keys are stored as JSON in one macOS Keychain item.
 
 ---
 
 ## 📥 Install (First-Time Setup)
 
-Download the latest DMG from the [Releases page](https://github.com/rickytan/SmartLLMRouter/releases) and drag **SmartLLMRouter.app** into **Applications**.
+Download the latest DMG from the [Releases page](https://github.com/rickytan/SmartLLMRouter/releases), open it, and drag **SmartLLMRouter.app** into **Applications**.
 
-> ⚠️ **First-launch Gatekeeper warning is expected.** SmartLLMRouter is currently **ad-hoc signed** — there is no paid Apple Developer certificate behind the build, so macOS will say:
->
-> > *"SmartLLMRouter cannot be opened because it is from an unidentified developer."*
->
-> The app is open source and built directly from this repo by GitHub Actions. You can verify the build at [Actions](https://github.com/rickytan/SmartLLMRouter/actions) before bypassing.
+Release artifacts are signed with a **Developer ID Application** certificate, built with the hardened runtime, notarized by Apple, and stapled before publishing. Sparkle checks the signed appcast at `https://smartllmrouter.github.io/appcast.xml` for updates.
 
-### Option A — Right-click → Open (recommended)
+Pre-release tags such as `v1.0.1-alpha.6` and `v1.0.1-beta` become the version shown in About. CI sets `CURRENT_PROJECT_VERSION` from the first six characters of the build commit hash.
 
-1. In Finder, **right-click `SmartLLMRouter.app`** in `/Applications` → **Open**
-2. Click **Open** again in the warning dialog
-3. Done — subsequent launches work normally (double-click)
+---
 
-### Option B — Clear quarantine attribute (one-shot)
+## 🔌 Supported Proxy Endpoints
 
-```bash
-xattr -cr /Applications/SmartLLMRouter.app
-open /Applications/SmartLLMRouter.app
-```
+The local server exposes the primary Anthropic and OpenAI-compatible APIs:
 
-This removes the `com.apple.quarantine` extended attribute that Gatekeeper checks. Standard practice for ad-hoc signed apps and not specific to SmartLLMRouter.
+- `POST /v1/messages`
+- `POST /v1/chat/completions`
+- `GET /v1/models` and `GET /v1/models/:modelId`
+- `POST /v1/embeddings`
+- `POST /v1/images/generations`, `/v1/images/edits`, and `/v1/images/variations`
+- `POST /v1/audio/speech`, `/v1/audio/transcriptions`, and `/v1/audio/translations`
+- `POST /v1/moderations`
+- `GET`, `POST`, and `DELETE /v1/files`, including file content retrieval
 
-> 💡 **Why ad-hoc?** Apple Developer Program costs $99/year. While SmartLLMRouter is in alpha, we ship ad-hoc DMGs to keep distribution free and the build pipeline reproducible. Sparkle auto-update is intentionally disabled in this release — check the Releases page manually for new versions.
+`/v1/models` aggregates enabled models across all available channels and removes duplicate model identifiers.
 
 ---
 
@@ -96,6 +95,7 @@ flowchart LR
 **Setup:**
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:1897
+export ANTHROPIC_API_KEY=placeholder # SmartLLM Router supplies the provider key
 claude
 ```
 
@@ -278,43 +278,38 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Client((Claude Code)) -- request --> ProxyNode[SmartLLM Proxy]
-    
-    subgraph ProxyCore [Proxy Core]
-        direction TB
-        Detect[1. Protocol Detection]
-        Extract[2. Intent Extraction]
-        Match[3. Channel Matching]
-        Check{4. Healthy?}
-        L1[Layer 1: Same Model]
-        L2[Layer 2: Compatible Model]
-        L3[Layer 3: Pass-Through]
-        Convert[5. Protocol Conversion]
-        
-        Detect --> Extract --> Match --> Check
-        Check -- No --> L1 --> L2 --> L3 --> Convert
-        Check -- Yes --> Convert
+    Client[Claude Code / OpenAI SDK] -->|localhost:1897| Server[Local Proxy Server]
+
+    subgraph Services [AppServices]
+        Server --> Forwarder[Request Forwarder]
+        Forwarder --> Router[Routing and Fallback]
+        Router --> Availability[Channel and API Key Availability]
+        Forwarder --> Adapter[OpenAI / Anthropic Adapter]
+        Adapter --> Upstream[Provider API]
+        Upstream -->|JSON or SSE| Adapter
+        Adapter --> Server
     end
 
-    ProxyNode --> ProxyCore
-    Convert -- forward --> UpstreamAPI((Upstream API))
-    UpstreamAPI -- response --> ProxyNode
-    
-    subgraph Metrics [Metrics & Privacy async]
-        Usage[7. Usage Tracking]
-        Log[8. Local Logging]
+    subgraph Storage [Local Storage]
+        Channels[Channel Store]
+        Keys[One Keychain Item\nchannel ID to ordered keys]
+        Stats[Usage Store]
+        Templates[providers.json + models.dev cache]
     end
-    
-    ProxyNode -. track .-> Metrics
-    ProxyNode -- stream --> Client
+
+    Channels --> Router
+    Keys --> Availability
+    Templates --> Channels
+    Server -. usage .-> Stats
+    Server --> Client
 ```
 
 ### Core Workflow
-1.  **Detection & Extraction**: Claude Code sends requests to the local proxy, automatically identifying the protocol and extracting the requested model.
-2.  **Model-Driven Routing**: Matches the best provider for the model, with a three-layer fallback guarantee.
-3.  **Protocol Conversion**: Transparently handles the conversion between OpenAI and Anthropic protocols.
-4.  **Privacy Stats**: Locally records Token consumption and estimated costs.
-5.  **Response Streaming**: Converted response streams are returned to Claude Code.
+1.  **Detection & Extraction**: The local server accepts Anthropic and OpenAI-compatible endpoints and extracts the requested model.
+2.  **Model-Driven Routing**: Enabled channels are evaluated in user-defined priority order; API keys are tried in their configured order.
+3.  **Failure Isolation**: Temporary channel failures enter cooldown, while rejected or exhausted keys are skipped in memory for subsequent requests.
+4.  **Protocol Conversion**: OpenAI and Anthropic requests, responses, tools, thinking blocks, usage, and SSE streams are adapted when required.
+5.  **Local Persistence**: Channel metadata and usage stay in local stores; all API keys share one Keychain item keyed by channel ID.
 
 ---
 
@@ -329,9 +324,13 @@ flowchart TD
     Error -- No --> Success[Return Success Response]
     Error -- Yes --> TypeCheck{Check Error Type}
     
-    TypeCheck -- "401 / 403 Auth" --> Block[Block: Credential Invalid]
+    TypeCheck -- "401 / unrecoverable quota" --> BadKey[Mark API Key Unavailable]
     TypeCheck -- "400 Context Exceeded" --> L2[L2: Compatible Model]
     TypeCheck -- "429 / 5xx" --> RetryCheck{Retries < Max?}
+
+    BadKey --> NextKey{Another Key in Channel?}
+    NextKey -- Yes --> Retry
+    NextKey -- No --> Pool
     
     RetryCheck -- No --> MaxRetries[Return Error: Max Retries]
     
@@ -360,6 +359,8 @@ flowchart TD
 *   **Open**: Channel failed too many times. Temporarily excluded.
 *   **Half-Open**: After cool-down, a probe request tests recovery.
 
+Credential availability is tracked separately from channel health. A rejected key is skipped for later requests during the current app session without disabling or deleting its channel.
+
 ---
 
 ## 🛠️ Development Guide
@@ -387,7 +388,14 @@ xcodebuild -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destina
 
 ### Run Tests
 ```bash
-xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -destination 'platform=macOS' -only-testing:SmartLLMRouterTests
+xcodebuild test \
+  -workspace SmartLLMRouter.xcworkspace \
+  -scheme SmartLLMRouter \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath /private/tmp/SmartLLMRouter-tests \
+  -only-testing:SmartLLMRouterTests \
+  -skip-testing:SmartLLMRouterUITests \
+  CODE_SIGNING_ALLOWED=NO
 ```
 
 ---
@@ -420,7 +428,8 @@ export ANTHROPIC_API_KEY=placeholder # The proxy handles the real key
 *   [x] **Phase 3**: Routing Engine, Menu Bar UI, Settings UI, Dark Mode.
 *   [x] **Phase 4**: Auto-Failover, Cooldown Engine, Usage Stats, Auto-Config Shell, Sparkle.
 *   [x] **Phase 5**: Smart Model Fallback, 27-Component UI Library, Connection Test.
-*   [ ] **Phase 6**: Advanced Metrics Dashboard, Zero-Cost Health Checks.
+*   [x] **Phase 6**: Multi-key channels, persistent enable/disable state, provider-template refresh, expanded endpoint forwarding, signed Sparkle releases.
+*   [ ] **Next**: Advanced metrics and broader end-to-end compatibility coverage.
 
 ---
 
