@@ -16,7 +16,8 @@ final class ProxyServer: ObservableObject {
     @Published var port: Int = 1897
     @Published var lastError: String?
 
-    private let upstreamTimeout: TimeInterval = 120
+    private let upstreamTimeout: TimeInterval = 300
+    private let streamingTimeout: TimeInterval = 600
 
     private func nextRequestID() -> Int64 {
         requestIDGenerator.next()
@@ -497,19 +498,17 @@ final class ProxyServer: ObservableObject {
             )
 
         case let .failure(error):
-            // Record failure with CircuitBreaker
-            _ = routerHandleError(
-                requestID: reqIdString,
-                statusCode: 502,
-                modelName: modelName
-            )
-
             Log.error("[#\(reqId)] Forward failed: \(error.localizedDescription)")
 
-            // Try to retry on network errors
+            // Determine if this is a timeout for special retry handling
+            let isTimeout = (error as? URLError)?.code == .timedOut
+            let statusCode = isTimeout ? 408 : 502
+
+            // Try to retry — single call (previous code called handleError twice,
+            // which double-counted circuit breaker failures and retry attempts)
             if let retryDecision = routerHandleError(
                 requestID: reqIdString,
-                statusCode: 502,
+                statusCode: statusCode,
                 modelName: modelName
             ) {
                 Log.info(
@@ -1077,7 +1076,7 @@ final class ProxyServer: ObservableObject {
                     url: upstreamURL,
                     headers: convertedHeaders,
                     body: forwardedBody,
-                    timeout: self.upstreamTimeout,
+                    timeout: self.streamingTimeout,
                     apiKeys: apiKeys,
                     incomingProtocol: incomingProtocol,
                     upstreamProtocol: upstreamProtocol,
@@ -1116,9 +1115,13 @@ final class ProxyServer: ObservableObject {
                 }
 
                 finalMessage = StreamingForwarder.errorMessage(from: completion)
+                // Detect timeout: use 408 status so SmartRouter can retry
+                // the same channel before tripping the circuit breaker
+                let isStreamTimeout = completion.error?.localizedDescription.contains("timed out") == true
+                let retryStatusCode = isStreamTimeout ? 408 : completion.statusCode
                 if let retryDecision = self.routerHandleError(
                     requestID: reqIdString,
-                    statusCode: completion.statusCode,
+                    statusCode: retryStatusCode,
                     modelName: self.extractModelName(from: bodyData),
                     errorBody: completion.body,
                     requestProtocol: targetProtocol

@@ -197,7 +197,7 @@ enum RequestForwarder {
         method: HTTPMethod = .post,
         headers: [String: String],
         body: Data?,
-        timeout: TimeInterval = 120,
+        timeout: TimeInterval = 600,
         isStreaming: Bool = false
     ) async throws -> StreamForwardResult {
         let startTime = Date()
