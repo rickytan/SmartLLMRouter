@@ -11,6 +11,7 @@
 "menu.stats.summary" = "%lld 次请求 · %lld tokens";
 "menu.stats.requests.label" = "今日请求";
 "menu.stats.tokens.label" = "tokens";
+"menu.stats.errorRate" = "%lld%% 错误";
 "menu.proxy.pause" = "暂停";
 "menu.proxy.start" = "启动";
 "menu.proxy.running.subtitle" = "代理正在监听本机请求";
@@ -26,6 +27,7 @@
 "menu.requests.none" = "暂无请求记录";
 "menu.requests.count" = "%lld 条";
 "menu.request.entry" = "%s · %s · %s";
+"menu.request.metadata" = "%s · %s tokens · %lldms";
 "menu.time.seconds" = "%d秒前";
 "menu.time.minutes" = "%d分钟前";
 "menu.time.hours" = "%d小时前";
@@ -73,7 +75,7 @@
 "settings.general.auto_start.hint" = "登录 macOS 后自动运行 SmartLLMRouter";
 "settings.general.integrations" = "开发工具集成";
 "settings.general.shell.supportHint" = "支持 zsh、bash";
-"settings.general.shell.configured" = "已配置";
+"settings.general.shell.configuredLabel" = "已配置";
 "settings.general.privacyHint" = "API Key 统一保存在系统 Keychain 中；配置变更仅在本机生效。";
 
 // Channel Settings

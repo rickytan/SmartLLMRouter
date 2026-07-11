@@ -11,6 +11,7 @@
 "menu.stats.summary" = "%lld requests · %lld tokens";
 "menu.stats.requests.label" = "Requests today";
 "menu.stats.tokens.label" = "Tokens";
+"menu.stats.errorRate" = "%lld%% errors";
 "menu.proxy.pause" = "Pause";
 "menu.proxy.start" = "Start";
 "menu.proxy.running.subtitle" = "Listening for local requests";
@@ -26,6 +27,7 @@
 "menu.requests.none" = "No recent requests";
 "menu.requests.count" = "%lld items";
 "menu.request.entry" = "%s · %s · %s";
+"menu.request.metadata" = "%s · %s tokens · %lldms";
 "menu.time.seconds" = "%ds ago";
 "menu.time.minutes" = "%dm ago";
 "menu.time.hours" = "%dh ago";
@@ -73,7 +75,7 @@
 "settings.general.auto_start.hint" = "Launch SmartLLMRouter automatically after signing in to macOS";
 "settings.general.integrations" = "Developer Tools";
 "settings.general.shell.supportHint" = "Supports zsh, bash";
-"settings.general.shell.configured" = "Configured";
+"settings.general.shell.configuredLabel" = "Configured";
 "settings.general.privacyHint" = "API keys are stored in the system Keychain; configuration changes apply only to this Mac.";
 
 // Channel Settings

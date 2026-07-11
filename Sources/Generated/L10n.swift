@@ -29,10 +29,6 @@ internal enum L10n {
     internal static var addModel: String {
       L10n.tr("Localizable", "addchannel.addModel", fallback: "Add Model")
     }
-    /// Copy model name
-    internal static var copyModelName: String {
-      L10n.tr("Localizable", "addchannel.copyModelName", fallback: "Copy model name")
-    }
     /// sk-...
     internal static var apiKeyPlaceholder: String {
       L10n.tr("Localizable", "addchannel.apiKeyPlaceholder", fallback: "sk-...")
@@ -48,6 +44,10 @@ internal enum L10n {
     /// Cancel
     internal static var cancel: String {
       L10n.tr("Localizable", "addchannel.cancel", fallback: "Cancel")
+    }
+    /// Copy model name
+    internal static var copyModelName: String {
+      L10n.tr("Localizable", "addchannel.copyModelName", fallback: "Copy model name")
     }
     /// Custom / Local
     internal static var customProvider: String {
@@ -519,6 +519,10 @@ internal enum L10n {
     internal static func requestEntry(_ p1: UnsafePointer<CChar>, _ p2: UnsafePointer<CChar>, _ p3: UnsafePointer<CChar>) -> String {
       return L10n.tr("Localizable", "menu.request.entry", p1, p2, p3, fallback: "%s · %s · %s")
     }
+    /// %s · %s tokens · %lldms
+    internal static func requestMetadata(_ p1: UnsafePointer<CChar>, _ p2: UnsafePointer<CChar>, _ p3: Int) -> String {
+      return L10n.tr("Localizable", "menu.request.metadata", p1, p2, p3, fallback: "%s · %s tokens · %lldms")
+    }
     /// %lld items
     internal static func requestsCount(_ p1: Int) -> String {
       return L10n.tr("Localizable", "menu.requests.count", p1, fallback: "%lld items")
@@ -546,6 +550,10 @@ internal enum L10n {
     /// Force this model for client requests
     internal static var routingOverrideSubtitle: String {
       L10n.tr("Localizable", "menu.routing.override.subtitle", fallback: "Force this model for client requests")
+    }
+    /// %lld%% errors
+    internal static func statsErrorRate(_ p1: Int) -> String {
+      return L10n.tr("Localizable", "menu.stats.errorRate", p1, fallback: "%lld%% errors")
     }
     /// Requests: %lld
     internal static func statsRequests(_ p1: Int) -> String {
@@ -575,13 +583,13 @@ internal enum L10n {
     internal static var testKey: String {
       L10n.tr("Localizable", "menu.test.key", fallback: "Test Channels")
     }
-    /// %dh ago
-    internal static func timeHours(_ p1: Int) -> String {
-      return L10n.tr("Localizable", "menu.time.hours", p1, fallback: "%dh ago")
-    }
     /// %dd %dh ago
     internal static func timeDaysHours(_ p1: Int, _ p2: Int) -> String {
       return L10n.tr("Localizable", "menu.time.daysHours", p1, p2, fallback: "%dd %dh ago")
+    }
+    /// %dh ago
+    internal static func timeHours(_ p1: Int) -> String {
+      return L10n.tr("Localizable", "menu.time.hours", p1, fallback: "%dh ago")
     }
     /// %dm ago
     internal static func timeMinutes(_ p1: Int) -> String {
@@ -927,10 +935,6 @@ internal enum L10n {
     internal static var advancedMaxFallbackCostHint: String {
       L10n.tr("Localizable", "settings.advanced.maxFallbackCostHint", fallback: "per request")
     }
-    /// Configure failover, smart model fallback, and circuit breaker policies.
-    internal static var advancedSubtitle: String {
-      L10n.tr("Localizable", "settings.advanced.subtitle", fallback: "Configure failover, smart model fallback, and circuit breaker policies.")
-    }
     /// Max Retries
     internal static var advancedRetryCount: String {
       L10n.tr("Localizable", "settings.advanced.retry_count", fallback: "Max Retries")
@@ -942,6 +946,10 @@ internal enum L10n {
     /// When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.
     internal static var advancedSmartFallbackWarning: String {
       L10n.tr("Localizable", "settings.advanced.smartFallbackWarning", fallback: "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.")
+    }
+    /// Configure failover, smart model fallback, and circuit breaker policies.
+    internal static var advancedSubtitle: String {
+      L10n.tr("Localizable", "settings.advanced.subtitle", fallback: "Configure failover, smart model fallback, and circuit breaker policies.")
     }
     /// Request Timeout (seconds)
     internal static var advancedTimeout: String {
@@ -1099,6 +1107,10 @@ internal enum L10n {
     internal static var generalDefaultProtocol: String {
       L10n.tr("Localizable", "settings.general.default_protocol", fallback: "Default Protocol")
     }
+    /// Developer Tools
+    internal static var generalIntegrations: String {
+      L10n.tr("Localizable", "settings.general.integrations", fallback: "Developer Tools")
+    }
     /// Language
     internal static var generalLanguage: String {
       L10n.tr("Localizable", "settings.general.language", fallback: "Language")
@@ -1107,45 +1119,13 @@ internal enum L10n {
     internal static var generalNotConfigured: String {
       L10n.tr("Localizable", "settings.general.notConfigured", fallback: "Not configured")
     }
-    /// Manage the local proxy, launch behavior, and developer tool integration.
-    internal static var generalSubtitle: String {
-      L10n.tr("Localizable", "settings.general.subtitle", fallback: "Manage the local proxy, launch behavior, and developer tool integration.")
-    }
-    /// Service running
-    internal static var generalServiceRunning: String {
-      L10n.tr("Localizable", "settings.general.serviceRunning", fallback: "Service running")
-    }
-    /// Proxy Service
-    internal static var generalSectionProxy: String {
-      L10n.tr("Localizable", "settings.general.section.proxy", fallback: "Proxy Service")
-    }
-    /// Local port the proxy service listens on
-    internal static var generalPortHint: String {
-      L10n.tr("Localizable", "settings.general.port.hint", fallback: "Local port the proxy service listens on")
-    }
-    /// Launch SmartLLMRouter automatically after signing in to macOS
-    internal static var generalAutoStartHint: String {
-      L10n.tr("Localizable", "settings.general.auto_start.hint", fallback: "Launch SmartLLMRouter automatically after signing in to macOS")
-    }
-    /// Developer Tools
-    internal static var generalIntegrations: String {
-      L10n.tr("Localizable", "settings.general.integrations", fallback: "Developer Tools")
-    }
-    /// Supports zsh, bash
-    internal static var generalShellSupportHint: String {
-      L10n.tr("Localizable", "settings.general.shell.supportHint", fallback: "Supports zsh, bash")
-    }
-    /// Configured
-    internal static var generalShellConfiguredLabel: String {
-      L10n.tr("Localizable", "settings.general.shell.configured", fallback: "Configured")
+    /// Port
+    internal static var generalPort: String {
+      L10n.tr("Localizable", "settings.general.port", fallback: "Port")
     }
     /// API keys are stored in the system Keychain; configuration changes apply only to this Mac.
     internal static var generalPrivacyHint: String {
       L10n.tr("Localizable", "settings.general.privacyHint", fallback: "API keys are stored in the system Keychain; configuration changes apply only to this Mac.")
-    }
-    /// Port
-    internal static var generalPort: String {
-      L10n.tr("Localizable", "settings.general.port", fallback: "Port")
     }
     /// Running on port %d
     internal static func generalRunningOnPort(_ p1: Int) -> String {
@@ -1154,6 +1134,10 @@ internal enum L10n {
     /// Service
     internal static var generalService: String {
       L10n.tr("Localizable", "settings.general.service", fallback: "Service")
+    }
+    /// Service running
+    internal static var generalServiceRunning: String {
+      L10n.tr("Localizable", "settings.general.serviceRunning", fallback: "Service running")
     }
     /// Service stopped
     internal static var generalServiceStopped: String {
@@ -1179,9 +1163,21 @@ internal enum L10n {
     internal static var generalStopService: String {
       L10n.tr("Localizable", "settings.general.stopService", fallback: "Stop Service")
     }
+    /// Manage the local proxy, launch behavior, and developer tool integration.
+    internal static var generalSubtitle: String {
+      L10n.tr("Localizable", "settings.general.subtitle", fallback: "Manage the local proxy, launch behavior, and developer tool integration.")
+    }
     /// Update Shell Config
     internal static var generalUpdateShellConfig: String {
       L10n.tr("Localizable", "settings.general.updateShellConfig", fallback: "Update Shell Config")
+    }
+    /// Launch SmartLLMRouter automatically after signing in to macOS
+    internal static var generalAutoStartHint: String {
+      L10n.tr("Localizable", "settings.general.auto_start.hint", fallback: "Launch SmartLLMRouter automatically after signing in to macOS")
+    }
+    /// Local port the proxy service listens on
+    internal static var generalPortHint: String {
+      L10n.tr("Localizable", "settings.general.port.hint", fallback: "Local port the proxy service listens on")
     }
     /// 1897
     internal static var generalPortPlaceholder: String {
@@ -1198,6 +1194,18 @@ internal enum L10n {
     /// OpenAI
     internal static var generalProtocolOpenai: String {
       L10n.tr("Localizable", "settings.general.protocol.openai", fallback: "OpenAI")
+    }
+    /// Proxy Service
+    internal static var generalSectionProxy: String {
+      L10n.tr("Localizable", "settings.general.section.proxy", fallback: "Proxy Service")
+    }
+    /// Configured
+    internal static var generalShellConfiguredLabel: String {
+      L10n.tr("Localizable", "settings.general.shell.configuredLabel", fallback: "Configured")
+    }
+    /// Supports zsh, bash
+    internal static var generalShellSupportHint: String {
+      L10n.tr("Localizable", "settings.general.shell.supportHint", fallback: "Supports zsh, bash")
     }
     /// Channel Statistics
     internal static var usageChannelStats: String {

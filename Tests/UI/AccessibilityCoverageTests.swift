@@ -17,7 +17,6 @@ final class AccessibilityCoverageTests: UITestCase {
             UI.menuStatsLabel,
             UI.menuFailoverToggle,
             UI.menuCopyEnvButton,
-            UI.menuTestKeyButton,
             UI.menuSettingsButton,
             UI.menuQuitButton,
             UI.menuRecentRequests,

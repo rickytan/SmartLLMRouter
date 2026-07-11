@@ -3,15 +3,19 @@ import SwiftUI
 // MARK: - MenuView
 
 struct MenuView: View {
+    private struct RecentModelSummary: Identifiable {
+        let latest: UsageRecord
+        let totalTokens: Int
+
+        var id: String { latest.model }
+    }
+
     @ObservedObject private var proxy: ProxyServer
     @ObservedObject private var appState: AppState
-    @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var usage: UsageTracker
-    @ObservedObject private var channelManager: ChannelManager
     @ObservedObject private var modelSwitcher: ModelSwitcher
 
     @State private var now = Date()
-    @State private var isTestingKey = false
 
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -20,14 +24,12 @@ struct MenuView: View {
         let services = services ?? .shared
         _proxy = ObservedObject(wrappedValue: services.proxyServer)
         _appState = ObservedObject(wrappedValue: services.appState)
-        _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _usage = ObservedObject(wrappedValue: services.usageTracker)
-        _channelManager = ObservedObject(wrappedValue: services.channelManager)
         _modelSwitcher = ObservedObject(wrappedValue: services.modelSwitcher)
     }
 
     var body: some View {
-        VStack(spacing: DesignToken.Spacing.md) {
+        VStack(spacing: DesignToken.Spacing.sm) {
             proxyStatusPanel
             routingPanel
             recentRequestsPanel
@@ -45,7 +47,7 @@ struct MenuView: View {
     // MARK: - Status
 
     private var proxyStatusPanel: some View {
-        VStack(spacing: DesignToken.Spacing.sm) {
+        VStack(spacing: DesignToken.Spacing.xs) {
             HStack(spacing: DesignToken.Spacing.sm) {
                 StatusIndicatorView(isRunning: proxy.isRunning, isCooldown: false)
                     .accessibilityIdentifier(proxy.isRunning ? "menu.status.running" : "menu.status.stopped")
@@ -67,10 +69,6 @@ struct MenuView: View {
                 Text(verbatim: ":\(displayPort)")
                     .font(DesignToken.Font.monoMicro())
                     .foregroundColor(DesignToken.Colors.textSecondary)
-                    .padding(.horizontal, DesignToken.Spacing.sm)
-                    .frame(height: 26)
-                    .background(DesignToken.Colors.bgSecondary)
-                    .cornerRadius(DesignToken.Layout.buttonCornerRadius)
                     .accessibilityIdentifier("menu.port.label")
 
                 Button {
@@ -97,18 +95,28 @@ struct MenuView: View {
                 .accessibilityIdentifier("menu.proxy.toggle")
             }
 
-            HStack(spacing: DesignToken.Spacing.sm) {
-                statTile(
-                    value: compactCount(usage.todayStats.totalRequests),
-                    label: L10n.Menu.statsRequestsLabel,
-                    accessibilityID: "menu.stats.requests"
-                )
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: "chart.bar.fill")
+                    .font(DesignToken.Font.system(size: 10, weight: .medium))
+                    .foregroundColor(DesignToken.Colors.textTertiary)
 
-                statTile(
-                    value: compactCount(usage.todayStats.totalTokens),
-                    label: L10n.Menu.statsTokensLabel,
-                    accessibilityID: "menu.stats.tokens"
-                )
+                Text(L10n.Menu.statsSummary(
+                    usage.todayStats.totalRequests,
+                    usage.todayStats.totalTokens
+                ))
+                .font(DesignToken.Font.micro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .lineLimit(1)
+
+                Spacer()
+
+                if usage.todayStats.totalRequests > 0 {
+                    Text(L10n.Menu.statsErrorRate(Int(usage.todayStats.errorRate * 100)))
+                        .font(DesignToken.Font.monoMicro())
+                        .foregroundColor(usage.todayStats.errorRate > 0
+                            ? DesignToken.Colors.statusOffline
+                            : DesignToken.Colors.statusOnline)
+                }
             }
             .accessibilityIdentifier("menu.statsLabel")
         }
@@ -126,40 +134,16 @@ struct MenuView: View {
         proxy.isRunning ? proxy.port : appState.port
     }
 
-    private func statTile(value: String, label: String, accessibilityID: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-            Text(value)
-                .font(DesignToken.Font.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundColor(DesignToken.Colors.textPrimary)
-                .lineLimit(1)
-
-            Text(label)
-                .font(DesignToken.Font.microSmall())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DesignToken.Spacing.sm)
-        .frame(height: 48)
-        .background(DesignToken.Colors.bgSecondary)
-        .cornerRadius(DesignToken.Layout.cardCornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
-                .stroke(DesignToken.Colors.border, lineWidth: 1)
-        )
-        .accessibilityIdentifier(accessibilityID)
-    }
-
     // MARK: - Routing
 
     private var routingPanel: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             sectionHeader(title: L10n.Menu.routingTitle, trailing: L10n.Menu.routingProtocols)
             modelSelector
 
             Divider()
 
-            HStack(spacing: DesignToken.Spacing.md) {
+            HStack(spacing: DesignToken.Spacing.sm) {
                 VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
                     Text(appState.autoFailover ? L10n.Menu.failoverAuto : L10n.Menu.failoverManual)
                         .font(DesignToken.Font.h3())
@@ -183,7 +167,7 @@ struct MenuView: View {
                 .accessibilityIdentifier("menu.failover.toggle")
             }
         }
-        .padding(DesignToken.Spacing.md)
+        .padding(DesignToken.Spacing.sm)
         .background(DesignToken.Colors.bgSecondary)
         .cornerRadius(DesignToken.Layout.cardCornerRadius)
         .overlay(
@@ -247,7 +231,7 @@ struct MenuView: View {
                         .foregroundColor(DesignToken.Colors.textTertiary)
                 }
                 .padding(.horizontal, DesignToken.Spacing.sm)
-                .frame(maxWidth: .infinity, minHeight: 42)
+                .frame(maxWidth: .infinity, minHeight: 36)
                 .background(DesignToken.Colors.hoverFill)
                 .cornerRadius(DesignToken.Layout.buttonCornerRadius)
             }
@@ -260,15 +244,9 @@ struct MenuView: View {
     // MARK: - Requests
 
     private var recentRequestsPanel: some View {
-        let recent: [UsageRecord] = {
-            let latestPerModel = Dictionary(grouping: usage.records, by: \.model)
-                .compactMap { (_, recs) -> UsageRecord? in
-                    recs.max(by: { $0.timestamp < $1.timestamp })
-                }
-            return latestPerModel.sorted { $0.timestamp > $1.timestamp }.prefix(5).map { $0 }
-        }()
+        let recent = recentModelSummaries
 
-        return VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
+        return VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             sectionHeader(title: L10n.Menu.requestsRecent, trailing: L10n.Menu.requestsCount(recent.count))
 
             if recent.isEmpty {
@@ -279,13 +257,13 @@ struct MenuView: View {
                     .padding(.vertical, DesignToken.Spacing.xs)
             } else {
                 VStack(spacing: DesignToken.Spacing.xs) {
-                    ForEach(recent, id: \.model) { record in
-                        recentRequestRow(record)
+                    ForEach(recent) { summary in
+                        recentRequestRow(summary)
                     }
                 }
             }
         }
-        .padding(DesignToken.Spacing.md)
+        .padding(DesignToken.Spacing.sm)
         .background(DesignToken.Colors.bgSecondary)
         .cornerRadius(DesignToken.Layout.cardCornerRadius)
         .overlay(
@@ -295,26 +273,85 @@ struct MenuView: View {
         .accessibilityIdentifier("menu.recentRequestsList")
     }
 
-    private func recentRequestRow(_ record: UsageRecord) -> some View {
-        HStack(spacing: DesignToken.Spacing.sm) {
+    private var recentModelSummaries: [RecentModelSummary] {
+        Dictionary(grouping: usage.records, by: \.model)
+            .compactMap { _, records -> RecentModelSummary? in
+                guard let latest = records.max(by: { $0.timestamp < $1.timestamp }) else {
+                    return nil
+                }
+                return RecentModelSummary(
+                    latest: latest,
+                    totalTokens: records.reduce(0) { $0 + $1.totalTokens }
+                )
+            }
+            .sorted { $0.latest.timestamp > $1.latest.timestamp }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    private func recentRequestRow(_ summary: RecentModelSummary) -> some View {
+        let record = summary.latest
+
+        return HStack(alignment: .top, spacing: DesignToken.Spacing.sm) {
             Circle()
                 .fill(record.isError ? DesignToken.Colors.statusOffline : DesignToken.Colors.statusOnline)
-                .frame(width: 9, height: 9)
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
 
-            Text(record.model)
-                .font(DesignToken.Font.system(size: 12, weight: .semibold))
-                .foregroundColor(DesignToken.Colors.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                HStack(spacing: DesignToken.Spacing.xs) {
+                    Text(record.model)
+                        .font(DesignToken.Font.system(size: 12, weight: .semibold))
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-            Spacer(minLength: DesignToken.Spacing.sm)
+                    statusCodeBadge(record.statusCode)
 
-            Text(timeAgo(from: record.timestamp))
-                .font(DesignToken.Font.micro())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .lineLimit(1)
+                    Spacer(minLength: DesignToken.Spacing.xs)
+
+                    Text(timeAgo(from: record.timestamp))
+                        .font(DesignToken.Font.microSmall())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Text(requestMetadata(record, totalTokens: summary.totalTokens))
+                    .font(DesignToken.Font.monoMicro())
+                    .foregroundColor(record.isError
+                        ? DesignToken.Colors.statusOffline
+                        : DesignToken.Colors.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
         }
-        .frame(minHeight: 24)
+        .frame(minHeight: 30)
+    }
+
+    private func requestMetadata(_ record: UsageRecord, totalTokens: Int) -> String {
+        L10n.Menu.requestMetadata(
+            record.channelName,
+            compactCount(totalTokens),
+            Int(record.latency)
+        )
+    }
+
+    private func statusCodeBadge(_ statusCode: Int) -> some View {
+        let color: Color = if (200..<300).contains(statusCode) {
+            DesignToken.Colors.statusOnline
+        } else if statusCode >= 400 {
+            DesignToken.Colors.statusOffline
+        } else {
+            DesignToken.Colors.statusWarning
+        }
+
+        return Text(verbatim: "\(statusCode)")
+            .font(DesignToken.Font.system(size: 9, weight: .semibold, design: .monospaced))
+            .foregroundColor(color)
+            .padding(.horizontal, DesignToken.Spacing.xs)
+            .padding(.vertical, DesignToken.Spacing.xxs)
+            .background(color.opacity(0.12))
+            .cornerRadius(DesignToken.Layout.badgeCornerRadius)
     }
 
     private func timeAgo(from date: Date) -> String {
@@ -335,25 +372,14 @@ struct MenuView: View {
     // MARK: - Actions
 
     private var quickActions: some View {
-        HStack(spacing: DesignToken.Spacing.sm) {
-            menuActionButton(
-                title: L10n.Menu.copyConfig,
-                icon: "square.and.arrow.up",
-                isPrimary: true
-            ) {
-                copyEnvironmentConfig()
-            }
-            .accessibilityIdentifier("menu.copyEnvButton")
-
-            menuActionButton(
-                title: isTestingKey ? L10n.Status.testing : L10n.Menu.testChannels,
-                icon: isTestingKey ? "ellipsis.circle.fill" : "checkmark.circle",
-                isDisabled: channelStore.enabledChannels.isEmpty || isTestingKey
-            ) {
-                testAllChannels()
-            }
-            .accessibilityIdentifier("menu.testKeyButton")
+        menuActionButton(
+            title: L10n.Menu.copyConfig,
+            icon: "square.and.arrow.up",
+            isPrimary: true
+        ) {
+            copyEnvironmentConfig()
         }
+        .accessibilityIdentifier("menu.copyEnvButton")
     }
 
     private var footerButtons: some View {
@@ -424,13 +450,13 @@ struct MenuView: View {
                 .font(DesignToken.Font.system(size: 12, weight: .semibold))
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(maxWidth: .infinity, minHeight: 32)
         .foregroundColor(actionForeground(isPrimary: isPrimary, isDestructive: isDestructive))
-        .background(isPrimary ? DesignToken.Colors.accent : DesignToken.Colors.bgSecondary)
+        .background(isPrimary ? DesignToken.Colors.accent : Color.clear)
         .cornerRadius(DesignToken.Layout.buttonCornerRadius)
         .overlay(
             RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
-                .stroke(isPrimary ? DesignToken.Colors.accent : DesignToken.Colors.border, lineWidth: 1)
+                .stroke(isPrimary ? DesignToken.Colors.accent : Color.clear, lineWidth: 1)
         )
     }
 
@@ -476,16 +502,6 @@ struct MenuView: View {
             "export ANTHROPIC_BASE_URL=http://localhost:\(displayPort)/v1\nexport OPENAI_BASE_URL=http://localhost:\(displayPort)/v1",
             forType: .string
         )
-    }
-
-    private func testAllChannels() {
-        Task {
-            isTestingKey = true
-            for channel in channelStore.enabledChannels {
-                _ = await channelManager.testConnection(channel: channel)
-            }
-            isTestingKey = false
-        }
     }
 
     private func compactCount(_ count: Int) -> String {

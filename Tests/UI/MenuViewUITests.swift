@@ -45,11 +45,6 @@ final class MenuViewUITests: UITestCase {
         assertElementExists(UI.menuCopyEnvButton, "复制环境变量按钮应存在")
     }
     
-    /// 测试测试密钥按钮
-    func testTestKeyButtonExists() throws {
-        assertElementExists(UI.menuTestKeyButton, "测试密钥按钮应存在")
-    }
-    
     // MARK: - 底部按钮测试
     
     /// 测试设置按钮可点击
