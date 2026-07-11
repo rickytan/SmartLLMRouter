@@ -65,6 +65,15 @@
 "settings.general.setupShellEnv" = "Setup Shell Environment";
 "settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
+"settings.general.subtitle" = "Manage the local proxy, launch behavior, and developer tool integration.";
+"settings.general.serviceRunning" = "Service running";
+"settings.general.section.proxy" = "Proxy Service";
+"settings.general.port.hint" = "Local port the proxy service listens on";
+"settings.general.auto_start.hint" = "Launch SmartLLMRouter automatically after signing in to macOS";
+"settings.general.integrations" = "Developer Tools";
+"settings.general.shell.supportHint" = "Supports zsh, bash";
+"settings.general.shell.configured" = "Configured";
+"settings.general.privacyHint" = "API keys are stored in the system Keychain; configuration changes apply only to this Mac.";
 
 // Channel Settings
 "settings.channels.add" = "Add Channel";

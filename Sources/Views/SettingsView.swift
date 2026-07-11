@@ -91,21 +91,25 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: DesignToken.Spacing.xl) {
-                // Service Control Section
-                serviceSection
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+                pageHeader
 
-                Divider()
-                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+                sectionTitle(L10n.Settings.generalSectionProxy)
+                    .accessibilityIdentifier("settings.general.serviceHeader")
+                GeneralFormCard {
+                    portRow
+                    rowDivider
+                    launchRow
+                }
 
-                // Shell Environment Section
-                shellSection
+                sectionTitle(L10n.Settings.generalIntegrations)
+                GeneralFormCard {
+                    shellRow
+                    rowDivider
+                    claudeRow
+                }
 
-                Divider()
-                    .padding(.horizontal, DesignToken.Layout.cardPadding)
-
-                // Claude Code Integration Section
-                claudeCodeSection
+                footerHint
             }
             .padding(DesignToken.Layout.cardPadding)
         }
@@ -114,151 +118,360 @@ struct GeneralSettingsTab: View {
         }
     }
 
-    // MARK: - Service Section
+    // MARK: - Header
 
-    private var serviceSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            Text(L10n.Settings.generalService)
-                .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("settings.general.serviceHeader")
-
-            // Start/Stop Button
-            HoverButton(
-                title: proxy.isRunning ? L10n.Settings.generalStopService : L10n.Settings.generalStartService,
-                icon: proxy.isRunning ? "stop.fill" : "play.fill"
-            ) {
-                if proxy.isRunning {
-                    proxy.stop()
-                } else {
-                    proxy.start()
-                }
-            }
-            .accessibilityIdentifier("settings.general.startStopButton")
-
-            // Status Line
-            HStack(spacing: DesignToken.Spacing.xs) {
-                StatusIndicatorView(isRunning: proxy.isRunning, isCooldown: false)
-                    .frame(width: DesignToken.Layout.statusIndicatorSmall, height: DesignToken.Layout.statusIndicatorSmall)
-                    .accessibilityIdentifier(proxy.isRunning ? "menu.status.running" : "menu.status.stopped")
-
-                Text(proxy.isRunning
-                     ? L10n.Settings.generalRunningOnPort(proxy.port)
-                     : L10n.Settings.generalServiceStopped)
+    private var pageHeader: some View {
+        HStack(alignment: .top, spacing: DesignToken.Spacing.md) {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.general)
+                    .font(DesignToken.Font.h1())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                Text(L10n.Settings.generalSubtitle)
                     .font(DesignToken.Font.caption())
-                    .foregroundColor(proxy.isRunning
-                        ? DesignToken.Colors.statusOnline
-                        : DesignToken.Colors.textSecondary)
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Port Input
-            LabeledNumberField(
-                L10n.Settings.generalPort,
-                placeholder: L10n.Settings.generalPortPlaceholder,
-                value: $appState.port,
-                accessibilityID: "settings.general.portField"
-            )
-
-            // Launch at Login Toggle
-            ToggleRow(
-                L10n.Settings.generalAutoStart,
-                isOn: $appState.launchAtLogin
-            )
-            .accessibilityIdentifier("settings.general.autoStartToggle")
+            HStack(spacing: DesignToken.Spacing.md) {
+                ServiceStatusBadge(isRunning: proxy.isRunning)
+                PrimaryActionButton(
+                    title: proxy.isRunning ? L10n.Settings.generalStopService : L10n.Settings.generalStartService,
+                    icon: proxy.isRunning ? "stop.fill" : "play.fill"
+                ) {
+                    if proxy.isRunning {
+                        proxy.stop()
+                    } else {
+                        proxy.start()
+                    }
+                }
+                .accessibilityIdentifier(proxy.isRunning ? "settings.general.stop" : "settings.general.start")
+            }
         }
     }
 
-    // MARK: - Shell Section
+    // MARK: - Section Helpers
 
-    private var shellSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            Text(L10n.Settings.generalShellEnv)
-                .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("settings.general.shellHeader")
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(DesignToken.Font.h2())
+            .foregroundColor(DesignToken.Colors.textPrimary)
+    }
 
-            HoverButton(
+    private var rowDivider: some View {
+        Divider()
+    }
+
+    private func iconBox(_ icon: String) -> some View {
+        Image(systemName: icon)
+            .font(DesignToken.Font.system(size: 15, weight: .medium))
+            .foregroundColor(DesignToken.Colors.textSecondary)
+            .frame(width: 28, height: 28)
+            .background(DesignToken.Colors.bgSecondary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+    }
+
+    // MARK: - Service Rows
+
+    private var portRow: some View {
+        GeneralFormRow {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.generalPort)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                Text(L10n.Settings.generalPortHint)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+            }
+        } trailing: {
+            PortField(value: $appState.port, placeholder: L10n.Settings.generalPortPlaceholder)
+        }
+        .accessibilityIdentifier("settings.general.port")
+    }
+
+    private var launchRow: some View {
+        GeneralFormRow {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.generalAutoStart)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                Text(L10n.Settings.generalAutoStartHint)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+            }
+        } trailing: {
+            Toggle("", isOn: $appState.launchAtLogin)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .accessibilityIdentifier("settings.general.launchAtLogin")
+    }
+
+    // MARK: - Integration Rows
+
+    private var shellRow: some View {
+        GeneralFormRow {
+            HStack(spacing: DesignToken.Spacing.md) {
+                iconBox("terminal")
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                    Text(L10n.Settings.generalShellEnv)
+                        .font(DesignToken.Font.body())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                    Text(shellStatusText)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .accessibilityIdentifier("settings.general.shellStatus")
+                }
+            }
+        } trailing: {
+            SecondaryActionButton(
                 title: shellConfig.isConfigured ? L10n.Settings.generalUpdateShellConfig : L10n.Settings.generalSetupShellEnv,
-                icon: shellConfig.isConfigured ? "checkmark.circle.fill" : "gearshape"
+                icon: shellConfig.isConfigured ? "checkmark.circle" : "gearshape"
             ) {
                 Task {
                     _ = await shellConfig.configure(port: appState.port)
                 }
             }
-            .accessibilityIdentifier("settings.general.shellConfigure")
-
-            // Status
-            HStack(spacing: DesignToken.Spacing.xs) {
-                if shellConfig.isConfigured {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(DesignToken.Colors.statusOnline)
-                    Text(L10n.Settings.generalShellConfigured)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                } else {
-                    Text(L10n.Settings.generalNotConfigured)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                }
-            }
-            .accessibilityIdentifier("settings.general.shellStatus")
         }
+        .accessibilityIdentifier("settings.general.shellConfigure")
     }
 
-    // MARK: - Claude Code Section
-
-    private var claudeCodeSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            Text(L10n.ClaudeCode.sectionTitle)
-                .font(DesignToken.Font.h2())
-                .accessibilityIdentifier("settings.general.claudeCodeHeader")
-
-            // Current URL status
-            HStack(spacing: DesignToken.Spacing.xs) {
-                if claudeCode.configExists {
-                    Image(systemName: claudeCode.isActive ? "checkmark.circle.fill" : "circle")
-                        .foregroundColor(claudeCode.isActive
-                            ? DesignToken.Colors.statusOnline
-                            : DesignToken.Colors.textSecondary)
-                    Text(claudeCode.currentURL.isEmpty
-                         ? L10n.ClaudeCode.currentUrlNotSet
-                         : L10n.ClaudeCode.currentUrl(claudeCode.currentURL))
+    @ViewBuilder
+    private var claudeRow: some View {
+        GeneralFormRow {
+            HStack(spacing: DesignToken.Spacing.md) {
+                iconBox("arrow.triangle.swap")
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                    Text(L10n.ClaudeCode.takeoverToggle)
+                        .font(DesignToken.Font.body())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                    Text(L10n.ClaudeCode.takeoverDescription)
                         .font(DesignToken.Font.caption())
                         .foregroundColor(DesignToken.Colors.textSecondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } else {
-                    Image(systemName: "exclamationmark.circle")
-                        .foregroundColor(DesignToken.Colors.statusWarning)
-                    Text(L10n.ClaudeCode.configNotFound)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    claudeURLStatus
+                    if let error = claudeCode.lastError {
+                        HStack(spacing: DesignToken.Spacing.xs) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(DesignToken.Font.system(size: DesignToken.Layout.smallIconSize, weight: .medium))
+                            Text(error)
+                                .font(DesignToken.Font.caption())
+                                .foregroundColor(DesignToken.Colors.statusWarning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityIdentifier("settings.general.claudeCodeError")
+                    }
                 }
             }
-            .accessibilityIdentifier("settings.general.claudeCodeStatus")
+        } trailing: {
+            Toggle("", isOn: Binding(
+                get: { claudeCode.isActive },
+                set: { claudeCode.toggleTakeover(enable: $0) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+        .accessibilityIdentifier("settings.general.claudeCodeToggle")
+    }
 
-            // Toggle
-            ToggleRow(
-                L10n.ClaudeCode.takeoverToggle,
-                subtitle: L10n.ClaudeCode.takeoverDescription,
-                isOn: Binding(
-                    get: { claudeCode.isActive },
-                    set: { claudeCode.toggleTakeover(enable: $0) }
-                )
+    private var claudeURLStatus: some View {
+        HStack(spacing: DesignToken.Spacing.xs) {
+            Circle()
+                .fill(claudeCode.isActive ? DesignToken.Colors.statusOnline : DesignToken.Colors.textTertiary)
+                .frame(width: 7, height: 7)
+            Text(urlStatusText)
+                .font(DesignToken.Font.monoMicro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .accessibilityIdentifier("settings.general.claudeCodeStatus")
+    }
+
+    private var urlStatusText: String {
+        if !claudeCode.configExists {
+            return L10n.ClaudeCode.configNotFound
+        }
+        if claudeCode.currentURL.isEmpty {
+            return L10n.ClaudeCode.currentUrlNotSet
+        }
+        return L10n.ClaudeCode.currentUrl(claudeCode.currentURL)
+    }
+
+    private var shellStatusText: String {
+        let status = shellConfig.isConfigured
+            ? L10n.Settings.generalShellConfiguredLabel
+            : L10n.Settings.generalNotConfigured
+        return "\(status) · \(L10n.Settings.generalShellSupportHint)"
+    }
+
+    // MARK: - Footer
+
+    private var footerHint: some View {
+        HStack(alignment: .top, spacing: DesignToken.Spacing.sm) {
+            Image(systemName: "checkmark.shield")
+                .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                .foregroundColor(DesignToken.Colors.textSecondary)
+            Text(L10n.Settings.generalPrivacyHint)
+                .font(DesignToken.Font.caption())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, DesignToken.Spacing.xs)
+    }
+}
+
+// MARK: - General Form Components
+
+private struct GeneralFormCard<Content: View>: View {
+    @ViewBuilder private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(DesignToken.Colors.bgPrimary)
+        .cornerRadius(DesignToken.Layout.cardCornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignToken.Layout.cardCornerRadius)
+                .stroke(DesignToken.Colors.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct GeneralFormRow<Leading: View, Trailing: View>: View {
+    @ViewBuilder private let leading: Leading
+    @ViewBuilder private let trailing: Trailing
+
+    init(@ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.leading = leading()
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(spacing: DesignToken.Spacing.md) {
+            leading
+                .frame(maxWidth: .infinity, alignment: .leading)
+            trailing
+        }
+        .padding(.horizontal, DesignToken.Spacing.md)
+        .padding(.vertical, DesignToken.Spacing.sm)
+    }
+}
+
+private struct ServiceStatusBadge: View {
+    let isRunning: Bool
+
+    var body: some View {
+        let color = isRunning ? DesignToken.Colors.statusOnline : DesignToken.Colors.statusOffline
+        HStack(spacing: DesignToken.Spacing.xs) {
+            Circle()
+                .fill(color)
+                .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
+            Text(isRunning ? L10n.Settings.generalServiceRunning : L10n.Settings.generalServiceStopped)
+                .font(DesignToken.Font.caption())
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+        }
+        .padding(.vertical, DesignToken.Layout.badgePaddingV)
+        .padding(.horizontal, DesignToken.Layout.badgePaddingH)
+        .background(color.opacity(0.12))
+        .cornerRadius(DesignToken.Layout.badgeCornerRadius)
+    }
+}
+
+private struct PrimaryActionButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: icon)
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                Text(title)
+                    .font(DesignToken.Font.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(DesignToken.Colors.buttonLabel)
+            .padding(.horizontal, DesignToken.Spacing.md)
+            .frame(minHeight: DesignToken.Layout.buttonMinHeight)
+            .background(isHovered ? DesignToken.Colors.accentHover : DesignToken.Colors.accent)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+private struct SecondaryActionButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: icon)
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                Text(title)
+                    .font(DesignToken.Font.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(DesignToken.Colors.accent)
+            .padding(.horizontal, DesignToken.Spacing.md)
+            .frame(minHeight: DesignToken.Layout.buttonMinHeight)
+            .background(isHovered ? DesignToken.Colors.accent.opacity(0.08) : DesignToken.Colors.bgPrimary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                    .stroke(DesignToken.Colors.accent, lineWidth: 1)
             )
-            .accessibilityIdentifier("settings.general.claudeCodeToggle")
-
-            // Error message
-            if let error = claudeCode.lastError {
-                HStack(spacing: DesignToken.Spacing.xs) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(DesignToken.Colors.statusWarning)
-                    Text(error)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.statusWarning)
-                }
-                .accessibilityIdentifier("settings.general.claudeCodeError")
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
+                isHovered = hovering
             }
         }
     }
+}
+
+private struct PortField: View {
+    @Binding var value: Int
+    let placeholder: String
+
+    var body: some View {
+        TextField(placeholder, value: $value, formatter: Self.formatter)
+            .font(DesignToken.Font.mono())
+            .foregroundColor(DesignToken.Colors.textPrimary)
+            .textFieldStyle(.plain)
+            .frame(width: 160, height: DesignToken.Layout.buttonMinHeight)
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .background(DesignToken.Colors.bgPrimary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                    .stroke(DesignToken.Colors.border, lineWidth: 1)
+            )
+    }
+
+    private static let formatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = 0
+        formatter.maximum = 65535
+        return formatter
+    }()
 }
 
 // MARK: - Channels Tab

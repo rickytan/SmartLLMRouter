@@ -1095,6 +1095,42 @@ internal enum L10n {
     internal static var generalNotConfigured: String {
       L10n.tr("Localizable", "settings.general.notConfigured", fallback: "Not configured")
     }
+    /// Manage the local proxy, launch behavior, and developer tool integration.
+    internal static var generalSubtitle: String {
+      L10n.tr("Localizable", "settings.general.subtitle", fallback: "Manage the local proxy, launch behavior, and developer tool integration.")
+    }
+    /// Service running
+    internal static var generalServiceRunning: String {
+      L10n.tr("Localizable", "settings.general.serviceRunning", fallback: "Service running")
+    }
+    /// Proxy Service
+    internal static var generalSectionProxy: String {
+      L10n.tr("Localizable", "settings.general.section.proxy", fallback: "Proxy Service")
+    }
+    /// Local port the proxy service listens on
+    internal static var generalPortHint: String {
+      L10n.tr("Localizable", "settings.general.port.hint", fallback: "Local port the proxy service listens on")
+    }
+    /// Launch SmartLLMRouter automatically after signing in to macOS
+    internal static var generalAutoStartHint: String {
+      L10n.tr("Localizable", "settings.general.auto_start.hint", fallback: "Launch SmartLLMRouter automatically after signing in to macOS")
+    }
+    /// Developer Tools
+    internal static var generalIntegrations: String {
+      L10n.tr("Localizable", "settings.general.integrations", fallback: "Developer Tools")
+    }
+    /// Supports zsh, bash
+    internal static var generalShellSupportHint: String {
+      L10n.tr("Localizable", "settings.general.shell.supportHint", fallback: "Supports zsh, bash")
+    }
+    /// Configured
+    internal static var generalShellConfiguredLabel: String {
+      L10n.tr("Localizable", "settings.general.shell.configured", fallback: "Configured")
+    }
+    /// API keys are stored in the system Keychain; configuration changes apply only to this Mac.
+    internal static var generalPrivacyHint: String {
+      L10n.tr("Localizable", "settings.general.privacyHint", fallback: "API keys are stored in the system Keychain; configuration changes apply only to this Mac.")
+    }
     /// Port
     internal static var generalPort: String {
       L10n.tr("Localizable", "settings.general.port", fallback: "Port")

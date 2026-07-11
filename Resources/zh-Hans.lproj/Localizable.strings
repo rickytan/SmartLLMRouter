@@ -63,8 +63,17 @@
 "settings.general.shellEnv" = "Shell 环境";
 "settings.general.updateShellConfig" = "更新 Shell 配置";
 "settings.general.setupShellEnv" = "配置 Shell 环境";
-"settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
+"settings.general.shellConfigured" = "变量已添加到 ~/.zshenv";
 "settings.general.notConfigured" = "未配置";
+"settings.general.subtitle" = "管理本地代理、启动行为和终端工具接入。";
+"settings.general.serviceRunning" = "服务运行中";
+"settings.general.section.proxy" = "代理服务";
+"settings.general.port.hint" = "代理服务监听的本地端口";
+"settings.general.auto_start.hint" = "登录 macOS 后自动运行 SmartLLMRouter";
+"settings.general.integrations" = "开发工具集成";
+"settings.general.shell.supportHint" = "支持 zsh、bash";
+"settings.general.shell.configured" = "已配置";
+"settings.general.privacyHint" = "API Key 统一保存在系统 Keychain 中；配置变更仅在本机生效。";
 
 // Channel Settings
 "settings.channels.add" = "添加通道";
