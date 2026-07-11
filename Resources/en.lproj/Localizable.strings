@@ -11,6 +11,7 @@
 "menu.stats.summary" = "%lld requests · %lld tokens";
 "menu.stats.requests.label" = "Requests today";
 "menu.stats.tokens.label" = "Tokens";
+"menu.stats.errorRate" = "%lld%% errors";
 "menu.proxy.pause" = "Pause";
 "menu.proxy.start" = "Start";
 "menu.proxy.running.subtitle" = "Listening for local requests";
@@ -26,9 +27,11 @@
 "menu.requests.none" = "No recent requests";
 "menu.requests.count" = "%lld items";
 "menu.request.entry" = "%s · %s · %s";
+"menu.request.metadata" = "%s · %s tokens · %lldms";
 "menu.time.seconds" = "%ds ago";
 "menu.time.minutes" = "%dm ago";
 "menu.time.hours" = "%dh ago";
+"menu.time.daysHours" = "%dd %dh ago";
 "menu.copy.env" = "Copy Env Config";
 "menu.copy.config" = "Copy Config";
 "menu.test.key" = "Test Channels";
@@ -65,6 +68,15 @@
 "settings.general.setupShellEnv" = "Setup Shell Environment";
 "settings.general.shellConfigured" = "Variables already added to ~/.zshenv";
 "settings.general.notConfigured" = "Not configured";
+"settings.general.subtitle" = "Manage the local proxy, launch behavior, and developer tool integration.";
+"settings.general.serviceRunning" = "Service running";
+"settings.general.section.proxy" = "Proxy Service";
+"settings.general.port.hint" = "Local port the proxy service listens on";
+"settings.general.auto_start.hint" = "Launch SmartLLMRouter automatically after signing in to macOS";
+"settings.general.integrations" = "Developer Tools";
+"settings.general.shell.supportHint" = "Supports zsh, bash";
+"settings.general.shell.configuredLabel" = "Configured";
+"settings.general.privacyHint" = "API keys are stored in the system Keychain; configuration changes apply only to this Mac.";
 
 // Channel Settings
 "settings.channels.add" = "Add Channel";
@@ -112,6 +124,7 @@
 "settings.advanced.smartFallbackWarning" = "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.";
 "settings.advanced.maxFallbackCost" = "Max Fallback Cost";
 "settings.advanced.maxFallbackCostHint" = "per request";
+"settings.advanced.subtitle" = "Configure failover, smart model fallback, and circuit breaker policies.";
 
 // Usage Settings
 "settings.usage.today" = "Today";
@@ -242,6 +255,7 @@
 "addchannel.modelNamePlaceholder" = "e.g. gpt-4, llama3";
 "addchannel.addModel" = "Add Model";
 "addchannel.removeModel" = "Remove Model";
+"addchannel.copyModelName" = "Copy model name";
 "addchannel.search" = "Search...";
 "addchannel.providerName" = "Provider Name";
 "addchannel.providerNamePlaceholder" = "e.g. Local Ollama";

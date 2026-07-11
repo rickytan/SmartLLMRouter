@@ -196,28 +196,24 @@ final class RouterRuntimeState {
 
         let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { circuitBreaker.isAvailable(channelID: $0.id) }
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
-        }
 
         let selectedChannel: Channel?
         var effectiveModel = modelName
-        if let model = modelName, compatibleChannels.isEmpty {
-            selectedChannel = availableChannels.first
-            if let selectedChannel {
-                effectiveModel = selectedChannel.models.first { $0.isEnabled }?.identifier
-                Log.info("No exact channel match for model '\(model)'; using \(effectiveModel ?? "default model") via \(selectedChannel.name)")
+
+        if let model = modelName {
+            if let match = bestModelMatch(in: availableChannels, requestedModel: model) {
+                selectedChannel = match.channel
+                effectiveModel = match.model.identifier
+            } else {
+                // No model match at all (not even fuzzy); fall back to any available channel.
+                selectedChannel = availableChannels.first
+                if let selectedChannel {
+                    effectiveModel = selectedChannel.models.first { $0.isEnabled }?.identifier
+                    Log.info("No channel match for model '\(model)'; using \(effectiveModel ?? "default model") via \(selectedChannel.name)")
+                }
             }
         } else {
-            selectedChannel = compatibleChannels.first
-            if let model = modelName, let channel = selectedChannel,
-               let matched = channel.models.first(where: { $0.isEnabled && ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }) {
-                effectiveModel = matched.identifier
-            }
+            selectedChannel = availableChannels.first
         }
 
         guard let selectedChannel else {
@@ -282,19 +278,24 @@ final class RouterRuntimeState {
         let availableChannels = sortedChannels.filter { channel in
             !attemptedChannelIDs.contains(channel.id) && circuitBreaker.isAvailable(channelID: channel.id)
         }
-        let compatibleChannels: [Channel] = if let model = modelName {
-            availableChannels.filter { channel in
-                channel.models.contains { ModelSwitcher.modelMatches(requested: model, stored: $0.identifier) }
-            }
-        } else {
-            availableChannels
+        let compatibleMatch = modelName.flatMap {
+            bestModelMatch(in: availableChannels, requestedModel: $0)
         }
+        let compatibleChannel = compatibleMatch?.channel ?? (modelName == nil ? availableChannels.first : nil)
+        let compatibleModel = compatibleMatch?.model.identifier ?? modelName
 
-        if errorType == .contextLengthExceeded, let nextChannel = compatibleChannels.first {
+        if errorType == .contextLengthExceeded, let nextChannel = compatibleChannel {
             requestToChannel[requestID] = nextChannel.id
             requestAttemptedChannels[requestID, default: []].insert(nextChannel.id)
             Log.info("Retrying with channel \(nextChannel.name) for context_length_exceeded (retry #\(currentRetryCount + 1))")
-            return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
+            return RoutingDecision(
+                channel: nextChannel,
+                isRetry: true,
+                previousChannelID: previousChannelID,
+                retryCount: currentRetryCount + 1,
+                originalModel: modelName,
+                effectiveModel: compatibleModel
+            )
         }
 
         if errorType == .contextLengthExceeded, smartFallbackEnabled,
@@ -310,11 +311,18 @@ final class RouterRuntimeState {
             return fallback
         }
 
-        if errorType != .contextLengthExceeded, let nextChannel = compatibleChannels.first {
+        if errorType != .contextLengthExceeded, let nextChannel = compatibleChannel {
             requestToChannel[requestID] = nextChannel.id
             requestAttemptedChannels[requestID, default: []].insert(nextChannel.id)
             Log.info("Retrying with channel \(nextChannel.name) (retry #\(currentRetryCount + 1))")
-            return RoutingDecision(channel: nextChannel, isRetry: true, previousChannelID: previousChannelID, retryCount: currentRetryCount + 1, originalModel: modelName, effectiveModel: modelName)
+            return RoutingDecision(
+                channel: nextChannel,
+                isRetry: true,
+                previousChannelID: previousChannelID,
+                retryCount: currentRetryCount + 1,
+                originalModel: modelName,
+                effectiveModel: compatibleModel
+            )
         }
 
         if smartFallbackEnabled,
@@ -332,6 +340,30 @@ final class RouterRuntimeState {
 
         Log.warn(errorType == .contextLengthExceeded ? "No suitable channel or fallback for context_length_exceeded on request \(requestID)" : "No alternative channels available for retry")
         return nil
+    }
+
+    private func bestModelMatch(
+        in availableChannels: [Channel],
+        requestedModel: String
+    ) -> (channel: Channel, model: ModelEntry)? {
+        var bestScore = ModelSwitcher.ModelMatchScore.none
+        var bestMatch: (channel: Channel, model: ModelEntry)?
+
+        // Channels are priority-sorted by callers. Strict score improvement keeps
+        // the first (highest-priority) channel when match quality is tied.
+        for channel in availableChannels {
+            for model in channel.models where model.isEnabled {
+                let score = ModelSwitcher.modelMatchScore(
+                    requested: requestedModel,
+                    stored: model.identifier
+                )
+                if score > bestScore {
+                    bestScore = score
+                    bestMatch = (channel, model)
+                }
+            }
+        }
+        return bestMatch
     }
 
     func recordSuccess(channelID: String) {

@@ -11,6 +11,7 @@
 "menu.stats.summary" = "%lld 次请求 · %lld tokens";
 "menu.stats.requests.label" = "今日请求";
 "menu.stats.tokens.label" = "tokens";
+"menu.stats.errorRate" = "%lld%% 错误";
 "menu.proxy.pause" = "暂停";
 "menu.proxy.start" = "启动";
 "menu.proxy.running.subtitle" = "代理正在监听本机请求";
@@ -26,9 +27,11 @@
 "menu.requests.none" = "暂无请求记录";
 "menu.requests.count" = "%lld 条";
 "menu.request.entry" = "%s · %s · %s";
+"menu.request.metadata" = "%s · %s tokens · %lldms";
 "menu.time.seconds" = "%d秒前";
 "menu.time.minutes" = "%d分钟前";
 "menu.time.hours" = "%d小时前";
+"menu.time.daysHours" = "%d天%d小时前";
 "menu.copy.env" = "复制环境变量配置";
 "menu.copy.config" = "复制配置";
 "menu.test.key" = "测试所有通道";
@@ -63,8 +66,17 @@
 "settings.general.shellEnv" = "Shell 环境";
 "settings.general.updateShellConfig" = "更新 Shell 配置";
 "settings.general.setupShellEnv" = "配置 Shell 环境";
-"settings.general.shellConfigured" = "变量已添加到 ~/.zshrc";
+"settings.general.shellConfigured" = "变量已添加到 ~/.zshenv";
 "settings.general.notConfigured" = "未配置";
+"settings.general.subtitle" = "管理本地代理、启动行为和终端工具接入。";
+"settings.general.serviceRunning" = "服务运行中";
+"settings.general.section.proxy" = "代理服务";
+"settings.general.port.hint" = "代理服务监听的本地端口";
+"settings.general.auto_start.hint" = "登录 macOS 后自动运行 SmartLLMRouter";
+"settings.general.integrations" = "开发工具集成";
+"settings.general.shell.supportHint" = "支持 zsh、bash";
+"settings.general.shell.configuredLabel" = "已配置";
+"settings.general.privacyHint" = "API Key 统一保存在系统 Keychain 中；配置变更仅在本机生效。";
 
 // Channel Settings
 "settings.channels.add" = "添加通道";
@@ -112,6 +124,7 @@
 "settings.advanced.smartFallbackWarning" = "启用后，代理将自动使用其他提供商的更大上下文模型重试失败的请求。您的客户端将看到原始模型名称，但实际模型可能不同。不同模型之间的工具调用兼容性无法保证。";
 "settings.advanced.maxFallbackCost" = "最大回退成本";
 "settings.advanced.maxFallbackCostHint" = "每次请求";
+"settings.advanced.subtitle" = "配置故障转移、智能模型回退与熔断策略。";
 
 // Usage Settings
 "settings.usage.today" = "今天";
@@ -240,6 +253,7 @@
 "addchannel.modelNamePlaceholder" = "例如 gpt-4, llama3";
 "addchannel.addModel" = "添加模型";
 "addchannel.removeModel" = "移除模型";
+"addchannel.copyModelName" = "复制模型名";
 "addchannel.search" = "搜索...";
 "addchannel.providerName" = "厂商名称";
 "addchannel.providerNamePlaceholder" = "例如 Local Ollama";

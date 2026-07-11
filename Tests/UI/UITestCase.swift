@@ -32,7 +32,6 @@ class UITestCase: XCTestCase {
         static let menuStatsLabel = "menu.statsLabel"
         static let menuFailoverToggle = "menu.failover.toggle"
         static let menuCopyEnvButton = "menu.copyEnvButton"
-        static let menuTestKeyButton = "menu.testKeyButton"
         static let menuSettingsButton = "menu.settingsButton"
         static let menuQuitButton = "menu.quitButton"
         static let menuRecentRequests = "menu.recentRequestsList"

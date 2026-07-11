@@ -684,11 +684,43 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertEqual(nextRequestDecision?.channel.id, ch1.id)
     }
 
-    private func makeChannel(name: String, priority: Int) -> Channel {
+    func testFuzzyModelMatchUsesStoredIdentifierAcrossRetry() throws {
+        let primary = makeChannel(
+            name: "Primary",
+            priority: 1,
+            modelIdentifier: "glm-5-2-260717"
+        )
+        let secondary = makeChannel(
+            name: "Secondary",
+            priority: 2,
+            modelIdentifier: "glm-5-2-260801"
+        )
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(secondary)
+
+        let initial = router.selectChannel(requestID: "req-fuzzy-retry", modelName: "glm-5.2")
+        XCTAssertEqual(initial?.channel.id, primary.id)
+        XCTAssertEqual(initial?.effectiveModel, "glm-5-2-260717")
+
+        let retry = router.handleError(
+            requestID: "req-fuzzy-retry",
+            statusCode: 401,
+            modelName: "glm-5.2"
+        )
+        XCTAssertEqual(retry?.channel.id, secondary.id)
+        XCTAssertEqual(retry?.effectiveModel, "glm-5-2-260801")
+        XCTAssertEqual(retry?.originalModel, "glm-5.2")
+    }
+
+    private func makeChannel(
+        name: String,
+        priority: Int,
+        modelIdentifier: String = "gpt-4o"
+    ) -> Channel {
         let model = ModelEntry(
-            id: "gpt-4o",
-            identifier: "gpt-4o",
-            displayName: "GPT-4o",
+            id: modelIdentifier,
+            identifier: modelIdentifier,
+            displayName: modelIdentifier,
             contextLength: 8192,
             inputPricePer1M: 5.0,
             outputPricePer1M: 15.0
