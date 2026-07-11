@@ -359,7 +359,8 @@ lane :appcast do
   File.write(key_file, ed_key)
 
   repo = ENV["GITHUB_REPOSITORY"] || "rickytan/SmartLLMRouter"
-  download_prefix = "https://github.com/#{repo}/releases/download/"
+  tag = ENV["GITHUB_REF"]&.then { |r| r.sub(%r{^refs/tags/}, "") } || "v#{app_version}"
+  download_prefix = "https://github.com/#{repo}/releases/download/#{tag}/"
 
   UI.header("Generating Appcast...")
   run(generate_appcast, "--ed-key-file", "sparkle_private.pem",
