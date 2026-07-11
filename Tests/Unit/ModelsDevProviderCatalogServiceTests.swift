@@ -203,6 +203,41 @@ final class ModelsDevProviderCatalogServiceTests: XCTestCase {
         XCTAssertEqual(cached[0].defaultModels.map(\.model), ["cached-model"])
     }
 
+    func testAutoRefreshIsAllowedWhenNoAttemptWasRecorded() throws {
+        let suiteName = "ModelsDevProviderCatalogServiceTests.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let service = ModelsDevProviderCatalogService(userDefaults: userDefaults)
+        let calendar = gregorianCalendar
+
+        XCTAssertTrue(service.shouldAutoRefreshTemplates(now: date(year: 2026, month: 7, day: 11), calendar: calendar))
+    }
+
+    func testAutoRefreshIsSkippedAfterSameDayAttempt() throws {
+        let suiteName = "ModelsDevProviderCatalogServiceTests.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let service = ModelsDevProviderCatalogService(userDefaults: userDefaults)
+        let calendar = gregorianCalendar
+        service.markAutoRefreshAttempted(now: date(year: 2026, month: 7, day: 11, hour: 9))
+
+        XCTAssertFalse(service.shouldAutoRefreshTemplates(now: date(year: 2026, month: 7, day: 11, hour: 18), calendar: calendar))
+    }
+
+    func testAutoRefreshIsAllowedOnNextDay() throws {
+        let suiteName = "ModelsDevProviderCatalogServiceTests.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let service = ModelsDevProviderCatalogService(userDefaults: userDefaults)
+        let calendar = gregorianCalendar
+        service.markAutoRefreshAttempted(now: date(year: 2026, month: 7, day: 11, hour: 23))
+
+        XCTAssertTrue(service.shouldAutoRefreshTemplates(now: date(year: 2026, month: 7, day: 12, hour: 1), calendar: calendar))
+    }
+
     @MainActor
     func testMergeProviderTemplatesKeepsBuiltInEndpointWhenRemoteOnlyUpdatesModels() {
         let builtIn = ProviderTemplate(
@@ -244,5 +279,22 @@ final class ModelsDevProviderCatalogServiceTests: XCTestCase {
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged[0].baseURL(for: Channel.openAIEndpointKey), "https://api.openai.com/v1")
         XCTAssertEqual(merged[0].defaultModels.map(\.model), ["gpt-new"])
+    }
+
+    private var gregorianCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func date(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
+        DateComponents(
+            calendar: gregorianCalendar,
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: year,
+            month: month,
+            day: day,
+            hour: hour
+        ).date!
     }
 }

@@ -243,12 +243,21 @@ struct AddChannelView: View {
     private func refreshProviderTemplatesIfNeeded() {
         guard !didRequestProviderRefresh, editingChannel == nil else { return }
         didRequestProviderRefresh = true
-        Task { await refreshProviderTemplates(selectFallback: true) }
+        Task { await refreshProviderTemplates(selectFallback: true, force: false) }
     }
 
-    private func refreshProviderTemplates(selectFallback: Bool) async {
+    private func refreshProviderTemplates(selectFallback: Bool, force: Bool = true) async {
         let currentSelection = selectedProviderId
-        await channelManager.refreshProviderTemplatesFromModelsDev()
+        let didRefresh: Bool
+        if force {
+            await channelManager.refreshProviderTemplatesFromModelsDev()
+            didRefresh = true
+        } else {
+            didRefresh = await channelManager.refreshProviderTemplatesFromModelsDevIfNeeded()
+        }
+
+        guard didRefresh else { return }
+
         if let currentSelection,
            channelManager.providerTemplates.contains(where: { $0.id == currentSelection }) {
             selectedProviderId = currentSelection

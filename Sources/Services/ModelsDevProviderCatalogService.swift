@@ -2,6 +2,7 @@ import Foundation
 
 struct ModelsDevProviderCatalogService {
     private static let cacheKey = "modelsDev.providerTemplates.cache.v1"
+    private static let lastAutoRefreshAttemptKey = "modelsDev.providerTemplates.lastAutoRefreshAttempt.v1"
 
     var endpoint: URL
     var session: URLSession
@@ -34,6 +35,17 @@ struct ModelsDevProviderCatalogService {
     func cacheTemplates(_ templates: [ProviderTemplate]) {
         guard let data = try? JSONEncoder().encode(templates) else { return }
         userDefaults.set(data, forKey: Self.cacheKey)
+    }
+
+    func shouldAutoRefreshTemplates(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let lastAttempt = userDefaults.object(forKey: Self.lastAutoRefreshAttemptKey) as? Date else {
+            return true
+        }
+        return !calendar.isDate(lastAttempt, inSameDayAs: now)
+    }
+
+    func markAutoRefreshAttempted(now: Date = Date()) {
+        userDefaults.set(now, forKey: Self.lastAutoRefreshAttemptKey)
     }
 
     static func parseTemplates(from data: Data) throws -> [ProviderTemplate] {
