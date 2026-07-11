@@ -29,6 +29,7 @@
 "menu.time.seconds" = "%ds ago";
 "menu.time.minutes" = "%dm ago";
 "menu.time.hours" = "%dh ago";
+"menu.time.daysHours" = "%dd %dh ago";
 "menu.copy.env" = "Copy Env Config";
 "menu.copy.config" = "Copy Config";
 "menu.test.key" = "Test Channels";
@@ -121,6 +122,7 @@
 "settings.advanced.smartFallbackWarning" = "When enabled, the proxy will automatically retry failed requests with a larger-context model from another provider. Your client will see the original model name, but the actual model may differ. Tool calling compatibility is not guaranteed across different models.";
 "settings.advanced.maxFallbackCost" = "Max Fallback Cost";
 "settings.advanced.maxFallbackCostHint" = "per request";
+"settings.advanced.subtitle" = "Configure failover, smart model fallback, and circuit breaker policies.";
 
 // Usage Settings
 "settings.usage.today" = "Today";
@@ -251,6 +253,7 @@
 "addchannel.modelNamePlaceholder" = "e.g. gpt-4, llama3";
 "addchannel.addModel" = "Add Model";
 "addchannel.removeModel" = "Remove Model";
+"addchannel.copyModelName" = "Copy model name";
 "addchannel.search" = "Search...";
 "addchannel.providerName" = "Provider Name";
 "addchannel.providerNamePlaceholder" = "e.g. Local Ollama";

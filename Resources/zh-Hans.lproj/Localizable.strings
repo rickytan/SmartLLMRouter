@@ -29,6 +29,7 @@
 "menu.time.seconds" = "%d秒前";
 "menu.time.minutes" = "%d分钟前";
 "menu.time.hours" = "%d小时前";
+"menu.time.daysHours" = "%d天%d小时前";
 "menu.copy.env" = "复制环境变量配置";
 "menu.copy.config" = "复制配置";
 "menu.test.key" = "测试所有通道";
@@ -121,6 +122,7 @@
 "settings.advanced.smartFallbackWarning" = "启用后，代理将自动使用其他提供商的更大上下文模型重试失败的请求。您的客户端将看到原始模型名称，但实际模型可能不同。不同模型之间的工具调用兼容性无法保证。";
 "settings.advanced.maxFallbackCost" = "最大回退成本";
 "settings.advanced.maxFallbackCostHint" = "每次请求";
+"settings.advanced.subtitle" = "配置故障转移、智能模型回退与熔断策略。";
 
 // Usage Settings
 "settings.usage.today" = "今天";
@@ -249,6 +251,7 @@
 "addchannel.modelNamePlaceholder" = "例如 gpt-4, llama3";
 "addchannel.addModel" = "添加模型";
 "addchannel.removeModel" = "移除模型";
+"addchannel.copyModelName" = "复制模型名";
 "addchannel.search" = "搜索...";
 "addchannel.providerName" = "厂商名称";
 "addchannel.providerNamePlaceholder" = "例如 Local Ollama";

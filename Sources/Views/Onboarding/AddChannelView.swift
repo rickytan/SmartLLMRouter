@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // MARK: - AddChannelView (Modal Form Layout)
 
@@ -555,6 +556,17 @@ struct AddChannelView: View {
                 .font(DesignToken.Font.caption())
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            // Copy Model Name
+            IconButton(
+                icon: "doc.on.doc",
+                tooltip: L10n.AddChannel.copyModelName
+            ) {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(model.identifier, forType: .string)
+            }
+            .accessibilityIdentifier("addChannel.modelRow.copyButton")
 
             Spacer()
 

@@ -260,7 +260,13 @@ struct MenuView: View {
     // MARK: - Requests
 
     private var recentRequestsPanel: some View {
-        let recent = Array(usage.records.suffix(5).reversed())
+        let recent: [UsageRecord] = {
+            let latestPerModel = Dictionary(grouping: usage.records, by: \.model)
+                .compactMap { (_, recs) -> UsageRecord? in
+                    recs.max(by: { $0.timestamp < $1.timestamp })
+                }
+            return latestPerModel.sorted { $0.timestamp > $1.timestamp }.prefix(5).map { $0 }
+        }()
 
         return VStack(alignment: .leading, spacing: DesignToken.Spacing.sm) {
             sectionHeader(title: L10n.Menu.requestsRecent, trailing: L10n.Menu.requestsCount(recent.count))
@@ -273,7 +279,7 @@ struct MenuView: View {
                     .padding(.vertical, DesignToken.Spacing.xs)
             } else {
                 VStack(spacing: DesignToken.Spacing.xs) {
-                    ForEach(recent, id: \.timestamp) { record in
+                    ForEach(recent, id: \.model) { record in
                         recentRequestRow(record)
                     }
                 }
@@ -317,8 +323,12 @@ struct MenuView: View {
             return L10n.Menu.timeSeconds(seconds)
         } else if seconds < 3600 {
             return L10n.Menu.timeMinutes(seconds / 60)
-        } else {
+        } else if seconds < 86400 {
             return L10n.Menu.timeHours(seconds / 3600)
+        } else {
+            let days = seconds / 86400
+            let hours = (seconds % 86400) / 3600
+            return L10n.Menu.timeDaysHours(days, hours)
         }
     }
 

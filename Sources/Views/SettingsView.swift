@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Charts
 import Sparkle
 
@@ -474,6 +475,51 @@ private struct PortField: View {
     }()
 }
 
+private struct GeneralFormFullRow<Content: View>: View {
+    @ViewBuilder private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignToken.Spacing.md)
+            .padding(.vertical, DesignToken.Spacing.sm)
+    }
+}
+
+private struct InlineDoubleField: View {
+    @Binding var value: Double
+    let placeholder: String
+
+    var body: some View {
+        TextField(placeholder, value: $value, formatter: Self.formatter)
+            .font(DesignToken.Font.mono())
+            .foregroundColor(DesignToken.Colors.textPrimary)
+            .textFieldStyle(.plain)
+            .frame(width: 120, height: DesignToken.Layout.buttonMinHeight)
+            .padding(.horizontal, DesignToken.Spacing.sm)
+            .background(DesignToken.Colors.bgPrimary)
+            .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius)
+                    .stroke(DesignToken.Colors.border, lineWidth: 1)
+            )
+    }
+
+    private static let formatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimum = 0
+        formatter.maximum = 1000
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter
+    }()
+}
+
 // MARK: - Channels Tab
 
 private enum ChannelListFilter: String, CaseIterable, Identifiable {
@@ -808,43 +854,84 @@ struct AdvancedTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: DesignToken.Spacing.xl) {
-                // Failover Section
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                    Text(L10n.Settings.advancedFailover)
-                        .font(DesignToken.Font.h2())
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
+                pageHeader
 
-                    ToggleRow(
-                        L10n.Settings.advancedFailover,
-                        isOn: $appState.autoFailover
-                    )
+                sectionTitle(L10n.Settings.advancedFailover)
+                GeneralFormCard {
+                    GeneralFormRow {
+                        Text(L10n.Settings.advancedFailover)
+                            .font(DesignToken.Font.body())
+                            .foregroundColor(DesignToken.Colors.textPrimary)
+                    } trailing: {
+                        Toggle("", isOn: $appState.autoFailover)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
                     .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
                 }
 
-                Divider()
-                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+                sectionTitle(L10n.Settings.advancedSmartFallback)
+                GeneralFormCard {
+                    GeneralFormRow {
+                        Text(L10n.Settings.advancedSmartFallback)
+                            .font(DesignToken.Font.body())
+                            .foregroundColor(DesignToken.Colors.textPrimary)
+                    } trailing: {
+                        Toggle("", isOn: Binding(
+                            get: { smartRouter.smartFallbackEnabled },
+                            set: { smartRouter.smartFallbackEnabled = $0; smartRouter.saveSettings() }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+                    .accessibilityIdentifier("settings.advanced.smartFallback")
 
-                // Smart Model Fallback Section
-                smartFallbackSection
+                    Divider()
 
-                Divider()
-                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+                    GeneralFormFullRow {
+                        Text(L10n.Settings.advancedSmartFallbackWarning)
+                            .font(DesignToken.Font.caption())
+                            .foregroundColor(DesignToken.Colors.statusWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                // Circuit Breaker Section
-                circuitBreakerSection
+                    Divider()
 
-                Divider()
-                    .padding(.horizontal, DesignToken.Layout.cardPadding)
+                    GeneralFormRow {
+                        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                            Text(L10n.Settings.advancedMaxFallbackCost)
+                                .font(DesignToken.Font.body())
+                                .foregroundColor(DesignToken.Colors.textPrimary)
+                            Text(L10n.Settings.advancedMaxFallbackCostHint)
+                                .font(DesignToken.Font.caption())
+                                .foregroundColor(DesignToken.Colors.textSecondary)
+                        }
+                    } trailing: {
+                        InlineDoubleField(
+                            value: Binding(
+                                get: { smartRouter.maxFallbackCost },
+                                set: { smartRouter.maxFallbackCost = $0; smartRouter.saveSettings() }
+                            ),
+                            placeholder: "$2.00"
+                        )
+                    }
+                    .accessibilityIdentifier("settings.advanced.maxFallbackCost")
+                }
 
-                // Cooldown Section
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-                    Text(L10n.Settings.advancedCooldown)
-                        .font(DesignToken.Font.h2())
+                circuitBreakerHeader
+                GeneralFormCard {
+                    circuitBreakerCardContent
+                }
 
+                sectionTitle(L10n.Settings.advancedCooldown)
+                GeneralFormCard {
                     cooldownRow(title: L10n.Settings.advancedCooldown429, value: "30m")
                         .accessibilityIdentifier("settings.advanced.cooldown.429")
+                    Divider()
                     cooldownRow(title: L10n.Settings.advancedCooldown5xx, value: "10m")
                         .accessibilityIdentifier("settings.advanced.cooldown.5xx")
+                    Divider()
                     cooldownRow(title: L10n.Settings.advancedCooldown401, value: "24h")
                         .accessibilityIdentifier("settings.advanced.cooldown.401")
                 }
@@ -864,130 +951,123 @@ struct AdvancedTab: View {
         }
     }
 
-    private var smartFallbackSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            Text(L10n.Settings.advancedSmartFallback)
-                .font(DesignToken.Font.h2())
+    // MARK: - Header
 
-            ToggleRow(
-                L10n.Settings.advancedSmartFallback,
-                isOn: Binding(
-                    get: { smartRouter.smartFallbackEnabled },
-                    set: { smartRouter.smartFallbackEnabled = $0; smartRouter.saveSettings() }
-                )
-            )
-            .accessibilityIdentifier("settings.advanced.smartFallback")
-
-            Text(L10n.Settings.advancedSmartFallbackWarning)
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+            Text(L10n.Settings.advanced)
+                .font(DesignToken.Font.h1())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+            Text(L10n.Settings.advancedSubtitle)
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            LabeledDoubleField(
-                L10n.Settings.advancedMaxFallbackCost,
-                placeholder: "$2.00",
-                hint: L10n.Settings.advancedMaxFallbackCostHint,
-                value: Binding(
-                    get: { smartRouter.maxFallbackCost },
-                    set: { smartRouter.maxFallbackCost = $0; smartRouter.saveSettings() }
-                ),
-                accessibilityID: "settings.advanced.maxFallbackCost"
-            )
         }
     }
 
-    private func cooldownRow(title: String, value: String) -> some View {
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(DesignToken.Font.h2())
+            .foregroundColor(DesignToken.Colors.textPrimary)
+    }
+
+    // MARK: - Circuit Breaker
+
+    private var circuitBreakerHeader: some View {
         HStack {
-            Text(title)
-                .font(DesignToken.Font.body())
-
+            Text(L10n.CircuitBreaker.title)
+                .font(DesignToken.Font.h2())
+                .foregroundColor(DesignToken.Colors.textPrimary)
             Spacer()
-
-            Text(value)
-                .font(DesignToken.Font.system(size: 13, weight: .medium, design: .monospaced))
-                .foregroundColor(DesignToken.Colors.textSecondary)
+            Button {
+                resetAllCircuits()
+            } label: {
+                Text(L10n.CircuitBreaker.resetAll)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.advanced.resetCircuits")
         }
     }
 
-    // MARK: - Circuit Breaker Section
-
-    private var circuitBreakerSection: some View {
-        VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
-            HStack {
-                Text(L10n.CircuitBreaker.title)
-                    .font(DesignToken.Font.h2())
-
-                Spacer()
-
-                Button {
-                    resetAllCircuits()
-                } label: {
-                    Text(L10n.CircuitBreaker.resetAll)
-                        .font(DesignToken.Font.caption())
-                        .foregroundColor(DesignToken.Colors.accent)
-                }
-            }
-
+    @ViewBuilder
+    private var circuitBreakerCardContent: some View {
+        GeneralFormFullRow {
             Text(L10n.CircuitBreaker.description)
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
 
-            if circuitStates.isEmpty {
+        if circuitStates.isEmpty {
+            Divider()
+            GeneralFormFullRow {
                 HStack(spacing: DesignToken.Spacing.sm) {
                     Image(systemName: "checkmark.circle.fill")
+                        .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
                         .foregroundColor(DesignToken.Colors.statusOnline)
                     Text(L10n.CircuitBreaker.stateClosed)
                         .font(DesignToken.Font.caption())
                         .foregroundColor(DesignToken.Colors.textSecondary)
                 }
-            } else {
-                ForEach(circuitStates.sorted(by: { $0.key < $1.key }), id: \.key) { channelID, state in
-                    circuitStateRow(channelID: channelID, state: state)
-                }
+            }
+        } else {
+            ForEach(Array(circuitStates.sorted(by: { $0.key < $1.key }).enumerated()), id: \.element.key) { _, entry in
+                Divider()
+                circuitStateRow(channelID: entry.key, state: entry.value)
             }
         }
     }
 
     private func circuitStateRow(channelID: String, state: CircuitState) -> some View {
-        HStack(spacing: DesignToken.Spacing.sm) {
-            // Status indicator
-            Circle()
-                .fill(stateColor(for: state))
-                .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
-
-            // Channel name
-            let channelName = channelStore.channels.first(where: { $0.id == channelID })?.name ?? channelID
-            Text(channelName)
-                .font(DesignToken.Font.caption())
-                .foregroundColor(DesignToken.Colors.textPrimary)
-
-            Spacer()
-
-            // State label
-            Text(stateLabel(for: state))
-                .font(DesignToken.Font.system(size: 11, weight: .medium))
-                .foregroundColor(stateColor(for: state))
-                .padding(.horizontal, DesignToken.Spacing.xs)
-                .padding(.vertical, 2)
-                .background(stateColor(for: state).opacity(0.1))
-                .cornerRadius(4)
-
-            // Remaining time (if open)
-            if case .open(let until) = state {
-                let remaining = max(0, until.timeIntervalSince(Date()))
-                if remaining > 0 {
-                    Text(formatRemainingTime(remaining))
-                        .font(DesignToken.Font.system(size: 10, design: .monospaced))
-                        .foregroundColor(DesignToken.Colors.textSecondary)
+        GeneralFormRow {
+            HStack(spacing: DesignToken.Spacing.sm) {
+                Circle()
+                    .fill(stateColor(for: state))
+                    .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
+                Text(channelStore.channels.first(where: { $0.id == channelID })?.name ?? channelID)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        } trailing: {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Text(stateLabel(for: state))
+                    .font(DesignToken.Font.system(size: 11, weight: .medium))
+                    .foregroundColor(stateColor(for: state))
+                    .padding(.horizontal, DesignToken.Spacing.xs)
+                    .padding(.vertical, 2)
+                    .background(stateColor(for: state).opacity(0.1))
+                    .cornerRadius(4)
+                if case .open(let until) = state {
+                    let remaining = max(0, until.timeIntervalSince(Date()))
+                    if remaining > 0 {
+                        Text(formatRemainingTime(remaining))
+                            .font(DesignToken.Font.monoMicro())
+                            .foregroundColor(DesignToken.Colors.textSecondary)
+                    }
                 }
             }
         }
-        .padding(.horizontal, DesignToken.Spacing.sm)
-        .padding(.vertical, DesignToken.Spacing.xs)
-        .background(DesignToken.Colors.bgSecondary)
-        .cornerRadius(8)
     }
+
+    // MARK: - Cooldown
+
+    private func cooldownRow(title: String, value: String) -> some View {
+        GeneralFormRow {
+            Text(title)
+                .font(DesignToken.Font.body())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+        } trailing: {
+            Text(value)
+                .font(DesignToken.Font.mono())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+        }
+    }
+
+    // MARK: - Helpers
 
     private func stateColor(for state: CircuitState) -> Color {
         switch state {
@@ -1351,9 +1431,10 @@ struct AboutTab: View {
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.sm) {
-            Image(systemName: "network")
-                .font(.system(size: DesignToken.Layout.heroIconSize))
-                .foregroundColor(DesignToken.Colors.accent)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
 
             Text(L10n.About.appName)
                 .font(DesignToken.Font.h1())

@@ -29,6 +29,10 @@ internal enum L10n {
     internal static var addModel: String {
       L10n.tr("Localizable", "addchannel.addModel", fallback: "Add Model")
     }
+    /// Copy model name
+    internal static var copyModelName: String {
+      L10n.tr("Localizable", "addchannel.copyModelName", fallback: "Copy model name")
+    }
     /// sk-...
     internal static var apiKeyPlaceholder: String {
       L10n.tr("Localizable", "addchannel.apiKeyPlaceholder", fallback: "sk-...")
@@ -575,6 +579,10 @@ internal enum L10n {
     internal static func timeHours(_ p1: Int) -> String {
       return L10n.tr("Localizable", "menu.time.hours", p1, fallback: "%dh ago")
     }
+    /// %dd %dh ago
+    internal static func timeDaysHours(_ p1: Int, _ p2: Int) -> String {
+      return L10n.tr("Localizable", "menu.time.daysHours", p1, p2, fallback: "%dd %dh ago")
+    }
     /// %dm ago
     internal static func timeMinutes(_ p1: Int) -> String {
       return L10n.tr("Localizable", "menu.time.minutes", p1, fallback: "%dm ago")
@@ -918,6 +926,10 @@ internal enum L10n {
     /// per request
     internal static var advancedMaxFallbackCostHint: String {
       L10n.tr("Localizable", "settings.advanced.maxFallbackCostHint", fallback: "per request")
+    }
+    /// Configure failover, smart model fallback, and circuit breaker policies.
+    internal static var advancedSubtitle: String {
+      L10n.tr("Localizable", "settings.advanced.subtitle", fallback: "Configure failover, smart model fallback, and circuit breaker policies.")
     }
     /// Max Retries
     internal static var advancedRetryCount: String {
