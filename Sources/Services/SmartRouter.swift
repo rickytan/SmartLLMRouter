@@ -267,13 +267,19 @@ final class RouterRuntimeState {
         let previousChannelID = requestToChannel[requestID]
         var attemptedChannelIDs = requestAttemptedChannels[requestID] ?? []
         // On the first timeout, retry the SAME channel before failing over - it may be a
-        // transient hiccup. Don't trip the circuit breaker or exclude the channel yet.
-        // Subsequent timeouts (and all other retryable errors) fail over to another channel.
+        // transient hiccup. selectChannel already seeded attemptedChannelIDs with this channel,
+        // so we must REMOVE it to make it selectable again; and we skip recordFailure so the
+        // circuit breaker isn't tripped for a single transient timeout. Subsequent timeouts
+        // (and all other retryable errors) fail over to another channel normally.
         let retrySameChannel = (errorType == .timeout && currentRetryCount == 0)
-        if let previousChannelID, !retrySameChannel {
-            attemptedChannelIDs.insert(previousChannelID)
-            _ = switchLock.execute {
-                self.circuitBreaker.recordFailure(channelID: previousChannelID)
+        if let previousChannelID {
+            if retrySameChannel {
+                attemptedChannelIDs.remove(previousChannelID)
+            } else {
+                attemptedChannelIDs.insert(previousChannelID)
+                _ = switchLock.execute {
+                    self.circuitBreaker.recordFailure(channelID: previousChannelID)
+                }
             }
         }
         requestAttemptedChannels[requestID] = attemptedChannelIDs

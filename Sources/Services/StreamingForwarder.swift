@@ -131,6 +131,13 @@ final class StreamingForwarder {
                 }
             }
 
+            // Don't write to the client if wait() already aborted (e.g. first-byte timeout);
+            // otherwise a racing late didReceiveData write interleaves with the retry's writes.
+            lock.lock()
+            let aborted = completionError != nil
+            lock.unlock()
+            guard !aborted else { return }
+
             do {
                 if incomingProtocol == .anthropic, upstreamProtocol == .openai {
                     for event in parser.parse(data) {
@@ -240,6 +247,12 @@ final class StreamingForwarder {
                 if remaining <= 0 {
                     lock.lock()
                     if completionError == nil {
+                        // First byte arrived during the wait window - don't treat as first-byte
+                        // timeout; re-loop so hasBody re-reads and the stream deadline governs.
+                        if !hasBody, wroteBody {
+                            lock.unlock()
+                            continue
+                        }
                         let message = hasBody ? "Streaming request timed out" : "Upstream first byte timed out"
                         completionError = NSError(
                             domain: "StreamingForwarder",
@@ -452,7 +465,7 @@ final class StreamingForwarder {
                 model: model
             )
             let attemptFirstByteTimeout = min(firstByteTimeout, remainingBudget)
-            let configuration = streamingConfiguration(firstByteTimeout: attemptFirstByteTimeout)
+            let configuration = streamingConfiguration()
             let session = URLSession(
                 configuration: configuration,
                 delegate: delegate,
@@ -554,16 +567,20 @@ final class StreamingForwarder {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = method
         urlRequest.httpBody = body
-        urlRequest.timeoutInterval = firstByteTimeout
+        urlRequest.timeoutInterval = streamTimeout
         for (key, value) in headers {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
         return urlRequest
     }
 
-    private func streamingConfiguration(firstByteTimeout: TimeInterval) -> URLSessionConfiguration {
+    private func streamingConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = firstByteTimeout
+        // Per-read inactivity timeout: allow long reasoning pauses (a model may emit the first
+        // token quickly, then pause 60-120s while thinking). First-byte fast-fail is enforced
+        // by wait()'s semaphore deadline, NOT by URLSession. Using firstByteTimeout here would
+        // kill legitimate mid-stream pauses (NSURLErrorTimedOut mid-stream).
+        configuration.timeoutIntervalForRequest = streamTimeout
         configuration.timeoutIntervalForResource = streamTimeout
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         return configuration
@@ -607,26 +624,48 @@ final class StreamingForwarder {
         return "Upstream streaming request failed with HTTP \(completion.statusCode)"
     }
 
-    static func writeErrorEvent(_ message: String, requestID: String, to writer: HttpResponseBodyWriter) {
-        let object: [String: Any] = [
-            "type": "error",
-            "error": [
-                "type": "api_error",
-                "message": message,
-            ],
-        ]
-        let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
-        let json = String(data: jsonData, encoding: .utf8) ?? "{\"type\":\"error\"}"
-        let event = SSEEncoder.encode(event: "error", data: json)
-
-        do {
-            try writer.write(Data(event.utf8))
-        } catch {
-            Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+    static func writeErrorEvent(
+        _ message: String,
+        requestID: String,
+        targetProtocol: RequestForwarder.RequestProtocol,
+        to writer: HttpResponseBodyWriter
+    ) {
+        if targetProtocol == .anthropic {
+            let object: [String: Any] = [
+                "type": "error",
+                "error": [
+                    "type": "api_error",
+                    "message": message,
+                ],
+            ]
+            let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+            let json = String(data: jsonData, encoding: .utf8) ?? "{\"type\":\"error\"}"
+            let event = SSEEncoder.encode(event: "error", data: json)
+            do {
+                try writer.write(Data(event.utf8))
+            } catch {
+                Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+            }
+        } else {
+            // OpenAI streaming error frame: no `event:` line, flat {"error":{...}} data frame.
+            let object: [String: Any] = [
+                "error": [
+                    "message": message,
+                    "type": "api_error",
+                ],
+            ]
+            let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+            let json = String(data: jsonData, encoding: .utf8) ?? "{\"error\":{\"message\":null}}"
+            let event = SSEEncoder.encode(event: nil, data: json)
+            do {
+                try writer.write(Data(event.utf8))
+            } catch {
+                Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+            }
         }
     }
 
     private func writeError(_ message: String, to writer: HttpResponseBodyWriter) {
-        Self.writeErrorEvent(message, requestID: requestID, to: writer)
+        Self.writeErrorEvent(message, requestID: requestID, targetProtocol: incomingProtocol, to: writer)
     }
 }

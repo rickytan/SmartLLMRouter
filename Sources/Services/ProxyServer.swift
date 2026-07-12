@@ -1080,7 +1080,7 @@ final class ProxyServer: ObservableObject {
                         currentDecision = retryDecision
                         continue
                     }
-                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                     self.routerCompleteRequest(requestID: reqIdString)
                     return
                 }
@@ -1105,7 +1105,7 @@ final class ProxyServer: ObservableObject {
                 guard let upstreamURL = self.buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
                     finalMessage = "Invalid upstream URL"
                     Log.error("[#\(reqId)] \(finalMessage) for streaming channel \(channel.name)")
-                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                     self.routerCompleteRequest(requestID: reqIdString)
                     return
                 }
@@ -1116,7 +1116,7 @@ final class ProxyServer: ObservableObject {
                     do {
                         guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                             finalMessage = "Invalid JSON body"
-                            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                             self.routerCompleteRequest(requestID: reqIdString)
                             return
                         }
@@ -1136,7 +1136,7 @@ final class ProxyServer: ObservableObject {
                     } catch {
                         finalMessage = "Protocol conversion failed"
                         Log.error("[#\(reqId)] \(finalMessage): \(error.localizedDescription)")
-                        StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                        StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                         self.routerCompleteRequest(requestID: reqIdString)
                         return
                     }
@@ -1220,6 +1220,7 @@ final class ProxyServer: ObservableObject {
                         StreamingForwarder.writeErrorEvent(
                             message,
                             requestID: "#\(reqId)",
+                            targetProtocol: incomingProtocol,
                             to: writer
                         )
                     }
@@ -1243,7 +1244,12 @@ final class ProxyServer: ObservableObject {
                 } else {
                     retryStatusCode = completion.statusCode
                 }
-                if let retryDecision = self.routerHandleError(
+                // If the pre-body budget is exhausted, retrying is pointless - a new forwarder
+                // would immediately re-fail on the same deadline and spin through maxRetries
+                // without any network I/O. Stop here and surface the error to the client.
+                let budgetExhausted = requestDeadline.timeIntervalSinceNow <= 0
+                if !budgetExhausted,
+                   let retryDecision = self.routerHandleError(
                     requestID: reqIdString,
                     statusCode: retryStatusCode,
                     modelName: self.extractModelName(from: bodyData),
@@ -1259,12 +1265,12 @@ final class ProxyServer: ObservableObject {
                     continue
                 }
 
-                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                 self.routerCompleteRequest(requestID: reqIdString)
                 return
             }
 
-            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
             self.routerCompleteRequest(requestID: "req-\(reqId)")
         }
     }
