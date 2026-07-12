@@ -57,6 +57,28 @@ final class FallbackDependencyTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testProxyStartReportsPortConflictWithoutClaimingRunning() throws {
+        let occupiedServer = HttpServer()
+        var occupiedPort: in_port_t?
+        for candidate in in_port_t(31_200)...in_port_t(31_250) {
+            do {
+                try occupiedServer.start(candidate, forceIPv4: true)
+                occupiedPort = candidate
+                break
+            } catch {
+                continue
+            }
+        }
+        defer { occupiedServer.stop() }
+
+        let port = try XCTUnwrap(occupiedPort)
+        let proxy = ProxyServer(services: routerServices)
+
+        XCTAssertFalse(proxy.start(port: Int(port)))
+        XCTAssertFalse(proxy.isRunning)
+        XCTAssertNotNil(proxy.lastError)
+    }
+
     func testModelsEndpointReturnsStaticEnabledModelsWhenAggregationFails() throws {
         let enabledModel = makeModel(identifier: "fallback-model")
         let disabledModel = ModelEntry(

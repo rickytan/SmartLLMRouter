@@ -1171,11 +1171,18 @@ struct UsageTab: View {
                     .accessibilityIdentifier("usage.totalRequests")
 
                     StatCard(
-                        title: L10n.Settings.usageTotalTokens,
-                        value: formatTokens(usage.todayStats.totalTokens),
-                        icon: "text.word.spacing"
+                        title: L10n.Settings.usageInputTokens,
+                        value: formatTokens(usage.todayStats.totalInputTokens),
+                        icon: "arrow.down"
                     )
-                    .accessibilityIdentifier("usage.totalTokens")
+                    .accessibilityIdentifier("usage.inputTokens")
+
+                    StatCard(
+                        title: L10n.Settings.usageOutputTokens,
+                        value: formatTokens(usage.todayStats.totalOutputTokens),
+                        icon: "arrow.up"
+                    )
+                    .accessibilityIdentifier("usage.outputTokens")
 
                     StatCard(
                         title: L10n.Settings.usageTotalCost,

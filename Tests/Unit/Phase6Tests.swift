@@ -459,6 +459,7 @@ final class RouterErrorTypeTests: XCTestCase {
         XCTAssertEqual(RouterErrorType(statusCode: 429), .rateLimit429)
         XCTAssertEqual(RouterErrorType(statusCode: 401), .authError401)
         XCTAssertEqual(RouterErrorType(statusCode: 403), .forbidden403)
+        XCTAssertEqual(RouterErrorType(statusCode: 408), .timeout)
         XCTAssertEqual(RouterErrorType(statusCode: 400), .clientError400)
         XCTAssertEqual(RouterErrorType(statusCode: 500), .serverError5xx)
         XCTAssertEqual(RouterErrorType(statusCode: 502), .serverError5xx)

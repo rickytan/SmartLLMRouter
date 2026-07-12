@@ -87,9 +87,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startProxy() {
         guard !services.proxyServer.isRunning else { return }
         let port = services.appState.port
-        services.proxyServer.start(port: port)
-        Log.info("Proxy server started on port \(port)")
-        services.menuBarManager.updateIcon(isRunning: true)
-        services.menuBarManager.buildMenu(isRunning: true, port: port)
+        if services.proxyServer.start(port: port) {
+            Log.info("Proxy server started on port \(port)")
+            services.menuBarManager.updateIcon(isRunning: true)
+            services.menuBarManager.buildMenu(isRunning: true, port: port)
+        } else {
+            Log.error("Proxy server is not running on port \(port): \(services.proxyServer.lastError ?? "unknown error")")
+            services.menuBarManager.updateIcon(isRunning: false)
+            services.menuBarManager.buildMenu(isRunning: false, port: port)
+        }
     }
 }
