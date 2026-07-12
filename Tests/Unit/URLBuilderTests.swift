@@ -60,6 +60,22 @@ final class URLBuilderTests: XCTestCase {
         XCTAssertEqual(url?.absoluteString, "https://ark.cn-beijing.volces.com/api/coding/v3/messages")
     }
 
+    func testUpstreamURL_Anthropic_fullEndpointIsNotDuplicated() {
+        let url = URLBuilder.buildUpstreamURL(
+            baseURL: "https://token.sensenova.cn/v1/messages",
+            protocol: .anthropic
+        )
+        XCTAssertEqual(url?.absoluteString, "https://token.sensenova.cn/v1/messages")
+    }
+
+    func testUpstreamURL_OpenAI_fullEndpointIsNotDuplicated() {
+        let url = URLBuilder.buildUpstreamURL(
+            baseURL: "https://example.com/v1/chat/completions",
+            protocol: .openai
+        )
+        XCTAssertEqual(url?.absoluteString, "https://example.com/v1/chat/completions")
+    }
+
     // MARK: - buildUpstreamURL (Auto protocol)
 
     func testUpstreamURL_Auto_noPath() {
@@ -156,6 +172,6 @@ final class URLBuilderTests: XCTestCase {
 
     func testURL_deepNestedPath() {
         let url = URLBuilder.buildModelsURL(baseURL: "https://example.com/api/v2/models")
-        XCTAssertEqual(url?.absoluteString, "https://example.com/api/v2/models/v1/models")
+        XCTAssertEqual(url?.absoluteString, "https://example.com/api/v2/models")
     }
 }

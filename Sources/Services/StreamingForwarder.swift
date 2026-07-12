@@ -8,30 +8,76 @@ final class StreamingForwarder {
         let body: Data
         let keyIndex: Int
         let didWriteBody: Bool
+        let didWriteKeepalive: Bool
         let error: Error?
+        let inputTokens: Int
+        let outputTokens: Int
+        let responseHeaderLatency: TimeInterval?
+        let timeToFirstByte: TimeInterval?
+        let clientDisconnected: Bool
+        let requiresTerminalEvent: Bool
+        let hasTerminalEvent: Bool
+        let didSynthesizeTerminalEvent: Bool
 
         var isSuccess: Bool {
-            error == nil && statusCode >= 200 && statusCode < 300
+            error == nil
+                && statusCode >= 200
+                && statusCode < 300
+                && didWriteBody
+                && (!requiresTerminalEvent || hasTerminalEvent)
+        }
+
+        var isTimeout: Bool {
+            guard let error else { return false }
+            let nsError = error as NSError
+            return (nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut)
+                || error.localizedDescription.localizedCaseInsensitiveContains("timed out")
+                || error.localizedDescription.localizedCaseInsensitiveContains("budget exhausted")
+        }
+    }
+
+    private final class SynchronizedWriter: @unchecked Sendable {
+        private let lock = NSLock()
+        private let writer: HttpResponseBodyWriter
+
+        init(_ writer: HttpResponseBodyWriter) {
+            self.writer = writer
+        }
+
+        func write(_ data: Data) throws {
+            lock.lock()
+            defer { lock.unlock() }
+            try writer.write(data)
         }
     }
 
     private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         private let lock = NSLock()
         private let semaphore = DispatchSemaphore(value: 0)
-        private let writer: HttpResponseBodyWriter
+        private let writer: SynchronizedWriter
         private let incomingProtocol: RequestForwarder.RequestProtocol
         private let upstreamProtocol: RequestForwarder.RequestProtocol
         private var parser = SSEParser()
+        private var usageParser = SSEParser()
         private var converter: OpenAIToAnthropicSSEConverter
         private var statusCode = 200
         private var headers: [String: String] = [:]
         private var errorBody = Data()
         private var wroteBody = false
+        private var wroteKeepalive = false
         private var completed = false
         private var completionError: Error?
+        private var capturedInputTokens = 0
+        private var capturedOutputTokens = 0
+        private var responseHeaderLatency: TimeInterval?
+        private var timeToFirstByte: TimeInterval?
+        private var clientDisconnected = false
+        private var sawTerminalEvent = false
+        private var synthesizedTerminalEvent = false
+        private let startedAt = Date()
 
         init(
-            writer: HttpResponseBodyWriter,
+            writer: SynchronizedWriter,
             incomingProtocol: RequestForwarder.RequestProtocol,
             upstreamProtocol: RequestForwarder.RequestProtocol,
             messageID: String,
@@ -52,6 +98,7 @@ final class StreamingForwarder {
             if let httpResponse = response as? HTTPURLResponse {
                 lock.lock()
                 statusCode = httpResponse.statusCode
+                responseHeaderLatency = Date().timeIntervalSince(startedAt)
                 headers = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
                     if let key = pair.key as? String, let value = pair.value as? String {
                         dict[key] = value
@@ -74,22 +121,44 @@ final class StreamingForwarder {
                 return
             }
 
+            // Parse SSE events for usage extraction (non-destructive, separate parser)
+            for event in usageParser.parse(data) {
+                extractUsage(from: event.data)
+                if event.event == "message_stop" || event.data.contains(#""type":"message_stop""#) {
+                    lock.lock()
+                    sawTerminalEvent = true
+                    lock.unlock()
+                }
+            }
+
+            // Don't write to the client if wait() already aborted (e.g. first-byte timeout);
+            // otherwise a racing late didReceiveData write interleaves with the retry's writes.
+            lock.lock()
+            let aborted = completionError != nil
+            lock.unlock()
+            guard !aborted else { return }
+
             do {
                 if incomingProtocol == .anthropic, upstreamProtocol == .openai {
                     for event in parser.parse(data) {
                         let converted = converter.convert(event: event)
                         if !converted.isEmpty {
-                            try writer.write(Data(converted.utf8))
+                            try writeBody(Data(converted.utf8))
                             markWroteBody()
+                            if converted.contains("event: message_stop")
+                                || converted.contains(#""type":"message_stop""#) {
+                                markTerminalEvent(synthesized: false)
+                            }
                         }
                     }
                 } else {
-                    try writer.write(data)
+                    try writeBody(data)
                     markWroteBody()
                 }
             } catch {
                 lock.lock()
                 completionError = error
+                clientDisconnected = true
                 lock.unlock()
                 dataTask.cancel()
             }
@@ -104,19 +173,45 @@ final class StreamingForwarder {
                 && statusCode >= 200 && statusCode < 300
                 && incomingProtocol == .anthropic
                 && upstreamProtocol == .openai
+            let shouldFinishAnthropicStream = completionError == nil
+                && statusCode >= 200 && statusCode < 300
+                && wroteBody
+                && incomingProtocol == .anthropic
+                && upstreamProtocol == .anthropic
+                && !sawTerminalEvent
             lock.unlock()
 
             if shouldFinishConvertedStream {
                 let tail = converter.finishIfNeeded()
                 if !tail.isEmpty {
                     do {
-                        try writer.write(Data(tail.utf8))
+                        try writeBody(Data(tail.utf8))
                         markWroteBody()
+                        markTerminalEvent(synthesized: true)
                     } catch {
                         lock.lock()
                         completionError = error
+                        clientDisconnected = true
                         lock.unlock()
                     }
+                }
+            }
+
+            if shouldFinishAnthropicStream {
+                let messageStop = SSEEncoder.encode(
+                    event: "message_stop",
+                    data: #"{"type":"message_stop"}"#
+                )
+                do {
+                    try writeBody(Data(messageStop.utf8))
+                    markWroteBody()
+                    markTerminalEvent(synthesized: true)
+                    Log.warn("Synthesized missing Anthropic message_stop event after clean upstream close")
+                } catch {
+                    lock.lock()
+                    completionError = error
+                    clientDisconnected = true
+                    lock.unlock()
                 }
             }
 
@@ -126,23 +221,88 @@ final class StreamingForwarder {
             semaphore.signal()
         }
 
-        func wait(timeout: TimeInterval) -> Completion {
-            let waitResult = semaphore.wait(timeout: .now() + timeout + 5)
-            lock.lock()
-            if waitResult == .timedOut, completionError == nil {
-                completionError = NSError(
-                    domain: "StreamingForwarder",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Streaming request timed out"]
-                )
+        func wait(
+            firstByteTimeout: TimeInterval,
+            streamTimeout: TimeInterval,
+            requestDeadline: Date,
+            keepaliveInterval: TimeInterval,
+            requestID: String
+        ) -> Completion {
+            let firstByteDeadline = min(requestDeadline, Date().addingTimeInterval(firstByteTimeout))
+            let streamDeadline = Date().addingTimeInterval(streamTimeout)
+
+            while true {
+                lock.lock()
+                let hasBody = wroteBody
+                let hasCompleted = completed
+                let currentError = completionError
+                lock.unlock()
+
+                if hasCompleted || currentError != nil {
+                    break
+                }
+
+                let deadline = hasBody ? streamDeadline : firstByteDeadline
+                let remaining = deadline.timeIntervalSinceNow
+                if remaining <= 0 {
+                    lock.lock()
+                    if completionError == nil {
+                        // First byte arrived during the wait window - don't treat as first-byte
+                        // timeout; re-loop so hasBody re-reads and the stream deadline governs.
+                        if !hasBody, wroteBody {
+                            lock.unlock()
+                            continue
+                        }
+                        let message = hasBody ? "Streaming request timed out" : "Upstream first byte timed out"
+                        completionError = NSError(
+                            domain: "StreamingForwarder",
+                            code: hasBody ? -2 : -1,
+                            userInfo: [NSLocalizedDescriptionKey: message]
+                        )
+                    }
+                    lock.unlock()
+                    break
+                }
+
+                let pollInterval = hasBody ? remaining : min(keepaliveInterval, remaining)
+                if semaphore.wait(timeout: .now() + pollInterval) == .success {
+                    break
+                }
+
+                if !hasBody, pollInterval >= keepaliveInterval - 0.001 {
+                    do {
+                        try writer.write(Data(": keep-alive\n\n".utf8))
+                        lock.lock()
+                        wroteKeepalive = true
+                        lock.unlock()
+                        Log.info("[\(requestID)] Sent SSE keepalive while waiting for upstream first byte")
+                    } catch {
+                        lock.lock()
+                        completionError = error
+                        clientDisconnected = true
+                        lock.unlock()
+                        break
+                    }
+                }
             }
+
+            lock.lock()
             let completion = Completion(
                 statusCode: statusCode,
                 headers: headers,
                 body: errorBody,
                 keyIndex: 0,
                 didWriteBody: wroteBody,
-                error: completionError
+                didWriteKeepalive: wroteKeepalive,
+                error: completionError,
+                inputTokens: capturedInputTokens,
+                outputTokens: capturedOutputTokens,
+                responseHeaderLatency: responseHeaderLatency,
+                timeToFirstByte: timeToFirstByte,
+                clientDisconnected: clientDisconnected,
+                requiresTerminalEvent: incomingProtocol == .anthropic,
+                hasTerminalEvent: sawTerminalEvent,
+                didSynthesizeTerminalEvent: synthesizedTerminalEvent
             )
             lock.unlock()
             return completion
@@ -151,7 +311,51 @@ final class StreamingForwarder {
         private func markWroteBody() {
             lock.lock()
             wroteBody = true
+            if timeToFirstByte == nil {
+                timeToFirstByte = Date().timeIntervalSince(startedAt)
+            }
             lock.unlock()
+        }
+
+        private func writeBody(_ data: Data) throws {
+            try writer.write(data)
+        }
+
+        private func markTerminalEvent(synthesized: Bool) {
+            lock.lock()
+            sawTerminalEvent = true
+            synthesizedTerminalEvent = synthesizedTerminalEvent || synthesized
+            lock.unlock()
+        }
+
+        private func extractUsage(from data: String) {
+            guard let jsonData = data.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return }
+
+            if upstreamProtocol == .anthropic {
+                // Anthropic SSE: message_start has input_tokens, message_delta has output_tokens
+                if let type = json["type"] as? String {
+                    if type == "message_start", let message = json["message"] as? [String: Any],
+                       let usage = message["usage"] as? [String: Any] {
+                        lock.lock()
+                        if let input = usage["input_tokens"] as? Int { capturedInputTokens = input }
+                        lock.unlock()
+                    }
+                    if type == "message_delta", let usage = json["usage"] as? [String: Any] {
+                        lock.lock()
+                        if let output = usage["output_tokens"] as? Int { capturedOutputTokens = output }
+                        lock.unlock()
+                    }
+                }
+            } else {
+                // OpenAI SSE: last chunk may contain usage
+                if let usage = json["usage"] as? [String: Any] {
+                    lock.lock()
+                    if let input = usage["prompt_tokens"] as? Int { capturedInputTokens = input }
+                    if let output = usage["completion_tokens"] as? Int { capturedOutputTokens = output }
+                    lock.unlock()
+                }
+            }
         }
     }
 
@@ -159,7 +363,10 @@ final class StreamingForwarder {
     private let method: String
     private let headers: [String: String]
     private let body: Data
-    private let timeout: TimeInterval
+    private let firstByteTimeout: TimeInterval
+    private let streamTimeout: TimeInterval
+    private let requestDeadline: Date
+    private let keepaliveInterval: TimeInterval
     private let apiKeys: [String]
     private let incomingProtocol: RequestForwarder.RequestProtocol
     private let upstreamProtocol: RequestForwarder.RequestProtocol
@@ -176,6 +383,10 @@ final class StreamingForwarder {
         headers: [String: String],
         body: Data,
         timeout: TimeInterval,
+        firstByteTimeout: TimeInterval? = nil,
+        streamTimeout: TimeInterval? = nil,
+        requestDeadline: Date? = nil,
+        keepaliveInterval: TimeInterval = 15,
         apiKeys: [String],
         incomingProtocol: RequestForwarder.RequestProtocol,
         upstreamProtocol: RequestForwarder.RequestProtocol,
@@ -190,7 +401,10 @@ final class StreamingForwarder {
         self.method = method
         self.headers = headers
         self.body = body
-        self.timeout = timeout
+        self.firstByteTimeout = firstByteTimeout ?? timeout
+        self.streamTimeout = streamTimeout ?? timeout
+        self.requestDeadline = requestDeadline ?? Date().addingTimeInterval(timeout)
+        self.keepaliveInterval = max(0.01, keepaliveInterval)
         self.apiKeys = apiKeys.filter { !$0.isEmpty }
         self.incomingProtocol = incomingProtocol
         self.upstreamProtocol = upstreamProtocol
@@ -203,6 +417,7 @@ final class StreamingForwarder {
     }
 
     func stream(to writer: HttpResponseBodyWriter, writesErrorOnFailure: Bool = true) -> Completion {
+        let synchronizedWriter = SynchronizedWriter(writer)
         let availableKeys: [(index: Int, key: String)]
         if let channelID, let apiKeyAvailabilityStore {
             availableKeys = apiKeyAvailabilityStore.availableKeys(for: channelID, apiKeys: apiKeys)
@@ -217,29 +432,58 @@ final class StreamingForwarder {
             if writesErrorOnFailure {
                 writeError("No available API key", to: writer)
             }
-            return Completion(statusCode: 502, headers: [:], body: Data(), keyIndex: 0, didWriteBody: writesErrorOnFailure, error: nil)
+            return emptyCompletion(statusCode: 502, didWriteBody: writesErrorOnFailure)
         }
 
-        var lastCompletion = Completion(statusCode: 502, headers: [:], body: Data(), keyIndex: 0, didWriteBody: false, error: nil)
+        var lastCompletion = emptyCompletion(statusCode: 502)
+        var wroteAnyKeepalive = false
         let attempts = Array(availableKeys.prefix(maxAPIKeyAttempts))
 
         for (attemptIndex, keyEntry) in attempts.enumerated() {
+            let remainingBudget = requestDeadline.timeIntervalSinceNow
+            guard remainingBudget > 0 else {
+                lastCompletion = emptyCompletion(
+                    statusCode: 408,
+                    error: NSError(
+                        domain: "StreamingForwarder",
+                        code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: "Streaming retry budget exhausted"]
+                    )
+                )
+                break
+            }
+
             let apiKey = keyEntry.key
             var keyedHeaders = headers
             ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
 
             let delegate = StreamDelegate(
-                writer: writer,
+                writer: synchronizedWriter,
                 incomingProtocol: incomingProtocol,
                 upstreamProtocol: upstreamProtocol,
                 messageID: "msg_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
                 model: model
             )
-            let session = URLSession(configuration: streamingConfiguration(), delegate: delegate, delegateQueue: nil)
+            let attemptFirstByteTimeout = min(firstByteTimeout, remainingBudget)
+            let configuration = streamingConfiguration()
+            let session = URLSession(
+                configuration: configuration,
+                delegate: delegate,
+                delegateQueue: nil
+            )
             let task = session.dataTask(with: request(headers: keyedHeaders))
+            let attemptDescription = "first-byte timeout=\(String(format: "%.1f", attemptFirstByteTimeout))s "
+                + "budget=\(String(format: "%.1f", remainingBudget))s"
+            Log.info("[\(requestID)] Starting \(channelName) streaming API key #\(keyEntry.index + 1); \(attemptDescription)")
             task.resume()
 
-            var completion = delegate.wait(timeout: timeout)
+            var completion = delegate.wait(
+                firstByteTimeout: attemptFirstByteTimeout,
+                streamTimeout: streamTimeout,
+                requestDeadline: requestDeadline,
+                keepaliveInterval: keepaliveInterval,
+                requestID: requestID
+            )
             session.invalidateAndCancel()
             completion = Completion(
                 statusCode: completion.statusCode,
@@ -247,11 +491,25 @@ final class StreamingForwarder {
                 body: completion.body,
                 keyIndex: keyEntry.index,
                 didWriteBody: completion.didWriteBody,
-                error: completion.error
+                didWriteKeepalive: wroteAnyKeepalive || completion.didWriteKeepalive,
+                error: completion.error,
+                inputTokens: completion.inputTokens,
+                outputTokens: completion.outputTokens,
+                responseHeaderLatency: completion.responseHeaderLatency,
+                timeToFirstByte: completion.timeToFirstByte,
+                clientDisconnected: completion.clientDisconnected,
+                requiresTerminalEvent: completion.requiresTerminalEvent,
+                hasTerminalEvent: completion.hasTerminalEvent,
+                didSynthesizeTerminalEvent: completion.didSynthesizeTerminalEvent
             )
+            wroteAnyKeepalive = completion.didWriteKeepalive
             lastCompletion = completion
 
-            if completion.didWriteBody || completion.isSuccess {
+            if completion.didWriteBody {
+                return completion
+            }
+
+            if completion.clientDisconnected {
                 return completion
             }
 
@@ -262,9 +520,20 @@ final class StreamingForwarder {
                 Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned non-recoverable HTTP \(completion.statusCode); marking unavailable for this app session")
             }
 
-            if ProxyEndpointSupport.shouldRetryWithNextAPIKey(statusCode: completion.statusCode, body: completion.body),
+            let shouldRetryKey = completion.isTimeout
+                || ProxyEndpointSupport.shouldRetryWithNextAPIKey(
+                    statusCode: completion.statusCode,
+                    body: completion.body
+                )
+            if shouldRetryKey,
                attemptIndex < attempts.count - 1 {
-                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) returned HTTP \(completion.statusCode); retrying next key")
+                let failure = completion.error?.localizedDescription ?? "no error"
+                let budget = String(format: "%.1f", max(0, requestDeadline.timeIntervalSinceNow))
+                Log.warn(
+                    "[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) "
+                        + "failed before first byte (HTTP \(completion.statusCode), \(failure)); "
+                        + "retrying next key with \(budget)s budget"
+                )
                 continue
             }
 
@@ -281,7 +550,16 @@ final class StreamingForwarder {
             body: lastCompletion.body,
             keyIndex: lastCompletion.keyIndex,
             didWriteBody: writesErrorOnFailure,
-            error: lastCompletion.error
+            didWriteKeepalive: wroteAnyKeepalive,
+            error: lastCompletion.error,
+            inputTokens: lastCompletion.inputTokens,
+            outputTokens: lastCompletion.outputTokens,
+            responseHeaderLatency: lastCompletion.responseHeaderLatency,
+            timeToFirstByte: lastCompletion.timeToFirstByte,
+            clientDisconnected: lastCompletion.clientDisconnected,
+            requiresTerminalEvent: lastCompletion.requiresTerminalEvent,
+            hasTerminalEvent: lastCompletion.hasTerminalEvent,
+            didSynthesizeTerminalEvent: lastCompletion.didSynthesizeTerminalEvent
         )
     }
 
@@ -289,7 +567,7 @@ final class StreamingForwarder {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = method
         urlRequest.httpBody = body
-        urlRequest.timeoutInterval = timeout
+        urlRequest.timeoutInterval = streamTimeout
         for (key, value) in headers {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
@@ -298,10 +576,34 @@ final class StreamingForwarder {
 
     private func streamingConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = timeout
-        configuration.timeoutIntervalForResource = timeout
+        // Per-read inactivity timeout: allow long reasoning pauses (a model may emit the first
+        // token quickly, then pause 60-120s while thinking). First-byte fast-fail is enforced
+        // by wait()'s semaphore deadline, NOT by URLSession. Using firstByteTimeout here would
+        // kill legitimate mid-stream pauses (NSURLErrorTimedOut mid-stream).
+        configuration.timeoutIntervalForRequest = streamTimeout
+        configuration.timeoutIntervalForResource = streamTimeout
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         return configuration
+    }
+
+    private func emptyCompletion(statusCode: Int, didWriteBody: Bool = false, error: Error? = nil) -> Completion {
+        Completion(
+            statusCode: statusCode,
+            headers: [:],
+            body: Data(),
+            keyIndex: 0,
+            didWriteBody: didWriteBody,
+            didWriteKeepalive: false,
+            error: error,
+            inputTokens: 0,
+            outputTokens: 0,
+            responseHeaderLatency: nil,
+            timeToFirstByte: nil,
+            clientDisconnected: false,
+            requiresTerminalEvent: incomingProtocol == .anthropic,
+            hasTerminalEvent: false,
+            didSynthesizeTerminalEvent: false
+        )
     }
 
     static func errorMessage(from completion: Completion) -> String {
@@ -322,26 +624,48 @@ final class StreamingForwarder {
         return "Upstream streaming request failed with HTTP \(completion.statusCode)"
     }
 
-    static func writeErrorEvent(_ message: String, requestID: String, to writer: HttpResponseBodyWriter) {
-        let object: [String: Any] = [
-            "type": "error",
-            "error": [
-                "type": "api_error",
-                "message": message,
-            ],
-        ]
-        let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
-        let json = String(data: jsonData, encoding: .utf8) ?? "{\"type\":\"error\"}"
-        let event = SSEEncoder.encode(event: "error", data: json)
-
-        do {
-            try writer.write(Data(event.utf8))
-        } catch {
-            Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+    static func writeErrorEvent(
+        _ message: String,
+        requestID: String,
+        targetProtocol: RequestForwarder.RequestProtocol,
+        to writer: HttpResponseBodyWriter
+    ) {
+        if targetProtocol == .anthropic {
+            let object: [String: Any] = [
+                "type": "error",
+                "error": [
+                    "type": "api_error",
+                    "message": message,
+                ],
+            ]
+            let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+            let json = String(data: jsonData, encoding: .utf8) ?? "{\"type\":\"error\"}"
+            let event = SSEEncoder.encode(event: "error", data: json)
+            do {
+                try writer.write(Data(event.utf8))
+            } catch {
+                Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+            }
+        } else {
+            // OpenAI streaming error frame: no `event:` line, flat {"error":{...}} data frame.
+            let object: [String: Any] = [
+                "error": [
+                    "message": message,
+                    "type": "api_error",
+                ],
+            ]
+            let jsonData = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+            let json = String(data: jsonData, encoding: .utf8) ?? "{\"error\":{\"message\":null}}"
+            let event = SSEEncoder.encode(event: nil, data: json)
+            do {
+                try writer.write(Data(event.utf8))
+            } catch {
+                Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
+            }
         }
     }
 
     private func writeError(_ message: String, to writer: HttpResponseBodyWriter) {
-        Self.writeErrorEvent(message, requestID: requestID, to: writer)
+        Self.writeErrorEvent(message, requestID: requestID, targetProtocol: incomingProtocol, to: writer)
     }
 }

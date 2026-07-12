@@ -205,7 +205,12 @@ final class ChannelManager: ObservableObject {
         var mergedById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
         for update in updates {
             if let existing = mergedById[update.id] {
-                let endpoints = update.protocolBaseURLMap().isEmpty ? existing.protocolBaseURLMap() : update.protocolBaseURLMap()
+                // Merge endpoints: start with existing, let update override keys it provides.
+                // This preserves local anthropic URLs even when models.dev only returns openai.
+                var endpoints = existing.protocolBaseURLMap()
+                for (key, value) in update.protocolBaseURLMap() {
+                    endpoints[key] = value
+                }
                 let models = update.defaultModels.isEmpty ? existing.defaultModels : update.defaultModels
                 let protocols = update.supportsProtocols.isEmpty ? existing.supportsProtocols : update.supportsProtocols
                 mergedById[update.id] = ProviderTemplate(

@@ -402,7 +402,51 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(capturedAPIKey, "anthropic-key")
         XCTAssertEqual(capturedVersion, "2023-06-01")
         XCTAssertNil(capturedAuthorization)
-        XCTAssertEqual(writer.string, upstreamEvent)
+        XCTAssertTrue(writer.string.hasPrefix(upstreamEvent))
+        XCTAssertTrue(writer.string.contains("event: message_stop"))
+        XCTAssertTrue(completion.hasTerminalEvent)
+        XCTAssertTrue(completion.didSynthesizeTerminalEvent)
+    }
+
+    func testStreamingForwarderDoesNotDuplicateAnthropicMessageStop() throws {
+        let server = HttpServer()
+        let upstreamStream = """
+        event: message_start
+        data: {"type":"message_start"}
+
+        event: message_stop
+        data: {"type":"message_stop"}
+
+
+        """
+        server.post["/v1/messages"] = { _ in
+            .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data(upstreamStream.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["anthropic-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Anthropic Channel",
+            requestID: "#terminal-test",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertTrue(completion.hasTerminalEvent)
+        XCTAssertFalse(completion.didSynthesizeTerminalEvent)
+        XCTAssertEqual(writer.string.components(separatedBy: "event: message_stop").count - 1, 1)
     }
 
     func testStreamingForwarderCanDeferErrorBodyForChannelFailover() throws {
@@ -436,6 +480,127 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertFalse(completion.didWriteBody)
         XCTAssertTrue(writer.string.isEmpty)
         XCTAssertEqual(StreamingForwarder.errorMessage(from: completion), "invalid token")
+    }
+
+    func testStreamingForwarderSendsKeepaliveAndRetriesAfterFirstByteTimeout() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/messages"] = { request in
+            let authorization = request.headers["x-api-key"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "slow-key" {
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                let event = "event: message_start\ndata: {\"type\":\"message_start\"}\n\n"
+                try writer.write(Data(event.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 1,
+            firstByteTimeout: 0.1,
+            streamTimeout: 1,
+            requestDeadline: Date().addingTimeInterval(0.5),
+            keepaliveInterval: 0.03,
+            apiKeys: ["slow-key", "fast-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Test Channel",
+            requestID: "#keepalive-retry",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertTrue(completion.didWriteKeepalive)
+        XCTAssertEqual(completion.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["slow-key", "fast-key"])
+        XCTAssertTrue(writer.string.contains(": keep-alive"))
+        XCTAssertTrue(writer.string.contains("event: message_start"))
+        XCTAssertNotNil(completion.responseHeaderLatency)
+        XCTAssertNotNil(completion.timeToFirstByte)
+    }
+
+    func testStreamingForwarderSharesRetryDeadlineAcrossKeys() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/messages"] = { request in
+            authorizations.append(request.headers["x-api-key"] ?? "")
+            Thread.sleep(forTimeInterval: 0.3)
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { _ in }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = CapturingBodyWriter()
+        let startedAt = Date()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 1,
+            firstByteTimeout: 0.5,
+            streamTimeout: 1,
+            requestDeadline: Date().addingTimeInterval(0.12),
+            keepaliveInterval: 0.03,
+            apiKeys: ["key-a", "key-b"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Test Channel",
+            requestID: "#deadline",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
+
+        XCTAssertTrue(completion.isTimeout)
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 0.4)
+        XCTAssertLessThanOrEqual(authorizations.count, 1)
+        XCTAssertTrue(completion.didWriteKeepalive)
+        XCTAssertFalse(completion.didWriteBody)
+    }
+
+    func testStreamingForwarderDoesNotRetryAfterWritingModelBody() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/messages"] = { request in
+            authorizations.append(request.headers["x-api-key"] ?? "")
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data("event: message_start\n\n".utf8))
+                Thread.sleep(forTimeInterval: 0.03)
+                try writer.write(Data("event: content_block_delta\n\n".utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = ThrowAfterFirstWriteBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 1,
+            apiKeys: ["key-a", "key-b"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Test Channel",
+            requestID: "#partial-stream",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
+
+        XCTAssertTrue(completion.didWriteBody)
+        XCTAssertTrue(completion.clientDisconnected)
+        XCTAssertEqual(authorizations, ["key-a"])
     }
 
     private func start(_ server: HttpServer) throws -> in_port_t {
@@ -487,6 +652,26 @@ final class HTTPForwardingClientTests: XCTestCase {
 
         func write(_ data: Data) throws {
             self.data.append(data)
+        }
+    }
+
+    private final class ThrowAfterFirstWriteBodyWriter: HttpResponseBodyWriter {
+        private var writeCount = 0
+
+        func write(_ file: String.File) throws {}
+        func write(_ data: [UInt8]) throws { try write(Data(data)) }
+        func write(_ data: ArraySlice<UInt8>) throws { try write(Data(data)) }
+        func write(_ data: NSData) throws { try write(data as Data) }
+
+        func write(_ data: Data) throws {
+            writeCount += 1
+            if writeCount > 1 {
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(EPIPE),
+                    userInfo: [NSLocalizedDescriptionKey: "Client disconnected"]
+                )
+            }
         }
     }
 }

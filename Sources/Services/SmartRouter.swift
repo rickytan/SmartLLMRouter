@@ -46,6 +46,8 @@ enum RouterErrorType: CustomStringConvertible {
             self = .authError401
         case 403:
             self = .forbidden403
+        case 408:
+            self = .timeout
         case 400 ..< 500:
             self = .clientError400
         case 500 ..< 600:
@@ -264,10 +266,20 @@ final class RouterRuntimeState {
 
         let previousChannelID = requestToChannel[requestID]
         var attemptedChannelIDs = requestAttemptedChannels[requestID] ?? []
+        // On the first timeout, retry the SAME channel before failing over - it may be a
+        // transient hiccup. selectChannel already seeded attemptedChannelIDs with this channel,
+        // so we must REMOVE it to make it selectable again; and we skip recordFailure so the
+        // circuit breaker isn't tripped for a single transient timeout. Subsequent timeouts
+        // (and all other retryable errors) fail over to another channel normally.
+        let retrySameChannel = (errorType == .timeout && currentRetryCount == 0)
         if let previousChannelID {
-            attemptedChannelIDs.insert(previousChannelID)
-            _ = switchLock.execute {
-                self.circuitBreaker.recordFailure(channelID: previousChannelID)
+            if retrySameChannel {
+                attemptedChannelIDs.remove(previousChannelID)
+            } else {
+                attemptedChannelIDs.insert(previousChannelID)
+                _ = switchLock.execute {
+                    self.circuitBreaker.recordFailure(channelID: previousChannelID)
+                }
             }
         }
         requestAttemptedChannels[requestID] = attemptedChannelIDs

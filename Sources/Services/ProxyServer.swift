@@ -1,6 +1,57 @@
 import Foundation
 import Swifter
 
+private final class ChunkedResponseWriter: HttpResponseBodyWriter {
+    private let writer: HttpResponseBodyWriter
+    private let lock = NSLock()
+    private var finished = false
+
+    init(_ writer: HttpResponseBodyWriter) {
+        self.writer = writer
+    }
+
+    func write(_ file: String.File) throws {
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let count = try file.read(&buffer)
+            guard count > 0 else { return }
+            try write(ArraySlice(buffer.prefix(count)))
+        }
+    }
+
+    func write(_ data: [UInt8]) throws {
+        try write(ArraySlice(data))
+    }
+
+    func write(_ data: ArraySlice<UInt8>) throws {
+        try write(Data(data))
+    }
+
+    func write(_ data: NSData) throws {
+        try write(data as Data)
+    }
+
+    func write(_ data: Data) throws {
+        guard !data.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finished else { return }
+
+        try writer.write(Data(String(data.count, radix: 16).utf8))
+        try writer.write(Data("\r\n".utf8))
+        try writer.write(data)
+        try writer.write(Data("\r\n".utf8))
+    }
+
+    func finish() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finished else { return }
+        finished = true
+        try writer.write(Data("0\r\n\r\n".utf8))
+    }
+}
+
 @MainActor
 final class ProxyServer: ObservableObject {
     private let httpServer = HttpServer()
@@ -17,7 +68,10 @@ final class ProxyServer: ObservableObject {
     @Published var lastError: String?
 
     private let upstreamTimeout: TimeInterval = 300
-    private let streamingTimeout: TimeInterval = 600
+    private let streamingTimeout: TimeInterval = 3_600
+    private let streamingFirstByteTimeout: TimeInterval = 45
+    private let streamingPreBodyBudget: TimeInterval = 180
+    private let streamingKeepaliveInterval: TimeInterval = 15
 
     private func nextRequestID() -> Int64 {
         requestIDGenerator.next()
@@ -45,12 +99,13 @@ final class ProxyServer: ObservableObject {
         setupRoutes()
     }
 
-    func start(port: Int? = nil) {
+    @discardableResult
+    func start(port: Int? = nil) -> Bool {
         // Thread-safe early exit: if already running, do nothing.
         // Since this class is @MainActor, calls are serialized on the main queue.
         guard !isRunning else {
             Log.info("Proxy already running on port \(self.port), skipping start")
-            return
+            return true
         }
 
         let usePort = port ?? self.port
@@ -60,10 +115,12 @@ final class ProxyServer: ObservableObject {
             lastError = nil
             self.port = usePort
             Log.info("Proxy started on port \(usePort)")
+            return true
         } catch {
             lastError = error.localizedDescription
             Log.error("Failed to start proxy: \(error.localizedDescription)")
             isRunning = false
+            return false
         }
     }
 
@@ -301,6 +358,10 @@ final class ProxyServer: ObservableObject {
 
         let incomingProtocol = RequestForwarder.detectProtocol(path: request.path, body: bodyData)
         let modelName = extractModelName(from: bodyData)
+        let parsedAt = Date()
+        let parseLatency = String(format: "%.3f", parsedAt.timeIntervalSince(startTime))
+        let streamFlag = RequestForwarder.isStreamingRequest(bodyData)
+        Log.info("[#\(reqId)] Request parsed model=\(modelName ?? "unknown") stream=\(streamFlag) in \(parseLatency)s")
 
         // Thread-safe: read channel + routing decision from @MainActor services in one hop
         guard let state = readRequestState(
@@ -315,6 +376,7 @@ final class ProxyServer: ObservableObject {
         let channel = state.channel
         let apiKeys = state.apiKeys
         let routingDecision = state.routingDecision
+        Log.info("[#\(reqId)] Routed to \(channel.name) in \(String(format: "%.3f", Date().timeIntervalSince(startTime)))s")
 
         let isStream = RequestForwarder.isStreamingRequest(bodyData)
         if isStream {
@@ -969,10 +1031,21 @@ final class ProxyServer: ObservableObject {
         let responseHeaders = [
             "content-type": "text/event-stream",
             "cache-control": "no-cache",
+            "transfer-encoding": "chunked",
             "connection": "close",
         ]
+        let requestDeadline = startTime.addingTimeInterval(streamingPreBodyBudget)
 
-        return HttpResponse.raw(200, "OK", responseHeaders) { [self] writer in
+        return HttpResponse.raw(200, "OK", responseHeaders) { [self] rawWriter in
+            let writer = ChunkedResponseWriter(rawWriter)
+            defer {
+                do {
+                    try writer.finish()
+                    Log.debug("[#\(reqId)] Finished chunked streaming response")
+                } catch {
+                    Log.warn("[#\(reqId)] Failed to finish chunked streaming response: \(error.localizedDescription)")
+                }
+            }
             let reqIdString = "req-\(reqId)"
             var currentDecision: RoutingDecision? = routingDecision
             var finalMessage = "Upstream streaming request failed"
@@ -1007,7 +1080,7 @@ final class ProxyServer: ObservableObject {
                         currentDecision = retryDecision
                         continue
                     }
-                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                     self.routerCompleteRequest(requestID: reqIdString)
                     return
                 }
@@ -1032,7 +1105,7 @@ final class ProxyServer: ObservableObject {
                 guard let upstreamURL = self.buildUpstreamURL(for: channel, protocol: upstreamProtocol) else {
                     finalMessage = "Invalid upstream URL"
                     Log.error("[#\(reqId)] \(finalMessage) for streaming channel \(channel.name)")
-                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                    StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                     self.routerCompleteRequest(requestID: reqIdString)
                     return
                 }
@@ -1043,7 +1116,7 @@ final class ProxyServer: ObservableObject {
                     do {
                         guard let json = try JSONSerialization.jsonObject(with: swappedBody) as? [String: Any] else {
                             finalMessage = "Invalid JSON body"
-                            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                             self.routerCompleteRequest(requestID: reqIdString)
                             return
                         }
@@ -1063,7 +1136,7 @@ final class ProxyServer: ObservableObject {
                     } catch {
                         finalMessage = "Protocol conversion failed"
                         Log.error("[#\(reqId)] \(finalMessage): \(error.localizedDescription)")
-                        StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                        StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                         self.routerCompleteRequest(requestID: reqIdString)
                         return
                     }
@@ -1077,6 +1150,10 @@ final class ProxyServer: ObservableObject {
                     headers: convertedHeaders,
                     body: forwardedBody,
                     timeout: self.streamingTimeout,
+                    firstByteTimeout: self.streamingFirstByteTimeout,
+                    streamTimeout: self.streamingTimeout,
+                    requestDeadline: requestDeadline,
+                    keepaliveInterval: self.streamingKeepaliveInterval,
                     apiKeys: apiKeys,
                     incomingProtocol: incomingProtocol,
                     upstreamProtocol: upstreamProtocol,
@@ -1086,17 +1163,43 @@ final class ProxyServer: ObservableObject {
                     requestID: "#\(reqId)",
                     model: model
                 )
+                let protocolName = upstreamProtocol == .anthropic ? "anthropic" : "openai"
+                let remainingBudget = String(format: "%.1f", max(0, requestDeadline.timeIntervalSinceNow))
+                Log.info(
+                    "[#\(reqId)] Streaming to \(channel.name): \(upstreamURL.absoluteString) "
+                        + "proto=\(protocolName) model=\(model) "
+                        + "firstByteTimeout=\(self.streamingFirstByteTimeout)s "
+                        + "streamTimeout=\(self.streamingTimeout)s budget=\(remainingBudget)s"
+                )
                 let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
                 let latency = Date().timeIntervalSince(startTime)
+                let headerText = completion.responseHeaderLatency.map { String(format: "%.3fs", $0) } ?? "none"
+                let ttftText = completion.timeToFirstByte.map { String(format: "%.3fs", $0) } ?? "none"
 
                 if completion.isSuccess {
                     self.routerRecordSuccess(channelID: channel.id)
+                    Log.info(
+                        "[#\(reqId)] Streaming success from \(channel.name) headers=\(headerText) "
+                            + "ttft=\(ttftText) total=\(String(format: "%.1f", latency))s "
+                            + "keepalive=\(completion.didWriteKeepalive) "
+                            + "terminal=\(completion.hasTerminalEvent) "
+                            + "synthesizedTerminal=\(completion.didSynthesizeTerminalEvent)"
+                    )
+                } else if completion.clientDisconnected {
+                    Log.warn(
+                        "[#\(reqId)] Streaming client disconnected from \(channel.name) "
+                            + "headers=\(headerText) ttft=\(ttftText) "
+                            + "total=\(String(format: "%.1f", latency))s "
+                            + "error=\(completion.error?.localizedDescription ?? "nil")"
+                    )
+                } else if completion.didWriteBody {
+                    Log.warn("[#\(reqId)] Stream ended prematurely from \(channel.name): HTTP \(completion.statusCode) didWriteBody=true error=\(completion.error?.localizedDescription ?? "nil") latency=\(String(format: "%.1f", latency))s")
                 } else {
                     let bodyText = String(data: completion.body, encoding: .utf8)?.prefix(500) ?? ""
-                    Log.error("[#\(reqId)] Streaming failed from \(channel.name): HTTP \(completion.statusCode) \(bodyText)")
+                    Log.error("[#\(reqId)] Streaming failed from \(channel.name): HTTP \(completion.statusCode) error=\(completion.error?.localizedDescription ?? "nil") latency=\(String(format: "%.1f", latency))s body=\(bodyText)")
                 }
 
-                let usage = RequestForwarder.parseUsage(from: completion.body, isAnthropic: upstreamProtocol == .anthropic)
+                let usage = (input: completion.inputTokens, output: completion.outputTokens)
                 self.services.usageTracker.recordUsage(
                     channelID: channel.id,
                     channelName: channel.name,
@@ -1110,6 +1213,22 @@ final class ProxyServer: ObservableObject {
                 )
 
                 if completion.isSuccess || completion.didWriteBody {
+                    if !completion.isSuccess,
+                       completion.didWriteBody,
+                       !completion.clientDisconnected {
+                        let message = StreamingForwarder.errorMessage(from: completion)
+                        StreamingForwarder.writeErrorEvent(
+                            message,
+                            requestID: "#\(reqId)",
+                            targetProtocol: incomingProtocol,
+                            to: writer
+                        )
+                    }
+                    self.routerCompleteRequest(requestID: reqIdString)
+                    return
+                }
+
+                if completion.clientDisconnected {
                     self.routerCompleteRequest(requestID: reqIdString)
                     return
                 }
@@ -1117,26 +1236,41 @@ final class ProxyServer: ObservableObject {
                 finalMessage = StreamingForwarder.errorMessage(from: completion)
                 // Detect timeout: use 408 status so SmartRouter can retry
                 // the same channel before tripping the circuit breaker
-                let isStreamTimeout = completion.error?.localizedDescription.contains("timed out") == true
-                let retryStatusCode = isStreamTimeout ? 408 : completion.statusCode
-                if let retryDecision = self.routerHandleError(
+                let retryStatusCode: Int
+                if completion.isTimeout {
+                    retryStatusCode = 408
+                } else if completion.statusCode >= 200 && completion.statusCode < 300 {
+                    retryStatusCode = 502
+                } else {
+                    retryStatusCode = completion.statusCode
+                }
+                // If the pre-body budget is exhausted, retrying is pointless - a new forwarder
+                // would immediately re-fail on the same deadline and spin through maxRetries
+                // without any network I/O. Stop here and surface the error to the client.
+                let budgetExhausted = requestDeadline.timeIntervalSinceNow <= 0
+                if !budgetExhausted,
+                   let retryDecision = self.routerHandleError(
                     requestID: reqIdString,
                     statusCode: retryStatusCode,
                     modelName: self.extractModelName(from: bodyData),
                     errorBody: completion.body,
                     requestProtocol: targetProtocol
                 ) {
-                    Log.info("[#\(reqId)] Retrying streaming request with channel \(retryDecision.channel.name)")
+                    let budget = String(format: "%.1f", max(0, requestDeadline.timeIntervalSinceNow))
+                    Log.info(
+                        "[#\(reqId)] Retrying streaming request with channel "
+                            + "\(retryDecision.channel.name); remaining pre-body budget=\(budget)s"
+                    )
                     currentDecision = retryDecision
                     continue
                 }
 
-                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
                 self.routerCompleteRequest(requestID: reqIdString)
                 return
             }
 
-            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", to: writer)
+            StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
             self.routerCompleteRequest(requestID: "req-\(reqId)")
         }
     }

@@ -42,7 +42,10 @@ enum URLBuilder {
             basePath = String(basePath.dropLast())
             components?.path = basePath
         }
-        if basePath.isEmpty || basePath == "/" {
+        let endpointSuffix = String(endpoint.dropFirst(3))
+        if basePath == endpoint || basePath.hasSuffix(endpointSuffix) {
+            components?.path = basePath
+        } else if basePath.isEmpty || basePath == "/" {
             components?.path = endpoint
         } else if basePath.range(of: #"/v\d+$"#, options: .regularExpression) != nil {
             components?.path = basePath + String(endpoint.dropFirst(3))
