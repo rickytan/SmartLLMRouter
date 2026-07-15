@@ -53,6 +53,16 @@ final class CircuitBreakerTests: XCTestCase {
         XCTAssertEqual(breaker.state(for: "test-channel"), .closed)
     }
 
+    func testUpdatedConsecutiveFailureThresholdAppliesWithoutReplacingBreaker() {
+        breaker.updateConsecutiveFailureThreshold(2)
+
+        _ = breaker.recordFailure(channelID: "test-channel")
+        XCTAssertTrue(breaker.isAvailable(channelID: "test-channel"))
+
+        _ = breaker.recordFailure(channelID: "test-channel")
+        XCTAssertFalse(breaker.isAvailable(channelID: "test-channel"))
+    }
+
     // MARK: - Failure Rate
 
     func testFailureRateTripsCircuit() {
@@ -511,13 +521,15 @@ final class SmartRoutingIntegrationTests: XCTestCase {
     private var isolatedStore: IsolatedChannelStore!
     private var isolatedKeychain: IsolatedKeychainManager!
     private var circuitBreaker: CircuitBreaker!
+    private var runtimeState: RouterRuntimeState!
+    private var apiKeyAvailabilityStore: APIKeyAvailabilityStore!
     private var router: SmartRouter!
 
     override func setUp() async throws {
         try await super.setUp()
         circuitBreaker = CircuitBreaker()
         let switchLock = SwitchLock()
-        let runtimeState = RouterRuntimeState(
+        runtimeState = RouterRuntimeState(
             circuitBreaker: circuitBreaker,
             switchLock: switchLock
         )
@@ -538,18 +550,19 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             modelOverrideState: overrideState,
             defaults: isolatedStore.defaults
         )
+        apiKeyAvailabilityStore = APIKeyAvailabilityStore()
         let services = RouterServices(
             channelServices: channelServices,
             runtimeState: runtimeState,
             modelOverrideState: overrideState,
             circuitBreaker: circuitBreaker,
             switchLock: switchLock,
-            apiKeyAvailabilityStore: APIKeyAvailabilityStore(),
+            apiKeyAvailabilityStore: apiKeyAvailabilityStore,
             modelAggregator: aggregator,
             modelSwitcher: switcher,
             usageTracker: UsageTracker(defaults: isolatedStore.defaults)
         )
-        router = SmartRouter(services: services)
+        router = SmartRouter(services: services, defaults: isolatedStore.defaults)
         router.mode = .auto
         router.maxRetries = 3
         router.smartFallbackEnabled = false
@@ -557,6 +570,8 @@ final class SmartRoutingIntegrationTests: XCTestCase {
 
     override func tearDown() async throws {
         router = nil
+        apiKeyAvailabilityStore = nil
+        runtimeState = nil
         circuitBreaker = nil
         isolatedKeychain.cleanup()
         isolatedKeychain = nil
@@ -566,6 +581,63 @@ final class SmartRoutingIntegrationTests: XCTestCase {
     }
 
     // MARK: - Tests
+
+    func testCircuitBreakerFailureThresholdPersistsAndUpdatesRuntime() {
+        router.setCircuitBreakerFailureThreshold(2)
+
+        XCTAssertEqual(router.circuitBreakerFailureThreshold, 2)
+        XCTAssertEqual(
+            isolatedStore.defaults.integer(forKey: "smartllm_circuit_breaker_failure_threshold"),
+            2
+        )
+
+        _ = circuitBreaker.recordFailure(channelID: "threshold-channel")
+        XCTAssertTrue(circuitBreaker.isAvailable(channelID: "threshold-channel"))
+        _ = circuitBreaker.recordFailure(channelID: "threshold-channel")
+        XCTAssertFalse(circuitBreaker.isAvailable(channelID: "threshold-channel"))
+    }
+
+    func test429CooldownSettingPersistsAndControlsAPIKeyExpiration() throws {
+        router.updateCooldownSettings(min429: 7)
+        let beforeMarking = Date()
+
+        let expiration = try XCTUnwrap(apiKeyAvailabilityStore.markRateLimited(
+            channelID: "channel-a",
+            apiKey: "key-a",
+            allAPIKeys: ["key-a", "key-b"]
+        ))
+
+        XCTAssertEqual(router.cooldown429Minutes, 7)
+        XCTAssertEqual(isolatedStore.defaults.integer(forKey: "smartllm_router_cooldown_429"), 7)
+        XCTAssertEqual(expiration.timeIntervalSince(beforeMarking), 7 * 60, accuracy: 1)
+    }
+
+    func testAllRateLimitedKeysImmediatelyExcludeChannelAndUpdateStoredState() async {
+        let primary = makeChannel(name: "Primary", priority: 1)
+        let secondary = makeChannel(name: "Secondary", priority: 2)
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(secondary)
+
+        apiKeyAvailabilityStore.markRateLimited(
+            channelID: primary.id,
+            apiKey: "key-a",
+            allAPIKeys: ["key-a", "key-b"]
+        )
+        apiKeyAvailabilityStore.markRateLimited(
+            channelID: primary.id,
+            apiKey: "key-b",
+            allAPIKeys: ["key-a", "key-b"]
+        )
+
+        XCTAssertTrue(runtimeState.isChannelRateLimited(channelID: primary.id))
+        let decision = runtimeState.selectChannel(requestID: "req-rate-limit", modelName: "gpt-4o")
+        XCTAssertEqual(decision?.channel.id, secondary.id)
+
+        await Task.yield()
+        let updatedPrimary = isolatedStore.store.channels.first { $0.id == primary.id }
+        XCTAssertEqual(updatedPrimary?.isCoolingDown, true)
+        XCTAssertNotNil(updatedPrimary?.cooldownUntil)
+    }
 
     func testRoutingDecision_L1_To_L2_Fallback() throws {
         let ch1 = makeChannel(name: "Primary", priority: 1)

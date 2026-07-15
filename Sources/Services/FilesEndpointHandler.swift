@@ -146,7 +146,7 @@ final class FilesEndpointHandler {
     }
 
     private func getFirstOpenAIChannel() -> Channel? {
-        services.runtimeState.enabledChannelsSnapshot().first { channel in
+        services.runtimeState.availableChannelsSnapshot().first { channel in
             switch channel.protocol {
             case .openai, .auto:
                 true

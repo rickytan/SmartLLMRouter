@@ -926,13 +926,13 @@ struct AdvancedTab: View {
 
                 sectionTitle(L10n.Settings.advancedCooldown)
                 GeneralFormCard {
-                    cooldownRow(title: L10n.Settings.advancedCooldown429, value: "30m")
+                    cooldown429Row
                         .accessibilityIdentifier("settings.advanced.cooldown.429")
                     Divider()
-                    cooldownRow(title: L10n.Settings.advancedCooldown5xx, value: "10m")
+                    cooldownRow(title: L10n.Settings.advancedCooldown5xx, value: "\(smartRouter.cooldown5xxMinutes)m")
                         .accessibilityIdentifier("settings.advanced.cooldown.5xx")
                     Divider()
-                    cooldownRow(title: L10n.Settings.advancedCooldown401, value: "24h")
+                    cooldownRow(title: L10n.Settings.advancedCooldown401, value: "\(smartRouter.cooldown401Hours)h")
                         .accessibilityIdentifier("settings.advanced.cooldown.401")
                 }
             }
@@ -1000,6 +1000,28 @@ struct AdvancedTab: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
 
+        Divider()
+        GeneralFormRow {
+            Text(L10n.CircuitBreaker.consecutiveFailures)
+                .font(DesignToken.Font.body())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+        } trailing: {
+            Stepper(
+                value: Binding(
+                    get: { smartRouter.circuitBreakerFailureThreshold },
+                    set: { smartRouter.setCircuitBreakerFailureThreshold($0) }
+                ),
+                in: SmartRouter.circuitBreakerFailureThresholdRange
+            ) {
+                Text("\(smartRouter.circuitBreakerFailureThreshold)")
+                    .font(DesignToken.Font.mono())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                    .frame(minWidth: 20, alignment: .trailing)
+            }
+            .fixedSize()
+        }
+        .accessibilityIdentifier("settings.advanced.circuitBreakerFailureThreshold")
+
         if circuitStates.isEmpty {
             Divider()
             GeneralFormFullRow {
@@ -1054,6 +1076,28 @@ struct AdvancedTab: View {
     }
 
     // MARK: - Cooldown
+
+    private var cooldown429Row: some View {
+        GeneralFormRow {
+            Text(L10n.Settings.advancedCooldown429)
+                .font(DesignToken.Font.body())
+                .foregroundColor(DesignToken.Colors.textPrimary)
+        } trailing: {
+            Stepper(
+                value: Binding(
+                    get: { smartRouter.cooldown429Minutes },
+                    set: { smartRouter.updateCooldownSettings(min429: $0) }
+                ),
+                in: SmartRouter.cooldown429MinutesRange
+            ) {
+                Text("\(smartRouter.cooldown429Minutes)m")
+                    .font(DesignToken.Font.mono())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                    .frame(minWidth: 42, alignment: .trailing)
+            }
+            .fixedSize()
+        }
+    }
 
     private func cooldownRow(title: String, value: String) -> some View {
         GeneralFormRow {

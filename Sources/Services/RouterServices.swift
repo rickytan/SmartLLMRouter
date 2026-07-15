@@ -36,5 +36,17 @@ final class RouterServices {
         self.modelAggregator = modelAggregator
         self.modelSwitcher = modelSwitcher
         self.usageTracker = usageTracker
+
+        let cooldownEngine = channelServices.cooldownEngine
+        apiKeyAvailabilityStore.setChannelRateLimitHandler { [weak runtimeState, weak cooldownEngine] channelID, until in
+            runtimeState?.markChannelRateLimited(channelID: channelID, until: until)
+            Task { @MainActor [weak cooldownEngine] in
+                cooldownEngine?.startCooldown(
+                    channelID: channelID,
+                    until: until,
+                    reason: "429: all API keys rate-limited"
+                )
+            }
+        }
     }
 }

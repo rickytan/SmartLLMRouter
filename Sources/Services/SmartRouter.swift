@@ -138,6 +138,7 @@ final class RouterRuntimeState {
     private var requestAttemptedChannels: [String: Set<String>] = [:]
     private var channels: [Channel] = []
     private var activeChannelID: String?
+    private var rateLimitedChannels: [String: Date] = [:]
     private let circuitBreaker: CircuitBreaker
     private let switchLock: SwitchLock
 
@@ -184,6 +185,28 @@ final class RouterRuntimeState {
         return channels.filter(\.isEnabled)
     }
 
+    func availableChannelsSnapshot() -> [Channel] {
+        lock.lock()
+        defer { lock.unlock() }
+        return channels.filter { isChannelAvailableLocked($0) }
+    }
+
+    func markChannelRateLimited(channelID: String, until: Date) {
+        lock.lock()
+        rateLimitedChannels[channelID] = until
+        lock.unlock()
+        Log.warn("Channel \(channelID) rate-limited until \(until) because all API keys are cooling down")
+    }
+
+    func isChannelRateLimited(channelID: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let until = rateLimitedChannels[channelID] else { return false }
+        if until > Date() { return true }
+        rateLimitedChannels.removeValue(forKey: channelID)
+        return false
+    }
+
     func activeChannelSnapshot() -> Channel? {
         lock.lock()
         defer { lock.unlock() }
@@ -196,8 +219,9 @@ final class RouterRuntimeState {
         lock.lock()
         defer { lock.unlock() }
 
-        let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
-        let availableChannels = sortedChannels.filter { circuitBreaker.isAvailable(channelID: $0.id) }
+        let availableChannels = channels
+            .filter { isChannelAvailableLocked($0) }
+            .sorted { $0.priority < $1.priority }
 
         let selectedChannel: Channel?
         var effectiveModel = modelName
@@ -286,9 +310,9 @@ final class RouterRuntimeState {
 
         retryCounter[requestID] = currentRetryCount + 1
 
-        let sortedChannels = channels.filter(\.isEnabled).sorted { $0.priority < $1.priority }
+        let sortedChannels = channels.filter { isChannelAvailableLocked($0) }.sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
-            !attemptedChannelIDs.contains(channel.id) && circuitBreaker.isAvailable(channelID: channel.id)
+            !attemptedChannelIDs.contains(channel.id)
         }
         let compatibleMatch = modelName.flatMap {
             bestModelMatch(in: availableChannels, requestedModel: $0)
@@ -400,7 +424,7 @@ final class RouterRuntimeState {
         retryCount: Int
     ) -> RoutingDecision? {
         let availableChannels = channels.filter { channel in
-            channel.isEnabled && !excludedChannelIDs.contains(channel.id) && circuitBreaker.isAvailable(channelID: channel.id)
+            !excludedChannelIDs.contains(channel.id) && isChannelAvailableLocked(channel)
         }
 
         var candidates: [(channel: Channel, model: ModelEntry)] = []
@@ -474,6 +498,24 @@ final class RouterRuntimeState {
         return nil
     }
 
+    private func isChannelAvailableLocked(_ channel: Channel) -> Bool {
+        guard channel.isEnabled, circuitBreaker.isAvailable(channelID: channel.id) else {
+            return false
+        }
+
+        if let until = rateLimitedChannels[channel.id] {
+            if until > Date() { return false }
+            rateLimitedChannels.removeValue(forKey: channel.id)
+        }
+
+        if channel.isCoolingDown,
+           let cooldownUntil = channel.cooldownUntil,
+           cooldownUntil > Date() {
+            return false
+        }
+        return true
+    }
+
     private func formatContextLength(_ length: Int) -> String {
         if length >= 1_000_000 { return "\(length / 1_000_000)M tokens" }
         if length >= 1_000 { return "\(length / 1_000)K tokens" }
@@ -511,20 +553,27 @@ final class ModelOverrideRuntimeState {
 /// Smart routing engine for channel selection and failover
 @MainActor
 final class SmartRouter: ObservableObject {
+    static let defaultCircuitBreakerFailureThreshold = 5
+    static let circuitBreakerFailureThresholdRange = 1...10
+    static let cooldown429MinutesRange = 1...1440
+
     @Published var mode: RoutingMode = .auto
     @Published var maxRetries: Int = 3
     @Published var cooldown429Minutes: Int = 30
     @Published var cooldown5xxMinutes: Int = 10
     @Published var cooldown401Hours: Int = 24
+    @Published var circuitBreakerFailureThreshold: Int = defaultCircuitBreakerFailureThreshold
 
     // Smart Model Fallback settings
     @Published var smartFallbackEnabled: Bool = false
     @Published var maxFallbackCost: Double = 2.0
 
     private let services: RouterServices
+    private let defaults: UserDefaults
 
-    init(services: RouterServices) {
+    init(services: RouterServices, defaults: UserDefaults = .standard) {
         self.services = services
+        self.defaults = defaults
         loadSettings()
         syncRuntimeSettings()
     }
@@ -532,37 +581,47 @@ final class SmartRouter: ObservableObject {
     // MARK: - Settings
 
     private func loadSettings() {
-        mode = RoutingMode(rawValue: UserDefaults.standard.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
-        maxRetries = UserDefaults.standard.integer(forKey: "smartllm_router_max_retries")
+        mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
+        maxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
         if maxRetries == 0 { maxRetries = 3 }
 
-        cooldown429Minutes = UserDefaults.standard.integer(forKey: "smartllm_router_cooldown_429")
-        if cooldown429Minutes == 0 { cooldown429Minutes = 30 }
+        cooldown429Minutes = defaults.integer(forKey: "smartllm_router_cooldown_429")
+        if !Self.cooldown429MinutesRange.contains(cooldown429Minutes) {
+            cooldown429Minutes = 30
+        }
 
-        cooldown5xxMinutes = UserDefaults.standard.integer(forKey: "smartllm_router_cooldown_5xx")
+        cooldown5xxMinutes = defaults.integer(forKey: "smartllm_router_cooldown_5xx")
         if cooldown5xxMinutes == 0 { cooldown5xxMinutes = 10 }
 
-        cooldown401Hours = UserDefaults.standard.integer(forKey: "smartllm_router_cooldown_401")
+        cooldown401Hours = defaults.integer(forKey: "smartllm_router_cooldown_401")
         if cooldown401Hours == 0 { cooldown401Hours = 24 }
 
+        let savedFailureThreshold = defaults.integer(forKey: "smartllm_circuit_breaker_failure_threshold")
+        circuitBreakerFailureThreshold = Self.circuitBreakerFailureThresholdRange.contains(savedFailureThreshold)
+            ? savedFailureThreshold
+            : Self.defaultCircuitBreakerFailureThreshold
+
         // Smart Fallback settings
-        smartFallbackEnabled = UserDefaults.standard.bool(forKey: "smartllm_smart_fallback_enabled")
-        let savedCost = UserDefaults.standard.double(forKey: "smartllm_max_fallback_cost")
+        smartFallbackEnabled = defaults.bool(forKey: "smartllm_smart_fallback_enabled")
+        let savedCost = defaults.double(forKey: "smartllm_max_fallback_cost")
         maxFallbackCost = savedCost > 0 ? savedCost : 2.0
     }
 
     func saveSettings() {
-        UserDefaults.standard.set(mode.rawValue, forKey: "smartllm_router_mode")
-        UserDefaults.standard.set(maxRetries, forKey: "smartllm_router_max_retries")
-        UserDefaults.standard.set(cooldown429Minutes, forKey: "smartllm_router_cooldown_429")
-        UserDefaults.standard.set(cooldown5xxMinutes, forKey: "smartllm_router_cooldown_5xx")
-        UserDefaults.standard.set(cooldown401Hours, forKey: "smartllm_router_cooldown_401")
-        UserDefaults.standard.set(smartFallbackEnabled, forKey: "smartllm_smart_fallback_enabled")
-        UserDefaults.standard.set(maxFallbackCost, forKey: "smartllm_max_fallback_cost")
+        defaults.set(mode.rawValue, forKey: "smartllm_router_mode")
+        defaults.set(maxRetries, forKey: "smartllm_router_max_retries")
+        defaults.set(cooldown429Minutes, forKey: "smartllm_router_cooldown_429")
+        defaults.set(cooldown5xxMinutes, forKey: "smartllm_router_cooldown_5xx")
+        defaults.set(cooldown401Hours, forKey: "smartllm_router_cooldown_401")
+        defaults.set(circuitBreakerFailureThreshold, forKey: "smartllm_circuit_breaker_failure_threshold")
+        defaults.set(smartFallbackEnabled, forKey: "smartllm_smart_fallback_enabled")
+        defaults.set(maxFallbackCost, forKey: "smartllm_max_fallback_cost")
         syncRuntimeSettings()
     }
 
     private func syncRuntimeSettings() {
+        services.circuitBreaker.updateConsecutiveFailureThreshold(circuitBreakerFailureThreshold)
+        services.apiKeyAvailabilityStore.updateRateLimitCooldown(Double(cooldown429Minutes) * 60)
         services.runtimeState.updateChannels(
             services.channelServices.channels,
             activeChannelID: services.channelServices.store.activeChannelID
@@ -622,7 +681,10 @@ final class SmartRouter: ObservableObject {
     /// Update cooldown settings
     func updateCooldownSettings(min429: Int? = nil, min5xx: Int? = nil, hrs401: Int? = nil) {
         if let m = min429 {
-            cooldown429Minutes = m
+            cooldown429Minutes = min(
+                max(m, Self.cooldown429MinutesRange.lowerBound),
+                Self.cooldown429MinutesRange.upperBound
+            )
         }
         if let m = min5xx {
             cooldown5xxMinutes = m
@@ -642,6 +704,15 @@ final class SmartRouter: ObservableObject {
     /// Update max retries
     func setMaxRetries(_ count: Int) {
         maxRetries = max(0, min(10, count))
+        saveSettings()
+    }
+
+    /// Update how many consecutive failed requests trip a channel's circuit.
+    func setCircuitBreakerFailureThreshold(_ count: Int) {
+        circuitBreakerFailureThreshold = min(
+            max(count, Self.circuitBreakerFailureThresholdRange.lowerBound),
+            Self.circuitBreakerFailureThresholdRange.upperBound
+        )
         saveSettings()
     }
 }

@@ -360,8 +360,9 @@ flowchart TD
 *   **Closed**: Normal operation.
 *   **Open**: Channel failed too many times. Temporarily excluded.
 *   **Half-Open**: After cool-down, a probe request tests recovery.
+*   The consecutive-failure threshold is configurable in **Settings > Advanced** (default: 5).
 
-Credential availability is tracked separately from channel health. A rejected key is skipped for later requests during the current app session without disabling or deleting its channel.
+Credential availability is tracked separately from channel health. A rejected key is skipped for later requests during the current app session without disabling or deleting its channel. A key that returns 429 receives an expiring cooldown; when every usable key in a channel is cooling down, that channel is temporarily excluded. The 429 cooldown duration is configurable in **Settings > Advanced**.
 
 ---
 
