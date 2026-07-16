@@ -24,19 +24,25 @@ final class HTTPForwardingClient {
         method: String = "POST",
         headers: [String: String],
         body: Data,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        deadline: Date? = nil
     ) -> Result {
+        let effectiveTimeout = min(timeout, deadline?.timeIntervalSinceNow ?? timeout)
+        guard effectiveTimeout > 0 else {
+            return .failure(URLError(.timedOut))
+        }
+
         let resultBox = ResultBox()
         let semaphore = DispatchSemaphore(value: 0)
 
-        Task {
+        let task = Task {
             do {
                 var urlRequest = URLRequest(url: url)
                 urlRequest.httpMethod = method
                 if !body.isEmpty {
                     urlRequest.httpBody = body
                 }
-                urlRequest.timeoutInterval = timeout
+                urlRequest.timeoutInterval = effectiveTimeout
                 for (key, value) in headers {
                     urlRequest.setValue(value, forHTTPHeaderField: key)
                 }
@@ -60,7 +66,10 @@ final class HTTPForwardingClient {
             semaphore.signal()
         }
 
-        _ = semaphore.wait(timeout: .now() + timeout + 5)
+        if semaphore.wait(timeout: .now() + effectiveTimeout) == .timedOut {
+            task.cancel()
+            return .failure(URLError(.timedOut))
+        }
 
         if let error = resultBox.error {
             return .failure(error)
@@ -88,7 +97,8 @@ final class HTTPForwardingClient {
         channelName: String,
         requestID: String,
         channelID: String? = nil,
-        apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil
+        apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil,
+        deadline: Date? = nil
     ) -> APIKeyForwardResult {
         let keys: [(index: Int, key: String)]
         if let channelID, let apiKeyAvailabilityStore {
@@ -118,8 +128,15 @@ final class HTTPForwardingClient {
         ))
         var lastKey = firstKey.key
         var lastIndex = firstKey.index
+        let requestDeadline = deadline ?? Date().addingTimeInterval(timeout)
 
         for (attemptIndex, keyEntry) in keys.enumerated() {
+            let remainingTimeout = min(timeout, requestDeadline.timeIntervalSinceNow)
+            guard remainingTimeout > 0 else {
+                lastResult = .failure(URLError(.timedOut))
+                break
+            }
+
             let apiKey = keyEntry.key
             var keyedHeaders = headers
             ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: targetProtocol)
@@ -128,7 +145,8 @@ final class HTTPForwardingClient {
                 method: method,
                 headers: keyedHeaders,
                 body: body,
-                timeout: timeout
+                timeout: remainingTimeout,
+                deadline: requestDeadline
             )
 
             lastResult = result

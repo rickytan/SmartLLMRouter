@@ -123,18 +123,23 @@ final class MultipartEndpointHandler {
         if headers["content-type"] == nil {
             headers["content-type"] = "multipart/form-data"
         }
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: 300
+        )
 
         let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: headers,
             body: bodyData,
-            timeout: 300,
+            timeout: timeoutPolicy.interval,
             apiKeys: apiKeys,
             targetProtocol: targetProtocol,
             channelName: channel.name,
             requestID: "#\(reqId)",
             channelID: channel.id,
-            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore,
+            deadline: startTime.addingTimeInterval(timeoutPolicy.interval)
         )
         let result = keyForwardResult.result
 

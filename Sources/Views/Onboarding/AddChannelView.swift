@@ -166,38 +166,40 @@ struct AddChannelView: View {
 
                 Spacer()
 
-                if let summary = channelManager.providerTemplateRefreshSummary {
-                    Text(summary)
-                        .font(DesignToken.Font.micro())
-                        .foregroundColor(DesignToken.Colors.textTertiary)
-                        .lineLimit(1)
-                }
-
-                Button {
-                    Task { await refreshProviderTemplates(selectFallback: false) }
-                } label: {
-                    HStack(spacing: DesignToken.Spacing.xs) {
-                        if channelManager.isRefreshingProviderTemplates {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                                .frame(width: DesignToken.Layout.buttonIconSize, height: DesignToken.Layout.buttonIconSize)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
-                        }
-                        Text(L10n.AddChannel.refreshProviders)
+                if editingChannel == nil {
+                    if let summary = channelManager.providerTemplateRefreshSummary {
+                        Text(summary)
                             .font(DesignToken.Font.micro())
+                            .foregroundColor(DesignToken.Colors.textTertiary)
+                            .lineLimit(1)
                     }
-                    .foregroundColor(DesignToken.Colors.accent)
-                    .padding(.horizontal, DesignToken.Spacing.sm)
-                    .frame(height: DesignToken.Layout.buttonMinHeight)
-                    .background(DesignToken.Colors.accent.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius))
+
+                    Button {
+                        Task { await refreshProviderTemplates(selectFallback: false) }
+                    } label: {
+                        HStack(spacing: DesignToken.Spacing.xs) {
+                            if channelManager.isRefreshingProviderTemplates {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                    .frame(width: DesignToken.Layout.buttonIconSize, height: DesignToken.Layout.buttonIconSize)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(DesignToken.Font.system(size: DesignToken.Layout.buttonIconSize, weight: .medium))
+                            }
+                            Text(L10n.AddChannel.refreshProviders)
+                                .font(DesignToken.Font.micro())
+                        }
+                        .foregroundColor(DesignToken.Colors.accent)
+                        .padding(.horizontal, DesignToken.Spacing.sm)
+                        .frame(height: DesignToken.Layout.buttonMinHeight)
+                        .background(DesignToken.Colors.accent.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Layout.buttonCornerRadius))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(channelManager.isRefreshingProviderTemplates)
+                    .help(L10n.AddChannel.refreshProvidersHelp)
+                    .accessibilityIdentifier("addChannel.refreshProvidersButton")
                 }
-                .buttonStyle(.plain)
-                .disabled(channelManager.isRefreshingProviderTemplates)
-                .help(L10n.AddChannel.refreshProvidersHelp)
-                .accessibilityIdentifier("addChannel.refreshProvidersButton")
             }
 
             if isCustomProvider {
@@ -211,7 +213,7 @@ struct AddChannelView: View {
                     name = newName
                 }
             } else {
-                Picker(selection: $selectedProviderId) {
+                Picker(selection: providerSelection) {
                     Text(L10n.AddChannel.customProvider).tag("custom" as String?)
                     ForEach(channelManager.providerTemplates) { template in
                         Text(template.nameEn).tag(template.id as String?)
@@ -221,22 +223,6 @@ struct AddChannelView: View {
                 }
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("addChannel.providerPicker")
-                .onChange(of: selectedProviderId) { _ in
-                    if selectedProviderId == "custom" {
-                        isCustomProvider = true
-                        name = ""
-                        baseURL = ""
-                        openAIBaseURL = ""
-                        anthropicBaseURL = ""
-                        apiKeys = [""]
-                        selectedProtocol = .openai
-                        models = []
-                    } else {
-                        isCustomProvider = false
-                        applyTemplateSelection()
-                    }
-                    testResult = nil
-                }
             }
         }
     }
@@ -278,7 +264,7 @@ struct AddChannelView: View {
                 .font(DesignToken.Font.caption())
                 .foregroundColor(DesignToken.Colors.textSecondary)
 
-            Picker(selection: $selectedProtocol) {
+            Picker(selection: protocolSelection) {
                 Text(L10n.Settings.generalProtocolOpenai).tag(APIProtocol.openai)
                 Text(L10n.Settings.generalProtocolAnthropic).tag(APIProtocol.anthropic)
                 if allowsAutoProtocol {
@@ -289,14 +275,6 @@ struct AddChannelView: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("addChannel.protocolPicker")
-            .onChange(of: selectedProtocol) { _ in
-                if !isCustomProvider, let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
-                    applyTemplateEndpoints(template)
-                } else {
-                    syncBaseURLFromSelectedEndpoint()
-                }
-                resetConnectionValidation()
-            }
         }
     }
 
@@ -790,7 +768,7 @@ struct AddChannelView: View {
         )
     }
 
-    private func applyTemplateSelection() {
+    private func applyTemplateSelection(preserveEndpoints: Bool = false) {
         guard let templateId = selectedProviderId,
               let template = channelManager.getProviderTemplate(id: templateId) else { return }
 
@@ -803,7 +781,9 @@ struct AddChannelView: View {
         } else {
             selectedProtocol = .openai
         }
-        applyTemplateEndpoints(template)
+        if !preserveEndpoints {
+            applyTemplateEndpoints(template)
+        }
         models = filteredProviderModels(template).map { providerModelToModelEntry($0) }
         isCustomProvider = false
     }
@@ -859,6 +839,48 @@ struct AddChannelView: View {
                     openAIBaseURL = newValue
                 }
                 syncBaseURLFromSelectedEndpoint()
+            }
+        )
+    }
+
+    private var providerSelection: Binding<String?> {
+        Binding(
+            get: { selectedProviderId },
+            set: { newValue in
+                selectedProviderId = newValue
+                if newValue == "custom" {
+                    isCustomProvider = true
+                    name = ""
+                    if editingChannel == nil {
+                        baseURL = ""
+                        openAIBaseURL = ""
+                        anthropicBaseURL = ""
+                        apiKeys = [""]
+                        selectedProtocol = .openai
+                        models = []
+                    }
+                } else {
+                    isCustomProvider = false
+                    applyTemplateSelection(preserveEndpoints: editingChannel != nil)
+                }
+                testResult = nil
+            }
+        )
+    }
+
+    private var protocolSelection: Binding<APIProtocol> {
+        Binding(
+            get: { selectedProtocol },
+            set: { newValue in
+                selectedProtocol = newValue
+                if editingChannel == nil,
+                   !isCustomProvider,
+                   let template = selectedProviderId.flatMap({ channelManager.getProviderTemplate(id: $0) }) {
+                    applyTemplateEndpoints(template)
+                } else {
+                    syncBaseURLFromSelectedEndpoint()
+                }
+                resetConnectionValidation()
             }
         )
     }

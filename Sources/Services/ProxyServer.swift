@@ -443,19 +443,24 @@ final class ProxyServer: ObservableObject {
 
         // Remove hop-by-hop headers
         convertedHeaders.removeValue(forKey: "host")
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: upstreamTimeout
+        )
 
         // Forward request via URLSession
         let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout,
+            timeout: timeoutPolicy.interval,
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
             requestID: "#\(reqId)",
             channelID: channel.id,
-            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore,
+            deadline: startTime.addingTimeInterval(timeoutPolicy.interval)
         )
         let result = keyForwardResult.result
 
@@ -687,19 +692,24 @@ final class ProxyServer: ObservableObject {
         }
 
         convertedHeaders.removeValue(forKey: "host")
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: upstreamTimeout
+        )
 
         // Forward request
         let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout,
+            timeout: timeoutPolicy.interval,
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
             requestID: "#\(reqId)",
             channelID: channel.id,
-            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore,
+            deadline: startTime.addingTimeInterval(timeoutPolicy.interval)
         )
         let result = keyForwardResult.result
 
@@ -882,19 +892,24 @@ final class ProxyServer: ObservableObject {
         }
 
         convertedHeaders.removeValue(forKey: "host")
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: upstreamTimeout
+        )
 
         // Forward request
         let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: convertedHeaders,
             body: forwardedBody,
-            timeout: upstreamTimeout,
+            timeout: timeoutPolicy.interval,
             apiKeys: apiKeys,
             targetProtocol: upstreamProtocol,
             channelName: channel.name,
             requestID: "#\(reqId)",
             channelID: channel.id,
-            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore,
+            deadline: startTime.addingTimeInterval(timeoutPolicy.interval)
         )
         let result = keyForwardResult.result
 
@@ -1031,7 +1046,16 @@ final class ProxyServer: ObservableObject {
             "transfer-encoding": "chunked",
             "connection": "close",
         ]
-        let requestDeadline = startTime.addingTimeInterval(streamingPreBodyBudget)
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: streamingTimeout
+        )
+        let streamDeadline = startTime.addingTimeInterval(timeoutPolicy.interval)
+        let requestDeadline = min(
+            streamDeadline,
+            startTime.addingTimeInterval(streamingPreBodyBudget)
+        )
+        let firstByteTimeout = min(streamingFirstByteTimeout, timeoutPolicy.interval)
 
         return HttpResponse.raw(200, "OK", responseHeaders) { [self] rawWriter in
             let writer = ChunkedResponseWriter(rawWriter)
@@ -1107,7 +1131,7 @@ final class ProxyServer: ObservableObject {
                     return
                 }
 
-                let forwardedBody: Data
+                let protocolBody: Data
                 var convertedHeaders = request.headers
                 if incomingProtocol != upstreamProtocol {
                     do {
@@ -1127,9 +1151,7 @@ final class ProxyServer: ObservableObject {
                             json
                         }
 
-                        forwardedBody = try JSONSerialization.data(withJSONObject: converted)
-                        convertedHeaders["content-type"] = "application/json"
-                        convertedHeaders["content-length"] = String(forwardedBody.count)
+                        protocolBody = try JSONSerialization.data(withJSONObject: converted)
                     } catch {
                         finalMessage = "Protocol conversion failed"
                         Log.error("[#\(reqId)] \(finalMessage): \(error.localizedDescription)")
@@ -1138,18 +1160,25 @@ final class ProxyServer: ObservableObject {
                         return
                     }
                 } else {
-                    forwardedBody = swappedBody
+                    protocolBody = swappedBody
                 }
+
+                let forwardedBody = upstreamProtocol == .openai
+                    ? ProtocolConverter.requestingOpenAIStreamUsage(in: protocolBody)
+                    : protocolBody
+                convertedHeaders["content-type"] = "application/json"
+                convertedHeaders["content-length"] = String(forwardedBody.count)
                 convertedHeaders.removeValue(forKey: "host")
 
                 let forwarder = StreamingForwarder(
                     url: upstreamURL,
                     headers: convertedHeaders,
                     body: forwardedBody,
-                    timeout: self.streamingTimeout,
-                    firstByteTimeout: self.streamingFirstByteTimeout,
-                    streamTimeout: self.streamingTimeout,
+                    timeout: timeoutPolicy.interval,
+                    firstByteTimeout: firstByteTimeout,
+                    streamTimeout: timeoutPolicy.interval,
                     requestDeadline: requestDeadline,
+                    streamDeadline: streamDeadline,
                     keepaliveInterval: self.streamingKeepaliveInterval,
                     apiKeys: apiKeys,
                     incomingProtocol: incomingProtocol,
@@ -1165,8 +1194,10 @@ final class ProxyServer: ObservableObject {
                 Log.info(
                     "[#\(reqId)] Streaming to \(channel.name): \(upstreamURL.absoluteString) "
                         + "proto=\(protocolName) model=\(model) "
-                        + "firstByteTimeout=\(self.streamingFirstByteTimeout)s "
-                        + "streamTimeout=\(self.streamingTimeout)s budget=\(remainingBudget)s"
+                        + "firstByteTimeout=\(firstByteTimeout)s "
+                        + "streamTimeout=\(timeoutPolicy.interval)s "
+                        + "timeoutSource=\(timeoutPolicy.sourceHeader ?? "default") "
+                        + "budget=\(remainingBudget)s"
                 )
                 let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
                 let latency = Date().timeIntervalSince(startTime)

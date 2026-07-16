@@ -70,20 +70,34 @@ enum RequestForwarder {
         if isAnthropic {
             if let usage = json["usage"] as? [String: Any] {
                 return (
-                    usage["input_tokens"] as? Int ?? 0,
-                    usage["output_tokens"] as? Int ?? 0
+                    totalInputTokens(from: usage) ?? 0,
+                    outputTokens(from: usage) ?? 0
                 )
             }
         } else {
             if let usage = json["usage"] as? [String: Any] {
                 return (
-                    usage["prompt_tokens"] as? Int ?? 0,
-                    usage["completion_tokens"] as? Int ?? 0
+                    totalInputTokens(from: usage) ?? 0,
+                    outputTokens(from: usage) ?? 0
                 )
             }
         }
 
         return (0, 0)
+    }
+
+    /// Anthropic reports uncached, cache-write, and cache-read input separately.
+    /// OpenAI-compatible responses use either prompt_tokens or input_tokens.
+    static func totalInputTokens(from usage: [String: Any]) -> Int? {
+        let uncached = usage["input_tokens"] as? Int ?? usage["prompt_tokens"] as? Int
+        let cacheCreation = usage["cache_creation_input_tokens"] as? Int
+        let cacheRead = usage["cache_read_input_tokens"] as? Int
+        guard uncached != nil || cacheCreation != nil || cacheRead != nil else { return nil }
+        return (uncached ?? 0) + (cacheCreation ?? 0) + (cacheRead ?? 0)
+    }
+
+    static func outputTokens(from usage: [String: Any]) -> Int? {
+        usage["output_tokens"] as? Int ?? usage["completion_tokens"] as? Int
     }
 
     /// Detect if request body indicates streaming mode

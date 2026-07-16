@@ -2,6 +2,45 @@ import Foundation
 import Swifter
 
 enum ProxyEndpointSupport {
+    struct UpstreamTimeout: Equatable {
+        let interval: TimeInterval
+        let sourceHeader: String?
+    }
+
+    private static let timeoutHeaderNames = [
+        "x-stainless-read-timeout",
+        "x-stainless-timeout",
+    ]
+
+    /// Stainless SDKs expose their configured request/read timeout in seconds.
+    /// Keep a defensive upper bound so a malformed client header cannot retain
+    /// upstream resources indefinitely.
+    static func upstreamTimeout(
+        from headers: [String: String],
+        fallback: TimeInterval,
+        range: ClosedRange<TimeInterval> = 0.1 ... 86_400
+    ) -> UpstreamTimeout {
+        for headerName in timeoutHeaderNames {
+            guard let value = headers.first(where: {
+                $0.key.caseInsensitiveCompare(headerName) == .orderedSame
+            })?.value else {
+                continue
+            }
+
+            let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let seconds = TimeInterval(trimmedValue), seconds.isFinite, seconds > 0 else {
+                continue
+            }
+
+            return UpstreamTimeout(
+                interval: min(max(seconds, range.lowerBound), range.upperBound),
+                sourceHeader: headerName
+            )
+        }
+
+        return UpstreamTimeout(interval: fallback, sourceHeader: nil)
+    }
+
     static func setAuthHeaders(
         _ headers: inout [String: String],
         apiKey: String,

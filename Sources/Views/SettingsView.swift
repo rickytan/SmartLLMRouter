@@ -187,8 +187,9 @@ struct GeneralSettingsTab: View {
             }
         } trailing: {
             PortField(value: $appState.port, placeholder: L10n.Settings.generalPortPlaceholder)
+                .disabled(proxy.isRunning)
+                .accessibilityIdentifier("settings.general.port")
         }
-        .accessibilityIdentifier("settings.general.port")
     }
 
     private var launchRow: some View {

@@ -152,6 +152,19 @@ final class SettingsViewUITests: UITestCase {
         // 找到端口输入框
         let portField = app.descendants(matching: .any).matching(identifier: UI.settingsPortField).firstMatch
         XCTAssertTrue(portField.waitForExistence(timeout: 3), "端口输入框应存在")
+
+        let stopButton = app.descendants(matching: .any)
+            .matching(identifier: UI.settingsStopServiceButton).firstMatch
+        if stopButton.exists {
+            XCTAssertFalse(portField.isEnabled, "代理运行时端口输入框应禁用")
+            stopButton.click()
+            let becameEditable = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "enabled == true"),
+                object: portField
+            )
+            wait(for: [becameEditable], timeout: 3)
+        }
+        XCTAssertTrue(portField.isEnabled, "代理停止后端口输入框应恢复编辑")
         
         // 点击并清空（全选后删除）
         portField.click()

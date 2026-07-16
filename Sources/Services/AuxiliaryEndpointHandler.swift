@@ -62,18 +62,23 @@ final class AuxiliaryEndpointHandler {
         headers["content-type"] = "application/json"
         headers["content-length"] = String(effectiveBody.count)
         headers.removeValue(forKey: "host")
+        let timeoutPolicy = ProxyEndpointSupport.upstreamTimeout(
+            from: request.headers,
+            fallback: upstreamTimeout
+        )
 
         let keyForwardResult = forwardingClient.forwardSyncWithAPIKeyFailover(
             url: upstreamURL,
             headers: headers,
             body: effectiveBody,
-            timeout: upstreamTimeout,
+            timeout: timeoutPolicy.interval,
             apiKeys: state.apiKeys,
             targetProtocol: targetProtocol,
             channelName: channel.name,
             requestID: "#\(reqId)",
             channelID: channel.id,
-            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore
+            apiKeyAvailabilityStore: services.apiKeyAvailabilityStore,
+            deadline: startTime.addingTimeInterval(timeoutPolicy.interval)
         )
         let result = keyForwardResult.result
 
