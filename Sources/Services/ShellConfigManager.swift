@@ -1,49 +1,49 @@
 import Foundation
 
-/// Manages shell environment configuration for zsh/bash
+/// Manages shell environment configuration for zsh/bash.
 @MainActor
 final class ShellConfigManager: ObservableObject {
     @Published private(set) var isConfigured: Bool = false
     @Published private(set) var configurationStatus: ConfigurationStatus = .notConfigured
-    
+
     enum ConfigurationStatus: String {
         case notConfigured = "未配置"
         case configured = "已配置"
         case needsUpdate = "需要更新"
         case error = "配置错误"
     }
-    
+
     private let envVarName = "SMARTLLM_ROUTER_PORT"
-    private let openaiBaseURL = "OPENAI_BASE_URL"
+    private let openAIBaseURL = "OPENAI_BASE_URL"
     private let anthropicBaseURL = "ANTHROPIC_BASE_URL"
-    
-    init() {
+    private let blockStart = "# SmartLLM Router - Auto-generated"
+    private let blockEnd = "# End SmartLLM Router"
+    private let shellFile: URL
+
+    init(shellFile: URL? = nil) {
+        self.shellFile = shellFile
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".zshenv")
         checkConfigurationStatus()
     }
-    
+
     // MARK: - Public API
-    
-    /// Check if shell environment is already configured
-    func checkConfigurationStatus() {
-        let shellFile = getShellConfigFile()
-        guard let filePath = shellFile?.path else {
-            configurationStatus = .error
-            isConfigured = false
-            return
-        }
-        
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: filePath) else {
+
+    /// Check if all shell variables required by SmartLLM Router are present.
+    func checkConfigurationStatus(port: Int = 1897) {
+        guard FileManager.default.fileExists(atPath: shellFile.path) else {
             configurationStatus = .notConfigured
             isConfigured = false
             return
         }
-        
+
         do {
-            let content = try String(contentsOfFile: filePath, encoding: .utf8)
-            if content.contains(envVarName) && content.contains(openaiBaseURL) {
+            let content = try String(contentsOf: shellFile, encoding: .utf8)
+            if containsConfiguration(in: content, port: port) {
                 isConfigured = true
                 configurationStatus = .configured
+            } else if containsRequiredVariables(in: content) {
+                isConfigured = false
+                configurationStatus = .needsUpdate
             } else {
                 isConfigured = false
                 configurationStatus = .notConfigured
@@ -54,143 +54,129 @@ final class ShellConfigManager: ObservableObject {
             Log.error("Failed to read shell config: \(error.localizedDescription)")
         }
     }
-    
-    /// Configure shell environment by adding exports to .zshrc
+
+    /// Add or update the managed shell environment block.
     func configure(port: Int = 1897) async -> Result<String, Error> {
-        let shellFile = getShellConfigFile()
-        guard let filePath = shellFile?.path else {
-            let error = NSError(
-                domain: "ShellConfig",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "未找到 shell 配置文件"]
-            )
-            return .failure(error)
-        }
-        
         let fileManager = FileManager.default
-        
-        // Create file if it doesn't exist
-        if !fileManager.fileExists(atPath: filePath) {
+
+        if !fileManager.fileExists(atPath: shellFile.path) {
             do {
-                try "".write(toFile: filePath, atomically: true, encoding: .utf8)
-                Log.info("Created shell config file: \(filePath)")
+                try "".write(to: shellFile, atomically: true, encoding: .utf8)
+                Log.info("Created shell config file: \(shellFile.path)")
             } catch {
                 Log.error("Failed to create config file: \(error.localizedDescription)")
                 return .failure(error)
             }
         }
-        
-        // Read current content
-        guard let currentContent = try? String(contentsOfFile: filePath, encoding: .utf8) else {
-            let error = NSError(
-                domain: "ShellConfig",
-                code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "无法读取配置文件"]
-            )
+
+        let currentContent: String
+        do {
+            currentContent = try String(contentsOf: shellFile, encoding: .utf8)
+        } catch {
+            Log.error("Failed to read shell config: \(error.localizedDescription)")
             return .failure(error)
         }
-        
-        // Check if already configured
-        if currentContent.contains("# SmartLLM Router") {
-            // Remove old configuration first
-            let cleanedContent = removeOldConfig(from: currentContent)
-            do {
-                try cleanedContent.write(toFile: filePath, atomically: true, encoding: .utf8)
-            } catch {
-                return .failure(error)
-            }
-        }
-        
-        // Add new configuration
+
         let configBlock = generateConfigBlock(port: port)
-        let newContent = currentContent + "\n" + configBlock
-        
-        do {
-            try newContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+        if containsConfiguration(in: currentContent, port: port) {
             isConfigured = true
             configurationStatus = .configured
-            
+            return .success("环境变量已经配置，无需重复更新")
+        }
+
+        let cleanedContent = removeOldConfig(from: currentContent)
+            .trimmingCharacters(in: .newlines)
+        let newContent = cleanedContent.isEmpty
+            ? "\(configBlock)\n"
+            : "\(cleanedContent)\n\n\(configBlock)\n"
+
+        do {
+            try newContent.write(to: shellFile, atomically: true, encoding: .utf8)
+            isConfigured = true
+            configurationStatus = .configured
             Log.info("Shell environment configured with port \(port)")
-            return .success("✅ 环境变量已写入 \(filePath)")
+            return .success("环境变量已写入 \(shellFile.path)")
         } catch {
             Log.error("Failed to write config: \(error.localizedDescription)")
             return .failure(error)
         }
     }
-    
-    /// Remove SmartLLM Router configuration from shell file
+
+    /// Remove SmartLLM Router configuration from the shell file.
     func removeConfiguration() -> Result<String, Error> {
-        let shellFile = getShellConfigFile()
-        guard let filePath = shellFile?.path else {
-            return .failure(NSError(domain: "ShellConfig", code: 1, userInfo: nil))
-        }
-        
-        guard let currentContent = try? String(contentsOfFile: filePath, encoding: .utf8) else {
+        guard let currentContent = try? String(contentsOf: shellFile, encoding: .utf8) else {
             return .failure(NSError(domain: "ShellConfig", code: 2, userInfo: nil))
         }
-        
+
         let cleanedContent = removeOldConfig(from: currentContent)
-        
+
         do {
-            try cleanedContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+            try cleanedContent.write(to: shellFile, atomically: true, encoding: .utf8)
             isConfigured = false
             configurationStatus = .notConfigured
-            return .success("✅ 环境变量已移除")
+            return .success("环境变量已移除")
         } catch {
             return .failure(error)
         }
     }
-    
-    /// Get the export commands for current port
+
+    /// Get the export commands for the current port.
     func getExportCommands(port: Int = 1897) -> String {
         generateConfigBlock(port: port)
     }
-    
+
     // MARK: - Private
-    
-    private func getShellConfigFile() -> URL? {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        // Use .zshenv because it is sourced for ALL shell invocations (interactive, non-interactive, scripts, IDEs)
-        // .zshrc is only for interactive shells and often misses tools like Claude Code, CI scripts, etc.
-        return homeDir.appendingPathComponent(".zshenv")
-    }
-    
+
     private func generateConfigBlock(port: Int) -> String {
         """
-        
-        # SmartLLM Router - Auto-generated
+        \(blockStart)
         # Set proxy URLs for LLM API clients
-        export \(openaiBaseURL)=http://localhost:\(port)/v1
-        export \(anthropicBaseURL)=http://localhost:\(port)/v1
+        export \(openAIBaseURL)=http://localhost:\(port)/v1
+        export \(anthropicBaseURL)=http://localhost:\(port)
         export \(envVarName)=\(port)
-        
+        \(blockEnd)
         """
     }
-    
+
+    private func containsRequiredVariables(in content: String) -> Bool {
+        content.contains(openAIBaseURL)
+            && content.contains(anthropicBaseURL)
+            && content.contains(envVarName)
+    }
+
+    private func containsConfiguration(in content: String, port: Int) -> Bool {
+        let lines = Set(content.components(separatedBy: .newlines).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        })
+        return lines.contains("export \(openAIBaseURL)=http://localhost:\(port)/v1")
+            && lines.contains("export \(anthropicBaseURL)=http://localhost:\(port)")
+            && lines.contains("export \(envVarName)=\(port)")
+    }
+
     private func removeOldConfig(from content: String) -> String {
-        var lines = content.components(separatedBy: "\n")
+        let lines = content.components(separatedBy: "\n")
         var inConfigBlock = false
         var cleanedLines: [String] = []
-        
+
         for line in lines {
-            if line.contains("# SmartLLM Router - Auto-generated") {
+            if line.contains(blockStart) {
                 inConfigBlock = true
                 continue
             }
-            
+
             if inConfigBlock {
-                if line.trimmingCharacters(in: .whitespaces).isEmpty || 
-                   line.contains("# End SmartLLM Router") {
+                if line.contains(blockEnd) {
                     inConfigBlock = false
-                    continue
+                } else if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // Legacy generated blocks did not include an explicit end marker.
+                    inConfigBlock = false
                 }
-                // Skip lines in the config block
                 continue
             }
-            
+
             cleanedLines.append(line)
         }
-        
+
         return cleanedLines.joined(separator: "\n")
     }
 }

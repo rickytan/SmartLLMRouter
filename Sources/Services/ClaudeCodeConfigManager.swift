@@ -1,7 +1,6 @@
 import Foundation
 
-/// Manages Claude Code configuration (~/.claude/settings.json)
-/// Allows one-click takeover to route Claude Code through the SmartLLM Router proxy.
+/// Manages Claude Code configuration (~/.claude/settings.json).
 @MainActor
 final class ClaudeCodeConfigManager: ObservableObject {
     @Published private(set) var isActive: Bool = false
@@ -9,139 +8,169 @@ final class ClaudeCodeConfigManager: ObservableObject {
     @Published private(set) var configExists: Bool = false
     @Published private(set) var lastError: String?
 
-    private let proxyURL = "http://127.0.0.1:1897"
-    private let urlKey = "url"
+    private let configDirectory: URL
+    private let configFile: URL
+    private let envKey = "env"
+    private let anthropicBaseURLKey = "ANTHROPIC_BASE_URL"
 
-    private var configDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
-    }
-
-    private var configFile: URL {
-        configDirectory.appendingPathComponent("settings.json")
-    }
-
-    init() {
-        loadState()
+    init(configDirectory: URL? = nil) {
+        let directory = configDirectory
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
+        self.configDirectory = directory
+        configFile = directory.appendingPathComponent("settings.json")
+        loadState(port: 1897)
     }
 
     // MARK: - Public API
 
-    /// Refresh the current state from disk
-    func refresh() {
-        loadState()
+    func refresh(port: Int = 1897) {
+        loadState(port: port)
     }
 
-    /// Toggle the takeover on or off
-    func toggleTakeover(enable: Bool) {
+    func toggleTakeover(enable: Bool, port: Int = 1897) {
         if enable {
-            activateTakeover()
+            activateTakeover(port: port)
         } else {
-            deactivateTakeover()
+            deactivateTakeover(port: port)
         }
     }
 
     // MARK: - Private
 
-    private func loadState() {
+    private func proxyURL(port: Int) -> String {
+        "http://127.0.0.1:\(port)"
+    }
+
+    private func loadState(port: Int) {
         let fm = FileManager.default
         configExists = fm.fileExists(atPath: configFile.path)
 
         guard configExists,
               let data = try? Data(contentsOf: configFile),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let env = json[envKey] as? [String: Any]
         else {
             currentURL = ""
             isActive = false
             return
         }
 
-        if let url = json[urlKey] as? String {
-            currentURL = url
-            isActive = (url == proxyURL)
-        } else {
-            currentURL = ""
-            isActive = false
-        }
+        currentURL = env[anthropicBaseURLKey] as? String ?? ""
+        isActive = currentURL == proxyURL(port: port)
     }
 
-    private func activateTakeover() {
+    private func activateTakeover(port: Int) {
         lastError = nil
 
-        // Ensure directory exists
         let fm = FileManager.default
         if !fm.fileExists(atPath: configDirectory.path) {
             do {
                 try fm.createDirectory(at: configDirectory, withIntermediateDirectories: true)
             } catch {
-                lastError = "Failed to create ~/.claude directory: \(error.localizedDescription)"
-                Log.error(lastError!)
+                setError("Failed to create ~/.claude directory: \(error.localizedDescription)")
                 return
             }
         }
 
-        // Read existing config or start fresh
         var json: [String: Any] = [:]
         if fm.fileExists(atPath: configFile.path) {
-            // Backup first
-            backupConfigFile()
-
-            if let data = try? Data(contentsOf: configFile),
-               let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            do {
+                let data = try Data(contentsOf: configFile)
+                guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    setError("Claude Code settings root must be a JSON object")
+                    return
+                }
                 json = existing
+            } catch {
+                setError("Failed to read config: \(error.localizedDescription)")
+                return
+            }
+
+            do {
+                try backupConfigFile()
+            } catch {
+                setError("Failed to backup config: \(error.localizedDescription)")
+                return
             }
         }
 
-        // Set the url
-        json[urlKey] = proxyURL
+        var env = json[envKey] as? [String: Any] ?? [:]
+        let url = proxyURL(port: port)
+        env[anthropicBaseURLKey] = url
+        json[envKey] = env
 
-        // Write back
+        // Remove the unsupported key written by older SmartLLM Router versions.
+        if let legacyURL = json["url"] as? String,
+           legacyURL.hasPrefix("http://127.0.0.1:") || legacyURL.hasPrefix("http://localhost:") {
+            json.removeValue(forKey: "url")
+        }
+
         do {
             let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: configFile, options: .atomic)
-            isActive = true
-            currentURL = proxyURL
             configExists = true
-            Log.info("Claude Code config takeover activated: url set to \(proxyURL)")
+            currentURL = url
+            isActive = true
+            Log.info("Claude Code config takeover activated: env.\(anthropicBaseURLKey) set to \(url)")
         } catch {
-            lastError = "Failed to write config: \(error.localizedDescription)"
-            Log.error(lastError!)
+            setError("Failed to write config: \(error.localizedDescription)")
         }
     }
 
-    private func deactivateTakeover() {
+    private func deactivateTakeover(port: Int) {
         lastError = nil
 
-        // Find the latest backup
-        guard let backupURL = findLatestBackup() else {
-            lastError = "No backup found to restore from"
-            Log.warn(lastError!)
-            return
-        }
-
         do {
-            let backupData = try Data(contentsOf: backupURL)
-            // Validate it's valid JSON
-            guard let _ = try? JSONSerialization.jsonObject(with: backupData) else {
-                lastError = "Backup file is not valid JSON"
-                Log.error(lastError!)
+            let currentData = try Data(contentsOf: configFile)
+            guard var currentJSON = try JSONSerialization.jsonObject(with: currentData) as? [String: Any] else {
+                setError("Claude Code settings root must be a JSON object")
                 return
             }
-            try backupData.write(to: configFile, options: .atomic)
-            isActive = false
-            loadState()
-            Log.info("Claude Code config restored from backup: \(backupURL.lastPathComponent)")
+
+            var previousURL: String?
+            if let backupURL = findLatestBackup() {
+                let backupData = try Data(contentsOf: backupURL)
+                guard let backupJSON = try JSONSerialization.jsonObject(with: backupData) as? [String: Any] else {
+                    setError("Backup file is not valid JSON")
+                    return
+                }
+                previousURL = (backupJSON[envKey] as? [String: Any])?[anthropicBaseURLKey] as? String
+            }
+
+            var env = currentJSON[envKey] as? [String: Any] ?? [:]
+            if let previousURL {
+                env[anthropicBaseURLKey] = previousURL
+            } else {
+                env.removeValue(forKey: anthropicBaseURLKey)
+            }
+            if env.isEmpty {
+                currentJSON.removeValue(forKey: envKey)
+            } else {
+                currentJSON[envKey] = env
+            }
+
+            let restoredData = try JSONSerialization.data(
+                withJSONObject: currentJSON,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            try restoredData.write(to: configFile, options: .atomic)
+            loadState(port: port)
+            Log.info("Claude Code env.\(anthropicBaseURLKey) restored")
         } catch {
-            lastError = "Failed to restore backup: \(error.localizedDescription)"
-            Log.error(lastError!)
+            setError("Failed to restore config: \(error.localizedDescription)")
         }
     }
 
-    /// Backup ~/.claude/settings.json with incrementing suffix
-    private func backupConfigFile() {
+    private func setError(_ message: String) {
+        lastError = message
+        Log.error(message)
+    }
+
+    /// Backup ~/.claude/settings.json with an incrementing suffix.
+    private func backupConfigFile() throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: configFile.path) else { return }
 
-        // Find the next available backup name
         var backupURL = configDirectory.appendingPathComponent("settings.json.bak")
         if fm.fileExists(atPath: backupURL.path) {
             var counter = 1
@@ -151,40 +180,30 @@ final class ClaudeCodeConfigManager: ObservableObject {
             } while fm.fileExists(atPath: backupURL.path)
         }
 
-        do {
-            try fm.copyItem(at: configFile, to: backupURL)
-            Log.info("Backed up Claude Code config to \(backupURL.lastPathComponent)")
-        } catch {
-            Log.error("Failed to backup config: \(error.localizedDescription)")
-        }
+        try fm.copyItem(at: configFile, to: backupURL)
+        Log.info("Backed up Claude Code config to \(backupURL.lastPathComponent)")
     }
 
-    /// Find the most recent backup file (settings.json.bak or highest .bak.N)
     private func findLatestBackup() -> URL? {
         let fm = FileManager.default
-        let dir = configDirectory
-
-        // Check for .bak files
         var candidates: [(url: URL, number: Int)] = []
 
-        let bakURL = dir.appendingPathComponent("settings.json.bak")
-        if fm.fileExists(atPath: bakURL.path) {
-            candidates.append((bakURL, 0))
+        let backupURL = configDirectory.appendingPathComponent("settings.json.bak")
+        if fm.fileExists(atPath: backupURL.path) {
+            candidates.append((backupURL, 0))
         }
 
-        // Check .bak.1, .bak.2, etc.
         var counter = 1
-        while counter < 100 { // Safety limit
-            let numberedBak = dir.appendingPathComponent("settings.json.bak.\(counter)")
-            if fm.fileExists(atPath: numberedBak.path) {
-                candidates.append((numberedBak, counter))
+        while counter < 100 {
+            let numberedBackup = configDirectory.appendingPathComponent("settings.json.bak.\(counter)")
+            if fm.fileExists(atPath: numberedBackup.path) {
+                candidates.append((numberedBackup, counter))
             } else {
-                break // No more sequential backups
+                break
             }
             counter += 1
         }
 
-        // Return the one with highest number (most recent)
         return candidates.max(by: { $0.number < $1.number })?.url
     }
 }
