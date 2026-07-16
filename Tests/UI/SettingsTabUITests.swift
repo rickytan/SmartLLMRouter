@@ -158,6 +158,11 @@ Thread.sleep(forTimeInterval: 1.5)
         XCTAssertTrue(githubButton.exists || githubButton.waitForExistence(timeout: 2),
                       "About tab should show the GitHub button")
 
+        let reportIssueButton = app.descendants(matching: .any)
+            .matching(identifier: UI.aboutReportIssueButton).firstMatch
+        XCTAssertTrue(reportIssueButton.exists || reportIssueButton.waitForExistence(timeout: 2),
+                      "About tab should show the Report Issue button")
+
         // Usage metrics from Usage tab should NOT be visible
         XCTAssertFalse(totalRequests.exists,
                        "Total requests metric should not be visible when on the About tab")

@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Charts
 import Sparkle
+import UniformTypeIdentifiers
 
 // MARK: - SettingsView
 
@@ -1479,6 +1480,7 @@ struct EmptyChannelStats: View {
 
 struct AboutTab: View {
     @StateObject private var updaterDelegate = SparkleUpdaterDelegate.shared
+    @State private var showingReportIssueOptions = false
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.sm) {
@@ -1505,31 +1507,66 @@ struct AboutTab: View {
                 }
                 .accessibilityIdentifier("settings.about.checkUpdateButton")
 
-                HoverButton(
-                    title: L10n.Settings.aboutGithub,
-                    icon: "link"
-                ) {
-                    if let url = URL(string: "https://github.com/rickytan/SmartLLMRouter") {
-                        NSWorkspace.shared.open(url)
+                HStack(spacing: DesignToken.Spacing.md) {
+                    HoverButton(
+                        title: L10n.Settings.aboutGithub,
+                        icon: "link"
+                    ) {
+                        if let url = URL(string: "https://github.com/rickytan/SmartLLMRouter") {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
-                }
-                .accessibilityIdentifier("about.github")
+                    .accessibilityIdentifier("about.github")
 
-                HoverButton(
-                    title: L10n.Settings.aboutLicense,
-                    icon: "doc.text"
-                ) {
-                    // Show license
+                    HoverButton(
+                        title: L10n.Settings.aboutReportIssue,
+                        icon: "exclamationmark.bubble"
+                    ) {
+                        showingReportIssueOptions = true
+                    }
+                    .accessibilityIdentifier("about.reportIssue")
                 }
             }
 
             Spacer()
         }
         .padding(DesignToken.Spacing.xl)
+        .alert(L10n.Settings.aboutReportIssuePromptTitle, isPresented: $showingReportIssueOptions) {
+            Button(L10n.Settings.aboutReportIssueIncludeLogs) {
+                DispatchQueue.main.async {
+                    exportDiagnosticsAndOpenIssue()
+                }
+            }
+            Button(L10n.Settings.aboutReportIssueWithoutLogs) {
+                IssueReporter.openIssue()
+            }
+            Button(L10n.Settings.aboutReportIssueCancel, role: .cancel) {}
+        } message: {
+            Text(L10n.Settings.aboutReportIssuePromptMessage)
+        }
     }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    private func exportDiagnosticsAndOpenIssue() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = "SmartLLMRouter-diagnostics.txt"
+        savePanel.title = L10n.Settings.aboutReportIssueSaveTitle
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
+
+        do {
+            try IssueReporter.exportDiagnostics(to: destinationURL)
+            NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+            IssueReporter.openIssue()
+        } catch {
+            Log.error("Failed to export issue diagnostics: \(error.localizedDescription)")
+            IssueReporter.openIssue()
+        }
     }
 }
 

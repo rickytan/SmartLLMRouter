@@ -188,7 +188,7 @@ final class RouterRuntimeState {
     func availableChannelsSnapshot() -> [Channel] {
         lock.lock()
         defer { lock.unlock() }
-        return channels.filter { isChannelAvailableLocked($0) }
+        return channels.filter { pruneAndCheckChannelAvailableLocked($0) }
     }
 
     func markChannelRateLimited(channelID: String, until: Date) {
@@ -220,7 +220,7 @@ final class RouterRuntimeState {
         defer { lock.unlock() }
 
         let availableChannels = channels
-            .filter { isChannelAvailableLocked($0) }
+            .filter { pruneAndCheckChannelAvailableLocked($0) }
             .sorted { $0.priority < $1.priority }
 
         let selectedChannel: Channel?
@@ -310,9 +310,11 @@ final class RouterRuntimeState {
 
         retryCounter[requestID] = currentRetryCount + 1
 
-        let sortedChannels = channels.filter { isChannelAvailableLocked($0) }.sorted { $0.priority < $1.priority }
+        let sortedChannels = channels.filter { pruneAndCheckChannelAvailableLocked($0) }
+            .sorted { $0.priority < $1.priority }
         let availableChannels = sortedChannels.filter { channel in
             !attemptedChannelIDs.contains(channel.id)
+                && circuitBreaker.isAvailable(channelID: channel.id)
         }
         let compatibleMatch = modelName.flatMap {
             bestModelMatch(in: availableChannels, requestedModel: $0)
@@ -424,7 +426,7 @@ final class RouterRuntimeState {
         retryCount: Int
     ) -> RoutingDecision? {
         let availableChannels = channels.filter { channel in
-            !excludedChannelIDs.contains(channel.id) && isChannelAvailableLocked(channel)
+            !excludedChannelIDs.contains(channel.id) && pruneAndCheckChannelAvailableLocked(channel)
         }
 
         var candidates: [(channel: Channel, model: ModelEntry)] = []
@@ -498,7 +500,7 @@ final class RouterRuntimeState {
         return nil
     }
 
-    private func isChannelAvailableLocked(_ channel: Channel) -> Bool {
+    private func pruneAndCheckChannelAvailableLocked(_ channel: Channel) -> Bool {
         guard channel.isEnabled, circuitBreaker.isAvailable(channelID: channel.id) else {
             return false
         }
