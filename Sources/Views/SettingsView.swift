@@ -24,7 +24,7 @@ private enum SettingsTab: Int, Hashable {
         case .usage:
             CGSize(width: 800, height: 600)
         case .about:
-            CGSize(width: 480, height: 440)
+            CGSize(width: 480, height: 360)
         }
     }
 }
@@ -1507,29 +1507,24 @@ struct AboutTab: View {
                 }
                 .accessibilityIdentifier("settings.about.checkUpdateButton")
 
-                HoverButton(
-                    title: L10n.Settings.aboutGithub,
-                    icon: "link"
-                ) {
-                    if let url = URL(string: "https://github.com/rickytan/SmartLLMRouter") {
-                        NSWorkspace.shared.open(url)
+                HStack(spacing: DesignToken.Spacing.md) {
+                    HoverButton(
+                        title: L10n.Settings.aboutGithub,
+                        icon: "link"
+                    ) {
+                        if let url = URL(string: "https://github.com/rickytan/SmartLLMRouter") {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
-                }
-                .accessibilityIdentifier("about.github")
+                    .accessibilityIdentifier("about.github")
 
-                HoverButton(
-                    title: L10n.Settings.aboutReportIssue,
-                    icon: "exclamationmark.bubble"
-                ) {
-                    showingReportIssueOptions = true
-                }
-                .accessibilityIdentifier("about.reportIssue")
-
-                HoverButton(
-                    title: L10n.Settings.aboutLicense,
-                    icon: "doc.text"
-                ) {
-                    // Show license
+                    HoverButton(
+                        title: L10n.Settings.aboutReportIssue,
+                        icon: "exclamationmark.bubble"
+                    ) {
+                        showingReportIssueOptions = true
+                    }
+                    .accessibilityIdentifier("about.reportIssue")
                 }
             }
 
