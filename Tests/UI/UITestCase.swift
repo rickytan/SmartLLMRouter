@@ -82,6 +82,7 @@ class UITestCase: XCTestCase {
         // About Tab
         static let aboutVersionLabel = "about.version"
         static let aboutGithubButton = "about.github"
+        static let aboutReportIssueButton = "about.reportIssue"
         
         // Common
         static let closeButton = "window.close"

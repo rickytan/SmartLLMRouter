@@ -147,6 +147,13 @@
 "settings.about.version" = "Version %@";
 "settings.about.check_update" = "Check for Updates";
 "settings.about.github" = "GitHub Repository";
+"settings.about.report_issue" = "Report Issue";
+"settings.about.report_issue.prompt.title" = "Include Local Logs?";
+"settings.about.report_issue.prompt.message" = "SmartLLMRouter can export a redacted diagnostics file. Review it, then drag it into the GitHub issue. API keys are redacted, but logs may still contain request metadata.";
+"settings.about.report_issue.include_logs" = "Export Logs";
+"settings.about.report_issue.without_logs" = "Continue Without Logs";
+"settings.about.report_issue.cancel" = "Cancel";
+"settings.about.report_issue.save_title" = "Save Diagnostics";
 "settings.about.license" = "License";
 
 // Error Messages

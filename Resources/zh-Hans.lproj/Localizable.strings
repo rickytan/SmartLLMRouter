@@ -147,6 +147,13 @@
 "settings.about.version" = "版本 %@";
 "settings.about.check_update" = "检查更新";
 "settings.about.github" = "GitHub 仓库";
+"settings.about.report_issue" = "报告问题";
+"settings.about.report_issue.prompt.title" = "是否附带本地日志？";
+"settings.about.report_issue.prompt.message" = "SmartLLMRouter 可以导出经过脱敏的诊断文件。请检查内容后，将文件拖入 GitHub Issue。API Key 会被隐藏，但日志仍可能包含请求元数据。";
+"settings.about.report_issue.include_logs" = "导出日志";
+"settings.about.report_issue.without_logs" = "不带日志继续";
+"settings.about.report_issue.cancel" = "取消";
+"settings.about.report_issue.save_title" = "保存诊断文件";
 "settings.about.license" = "许可证";
 
 // Error Messages

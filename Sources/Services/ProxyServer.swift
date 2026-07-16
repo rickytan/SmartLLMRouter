@@ -1008,16 +1008,11 @@ final class ProxyServer: ObservableObject {
         isStream: Bool,
         headers: [String: String]
     ) -> HttpResponse {
-        var responseHeaders: [String: String] = [:]
-        let upstreamContentType = headers.first { $0.key.lowercased() == "content-type" }?.value
-        responseHeaders["content-type"] = upstreamContentType
-            ?? (isStream ? "text/event-stream" : "application/json")
-        responseHeaders["content-length"] = String(body.count)
-        for (key, value) in headers {
-            if key.lowercased().hasPrefix("x-") || key.lowercased() == "retry-after" {
-                responseHeaders[key] = value
-            }
-        }
+        let responseHeaders = ProxyEndpointSupport.forwardedResponseHeaders(
+            bodyCount: body.count,
+            isStream: isStream,
+            upstreamHeaders: headers
+        )
         return rawResponse(statusCode: statusCode, headers: responseHeaders, body: body)
     }
 

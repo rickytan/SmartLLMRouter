@@ -42,6 +42,19 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertTrue(reloaded.onboardingCompleted)
     }
 
+    func testCooldownEnginePersistsInChannelStoreInjectedDefaults() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        defer { isolated.cleanup() }
+        let channelID = "cooldown-channel"
+
+        let firstEngine = CooldownEngine(channelStore: isolated.store)
+        firstEngine.startCooldown(channelID: channelID, duration: 120, reason: "test")
+        let reloadedEngine = CooldownEngine(channelStore: isolated.store)
+
+        XCTAssertTrue(reloadedEngine.isCoolingDown(channelID: channelID))
+        XCTAssertEqual(reloadedEngine.cooldownReason(channelID: channelID), "test")
+    }
+
     func testDisablingActiveChannelMovesSelectionAndInvalidatesDependentState() {
         let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
         defer { isolated.cleanup() }

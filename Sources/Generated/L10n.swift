@@ -915,9 +915,37 @@ internal enum L10n {
     internal static var aboutLicense: String {
       L10n.tr("Localizable", "settings.about.license", fallback: "License")
     }
+    /// Report Issue
+    internal static var aboutReportIssue: String {
+      L10n.tr("Localizable", "settings.about.report_issue", fallback: "Report Issue")
+    }
     /// Version %@
     internal static func aboutVersion(_ p1: Any) -> String {
       return L10n.tr("Localizable", "settings.about.version", String(describing: p1), fallback: "Version %@")
+    }
+    /// Cancel
+    internal static var aboutReportIssueCancel: String {
+      L10n.tr("Localizable", "settings.about.report_issue.cancel", fallback: "Cancel")
+    }
+    /// Export Logs
+    internal static var aboutReportIssueIncludeLogs: String {
+      L10n.tr("Localizable", "settings.about.report_issue.include_logs", fallback: "Export Logs")
+    }
+    /// Save Diagnostics
+    internal static var aboutReportIssueSaveTitle: String {
+      L10n.tr("Localizable", "settings.about.report_issue.save_title", fallback: "Save Diagnostics")
+    }
+    /// Continue Without Logs
+    internal static var aboutReportIssueWithoutLogs: String {
+      L10n.tr("Localizable", "settings.about.report_issue.without_logs", fallback: "Continue Without Logs")
+    }
+    /// SmartLLMRouter can export a redacted diagnostics file. Review it, then drag it into the GitHub issue. API keys are redacted, but logs may still contain request metadata.
+    internal static var aboutReportIssuePromptMessage: String {
+      L10n.tr("Localizable", "settings.about.report_issue.prompt.message", fallback: "SmartLLMRouter can export a redacted diagnostics file. Review it, then drag it into the GitHub issue. API keys are redacted, but logs may still contain request metadata.")
+    }
+    /// Include Local Logs?
+    internal static var aboutReportIssuePromptTitle: String {
+      L10n.tr("Localizable", "settings.about.report_issue.prompt.title", fallback: "Include Local Logs?")
     }
     /// Cooldown Period
     internal static var advancedCooldown: String {
