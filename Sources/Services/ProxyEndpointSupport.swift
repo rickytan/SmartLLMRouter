@@ -39,6 +39,27 @@ enum ProxyEndpointSupport {
         return rawResponse(statusCode: statusCode, headers: headers, body: body ?? Data())
     }
 
+    static func forwardedResponseHeaders(
+        bodyCount: Int,
+        isStream: Bool,
+        upstreamHeaders: [String: String]
+    ) -> [String: String] {
+        var responseHeaders: [String: String] = [:]
+        let upstreamContentType = upstreamHeaders.first {
+            $0.key.lowercased() == "content-type"
+        }?.value
+        responseHeaders["content-type"] = upstreamContentType
+            ?? (isStream ? "text/event-stream" : "application/json")
+        responseHeaders["content-length"] = String(bodyCount)
+
+        for (key, value) in upstreamHeaders {
+            if key.lowercased().hasPrefix("x-") || key.lowercased() == "retry-after" {
+                responseHeaders[key] = value
+            }
+        }
+        return responseHeaders
+    }
+
     static func shouldRetryWithNextAPIKey(statusCode: Int, body: Data?) -> Bool {
         if [401, 402, 403, 429].contains(statusCode) {
             return true

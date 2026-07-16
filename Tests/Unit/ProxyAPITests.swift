@@ -1,6 +1,46 @@
 import XCTest
 @testable import SmartLLMRouter
 
+final class ProxyEndpointSupportTests: XCTestCase {
+    func testForwardedResponseHeadersPreserveUpstreamContentTypeAndRetryMetadata() {
+        let headers = ProxyEndpointSupport.forwardedResponseHeaders(
+            bodyCount: 42,
+            isStream: false,
+            upstreamHeaders: [
+                "Content-Type": "application/problem+json",
+                "Retry-After": "60",
+                "X-Request-ID": "request-1",
+                "Server": "private-upstream"
+            ]
+        )
+
+        XCTAssertEqual(headers["content-type"], "application/problem+json")
+        XCTAssertEqual(headers["content-length"], "42")
+        XCTAssertEqual(headers["Retry-After"], "60")
+        XCTAssertEqual(headers["X-Request-ID"], "request-1")
+        XCTAssertNil(headers["Server"])
+    }
+
+    func testForwardedResponseHeadersUseProtocolAwareContentTypeFallback() {
+        XCTAssertEqual(
+            ProxyEndpointSupport.forwardedResponseHeaders(
+                bodyCount: 0,
+                isStream: true,
+                upstreamHeaders: [:]
+            )["content-type"],
+            "text/event-stream"
+        )
+        XCTAssertEqual(
+            ProxyEndpointSupport.forwardedResponseHeaders(
+                bodyCount: 0,
+                isStream: false,
+                upstreamHeaders: [:]
+            )["content-type"],
+            "application/json"
+        )
+    }
+}
+
 // MARK: - Protocol Detection Tests
 
 final class ProtocolDetectionTests: XCTestCase {

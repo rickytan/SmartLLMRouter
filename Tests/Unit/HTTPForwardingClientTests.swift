@@ -131,6 +131,34 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertTrue(availability.availableKeys(for: "channel-a", apiKeys: ["key-a", "key-b"]).isEmpty)
     }
 
+    func testRepeatedAllKeysRateLimitedStateDoesNotScheduleDuplicateChannelNotifications() {
+        let currentDate = Date(timeIntervalSince1970: 2_500)
+        let availability = APIKeyAvailabilityStore(now: { currentDate })
+        availability.updateRateLimitCooldown(120)
+        var notificationCount = 0
+        availability.setChannelRateLimitHandler { _, _ in
+            notificationCount += 1
+        }
+
+        availability.markRateLimited(
+            channelID: "channel-a",
+            apiKey: "key-a",
+            allAPIKeys: ["key-a", "key-b"]
+        )
+        availability.markRateLimited(
+            channelID: "channel-a",
+            apiKey: "key-b",
+            allAPIKeys: ["key-a", "key-b"]
+        )
+        availability.markRateLimited(
+            channelID: "channel-a",
+            apiKey: "key-b",
+            allAPIKeys: ["key-a", "key-b"]
+        )
+
+        XCTAssertEqual(notificationCount, 1)
+    }
+
     func testAPIKeyUnavailableDetectionCoversOnlyNonRecoverableCredentialErrors() {
         let invalidKeyBody = Data(#"{"error":{"message":"invalid_api_key"}}"#.utf8)
         let quotaBody = Data(#"{"error":{"code":"insufficient_quota"}}"#.utf8)

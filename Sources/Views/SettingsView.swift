@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Charts
 import Sparkle
+import UniformTypeIdentifiers
 
 // MARK: - SettingsView
 
@@ -23,7 +24,7 @@ private enum SettingsTab: Int, Hashable {
         case .usage:
             CGSize(width: 800, height: 600)
         case .about:
-            CGSize(width: 480, height: 360)
+            CGSize(width: 480, height: 440)
         }
     }
 }
@@ -1479,6 +1480,7 @@ struct EmptyChannelStats: View {
 
 struct AboutTab: View {
     @StateObject private var updaterDelegate = SparkleUpdaterDelegate.shared
+    @State private var showingReportIssueOptions = false
 
     var body: some View {
         VStack(spacing: DesignToken.Spacing.lg + DesignToken.Spacing.sm) {
@@ -1516,6 +1518,14 @@ struct AboutTab: View {
                 .accessibilityIdentifier("about.github")
 
                 HoverButton(
+                    title: L10n.Settings.aboutReportIssue,
+                    icon: "exclamationmark.bubble"
+                ) {
+                    showingReportIssueOptions = true
+                }
+                .accessibilityIdentifier("about.reportIssue")
+
+                HoverButton(
                     title: L10n.Settings.aboutLicense,
                     icon: "doc.text"
                 ) {
@@ -1526,10 +1536,42 @@ struct AboutTab: View {
             Spacer()
         }
         .padding(DesignToken.Spacing.xl)
+        .alert(L10n.Settings.aboutReportIssuePromptTitle, isPresented: $showingReportIssueOptions) {
+            Button(L10n.Settings.aboutReportIssueIncludeLogs) {
+                DispatchQueue.main.async {
+                    exportDiagnosticsAndOpenIssue()
+                }
+            }
+            Button(L10n.Settings.aboutReportIssueWithoutLogs) {
+                IssueReporter.openIssue()
+            }
+            Button(L10n.Settings.aboutReportIssueCancel, role: .cancel) {}
+        } message: {
+            Text(L10n.Settings.aboutReportIssuePromptMessage)
+        }
     }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    private func exportDiagnosticsAndOpenIssue() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = "SmartLLMRouter-diagnostics.txt"
+        savePanel.title = L10n.Settings.aboutReportIssueSaveTitle
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
+
+        do {
+            try IssueReporter.exportDiagnostics(to: destinationURL)
+            NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+            IssueReporter.openIssue()
+        } catch {
+            Log.error("Failed to export issue diagnostics: \(error.localizedDescription)")
+            IssueReporter.openIssue()
+        }
     }
 }
 

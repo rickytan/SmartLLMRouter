@@ -135,6 +135,7 @@ final class SettingsViewUITests: UITestCase {
         
         // 验证 GitHub 按钮存在
         assertElementExists(UI.aboutGithubButton, "About Tab 应包含 GitHub 按钮")
+        assertElementExists(UI.aboutReportIssueButton, "About Tab 应包含报告问题按钮")
     }
     
     // MARK: - 端口设置测试

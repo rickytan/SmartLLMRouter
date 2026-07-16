@@ -15,6 +15,7 @@ final class APIKeyAvailabilityStore {
     private let now: () -> Date
     private var unauthorizedKeys: [KeyScope: Date] = [:]
     private var rateLimitedKeys: [KeyScope: Date] = [:]
+    private var notifiedChannelRateLimits: [String: Date] = [:]
     private var rateLimitCooldown: TimeInterval = 30 * 60
     private var channelRateLimitHandler: ((String, Date) -> Void)?
 
@@ -69,10 +70,18 @@ final class APIKeyAvailabilityStore {
             referenceDate: currentDate
         )
         let handler = channelRateLimitHandler
+        let notificationExpiration: Date?
+        if let channelExpiration,
+           notifiedChannelRateLimits[channelID] != channelExpiration {
+            notifiedChannelRateLimits[channelID] = channelExpiration
+            notificationExpiration = channelExpiration
+        } else {
+            notificationExpiration = nil
+        }
         lock.unlock()
 
-        if let channelExpiration {
-            handler?(channelID, channelExpiration)
+        if let notificationExpiration {
+            handler?(channelID, notificationExpiration)
         }
         return keyExpiration
     }
@@ -113,6 +122,7 @@ final class APIKeyAvailabilityStore {
         lock.lock()
         unauthorizedKeys = unauthorizedKeys.filter { $0.key.channelID != channelID }
         rateLimitedKeys = rateLimitedKeys.filter { $0.key.channelID != channelID }
+        notifiedChannelRateLimits.removeValue(forKey: channelID)
         lock.unlock()
     }
 
@@ -120,12 +130,14 @@ final class APIKeyAvailabilityStore {
         lock.lock()
         unauthorizedKeys.removeAll()
         rateLimitedKeys.removeAll()
+        notifiedChannelRateLimits.removeAll()
         lock.unlock()
     }
 
     private func removeExpiredRateLimitsLocked(referenceDate: Date? = nil) {
         let currentDate = referenceDate ?? now()
         rateLimitedKeys = rateLimitedKeys.filter { $0.value > currentDate }
+        notifiedChannelRateLimits = notifiedChannelRateLimits.filter { $0.value > currentDate }
     }
 
     private func channelRateLimitUntilLocked(
