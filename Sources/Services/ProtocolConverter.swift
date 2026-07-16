@@ -38,6 +38,9 @@ enum ProtocolConverter {
         // Stream
         if let stream = body["stream"] as? Bool {
             openaiRequest["stream"] = stream
+            if stream {
+                openaiRequest["stream_options"] = ["include_usage": true]
+            }
         }
 
         // Build messages array
@@ -209,6 +212,20 @@ enum ProtocolConverter {
         }
 
         return openaiRequest
+    }
+
+    /// OpenAI streaming responses omit usage unless the client explicitly requests it.
+    /// Preserve existing stream options while ensuring token usage is included.
+    static func requestingOpenAIStreamUsage(in body: Data) -> Data {
+        guard var json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              json["stream"] as? Bool == true else {
+            return body
+        }
+
+        var streamOptions = json["stream_options"] as? [String: Any] ?? [:]
+        streamOptions["include_usage"] = true
+        json["stream_options"] = streamOptions
+        return (try? JSONSerialization.data(withJSONObject: json)) ?? body
     }
 
     /// Convert OpenAI /v1/chat/completions request to Anthropic /v1/messages format
@@ -550,8 +567,8 @@ enum ProtocolConverter {
         // Usage
         if let usage = body["usage"] as? [String: Any] {
             var openaiUsage: [String: Any] = [:]
-            let inputTokens = usage["input_tokens"] as? Int ?? 0
-            let outputTokens = usage["output_tokens"] as? Int ?? 0
+            let inputTokens = RequestForwarder.totalInputTokens(from: usage) ?? 0
+            let outputTokens = RequestForwarder.outputTokens(from: usage) ?? 0
             openaiUsage["prompt_tokens"] = inputTokens
             openaiUsage["completion_tokens"] = outputTokens
             openaiUsage["total_tokens"] = inputTokens + outputTokens

@@ -271,6 +271,48 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(authorizations, ["Bearer key-a"])
     }
 
+    func testForwardSyncSharesDeadlineAcrossAPIKeys() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            let authorization = request.headers["authorization"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "Bearer key-a" {
+                Thread.sleep(forTimeInterval: 0.05)
+                return Self.jsonResponse(
+                    statusCode: 429,
+                    json: ["error": ["message": "rate limit exceeded"]]
+                )
+            }
+            Thread.sleep(forTimeInterval: 1.5)
+            return Self.jsonResponse(statusCode: 200, json: ["ok": true])
+        }
+
+        let port = try start(server)
+        let client = HTTPForwardingClient()
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let startedAt = Date()
+        let forwardResult = client.forwardSyncWithAPIKeyFailover(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{}".utf8),
+            timeout: 1,
+            apiKeys: ["key-a", "key-b"],
+            targetProtocol: .openai,
+            channelName: "Test Channel",
+            requestID: "#deadline",
+            deadline: startedAt.addingTimeInterval(0.75)
+        )
+
+        guard case let .failure(error) = forwardResult.result else {
+            XCTFail("Expected the shared request deadline to expire")
+            return
+        }
+        XCTAssertEqual((error as? URLError)?.code, .timedOut)
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 1.1)
+        XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b"])
+    }
+
     func testForwardSyncDoesNotShareUnauthorizedStateAcrossChannels() throws {
         let availability = APIKeyAvailabilityStore()
         availability.markUnauthorized(channelID: "channel-a", apiKey: "shared-key")
@@ -527,7 +569,7 @@ final class HTTPForwardingClientTests: XCTestCase {
         var capturedAPIKey: String?
         var capturedVersion: String?
         var capturedAuthorization: String?
-        let upstreamEvent = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-test\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n"
+        let upstreamEvent = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-test\",\"usage\":{\"input_tokens\":0,\"cache_creation_input_tokens\":11,\"cache_read_input_tokens\":89,\"output_tokens\":0}}}\n\n"
 
         server.post["/v1/messages"] = { request in
             capturedAPIKey = request.headers["x-api-key"]
@@ -560,10 +602,50 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(capturedAPIKey, "anthropic-key")
         XCTAssertEqual(capturedVersion, "2023-06-01")
         XCTAssertNil(capturedAuthorization)
+        XCTAssertEqual(completion.inputTokens, 100)
         XCTAssertTrue(writer.string.hasPrefix(upstreamEvent))
         XCTAssertTrue(writer.string.contains("event: message_stop"))
         XCTAssertTrue(completion.hasTerminalEvent)
         XCTAssertTrue(completion.didSynthesizeTerminalEvent)
+    }
+
+    func testStreamingForwarderCapturesOpenAICompatibleUsageAliases() throws {
+        let server = HttpServer()
+        let upstreamStream = """
+        data: {"choices":[{"delta":{"content":"ok"},"finish_reason":null}]}
+
+        data: {"choices":[],"usage":{"input_tokens":123,"output_tokens":45}}
+
+        data: [DONE]
+
+        """
+        server.post["/v1/chat/completions"] = { _ in
+            .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data(upstreamStream.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data(#"{"stream":true}"#.utf8),
+            timeout: 5,
+            apiKeys: ["openai-key"],
+            incomingProtocol: .openai,
+            upstreamProtocol: .openai,
+            channelName: "OpenAI Channel",
+            requestID: "#stream-usage-test",
+            model: "gpt-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertEqual(completion.inputTokens, 123)
+        XCTAssertEqual(completion.outputTokens, 45)
     }
 
     func testStreamingForwarderDoesNotDuplicateAnthropicMessageStop() throws {
@@ -762,6 +844,46 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertLessThanOrEqual(authorizations.count, 1)
         XCTAssertTrue(completion.didWriteKeepalive)
         XCTAssertFalse(completion.didWriteBody)
+    }
+
+    func testStreamingForwarderHonorsAbsoluteStreamDeadlineAfterFirstBody() throws {
+        let server = HttpServer()
+        server.post["/v1/messages"] = { _ in
+            .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data("event: message_start\ndata: {\"type\":\"message_start\"}\n\n".utf8))
+                Thread.sleep(forTimeInterval: 0.3)
+                try writer.write(Data("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n".utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/messages"))
+        let writer = CapturingBodyWriter()
+        let startedAt = Date()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 1,
+            firstByteTimeout: 0.5,
+            streamTimeout: 1,
+            requestDeadline: startedAt.addingTimeInterval(0.5),
+            streamDeadline: startedAt.addingTimeInterval(0.12),
+            apiKeys: ["key-a"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .anthropic,
+            channelName: "Test Channel",
+            requestID: "#stream-deadline",
+            model: "claude-test"
+        )
+
+        let completion = forwarder.stream(to: writer, writesErrorOnFailure: false)
+
+        XCTAssertTrue(completion.isTimeout)
+        XCTAssertTrue(completion.didWriteBody)
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 0.3)
+        XCTAssertTrue(writer.string.contains("event: message_start"))
+        XCTAssertFalse(writer.string.contains("event: message_stop"))
     }
 
     func testStreamingForwarderDoesNotRetryAfterWritingModelBody() throws {

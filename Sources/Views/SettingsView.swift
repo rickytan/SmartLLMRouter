@@ -116,7 +116,12 @@ struct GeneralSettingsTab: View {
             .padding(DesignToken.Layout.cardPadding)
         }
         .onAppear {
-            claudeCode.refresh()
+            shellConfig.checkConfigurationStatus(port: appState.port)
+            claudeCode.refresh(port: appState.port)
+        }
+        .onChange(of: appState.port) { newPort in
+            shellConfig.checkConfigurationStatus(port: newPort)
+            claudeCode.refresh(port: newPort)
         }
     }
 
@@ -187,8 +192,9 @@ struct GeneralSettingsTab: View {
             }
         } trailing: {
             PortField(value: $appState.port, placeholder: L10n.Settings.generalPortPlaceholder)
+                .disabled(proxy.isRunning)
+                .accessibilityIdentifier("settings.general.port")
         }
-        .accessibilityIdentifier("settings.general.port")
     }
 
     private var launchRow: some View {
@@ -227,13 +233,14 @@ struct GeneralSettingsTab: View {
             }
         } trailing: {
             SecondaryActionButton(
-                title: shellConfig.isConfigured ? L10n.Settings.generalUpdateShellConfig : L10n.Settings.generalSetupShellEnv,
+                title: shellButtonTitle,
                 icon: shellConfig.isConfigured ? "checkmark.circle" : "gearshape"
             ) {
                 Task {
                     _ = await shellConfig.configure(port: appState.port)
                 }
             }
+            .disabled(shellConfig.isConfigured)
         }
         .accessibilityIdentifier("settings.general.shellConfigure")
     }
@@ -268,7 +275,7 @@ struct GeneralSettingsTab: View {
         } trailing: {
             Toggle("", isOn: Binding(
                 get: { claudeCode.isActive },
-                set: { claudeCode.toggleTakeover(enable: $0) }
+                set: { claudeCode.toggleTakeover(enable: $0, port: appState.port) }
             ))
             .labelsHidden()
             .toggleStyle(.switch)
@@ -301,10 +308,27 @@ struct GeneralSettingsTab: View {
     }
 
     private var shellStatusText: String {
-        let status = shellConfig.isConfigured
-            ? L10n.Settings.generalShellConfiguredLabel
-            : L10n.Settings.generalNotConfigured
+        let status: String
+        switch shellConfig.configurationStatus {
+        case .configured:
+            status = L10n.Settings.generalShellConfiguredLabel
+        case .needsUpdate:
+            status = L10n.Settings.generalUpdateShellConfig
+        case .notConfigured, .error:
+            status = L10n.Settings.generalNotConfigured
+        }
         return "\(status) · \(L10n.Settings.generalShellSupportHint)"
+    }
+
+    private var shellButtonTitle: String {
+        switch shellConfig.configurationStatus {
+        case .configured:
+            return L10n.Settings.generalShellConfiguredLabel
+        case .needsUpdate:
+            return L10n.Settings.generalUpdateShellConfig
+        case .notConfigured, .error:
+            return L10n.Settings.generalSetupShellEnv
+        }
     }
 
     // MARK: - Footer

@@ -225,11 +225,12 @@ final class StreamingForwarder {
             firstByteTimeout: TimeInterval,
             streamTimeout: TimeInterval,
             requestDeadline: Date,
+            streamDeadline: Date,
             keepaliveInterval: TimeInterval,
             requestID: String
         ) -> Completion {
             let firstByteDeadline = min(requestDeadline, Date().addingTimeInterval(firstByteTimeout))
-            let streamDeadline = Date().addingTimeInterval(streamTimeout)
+            let effectiveStreamDeadline = min(streamDeadline, Date().addingTimeInterval(streamTimeout))
 
             while true {
                 lock.lock()
@@ -242,7 +243,7 @@ final class StreamingForwarder {
                     break
                 }
 
-                let deadline = hasBody ? streamDeadline : firstByteDeadline
+                let deadline = hasBody ? effectiveStreamDeadline : firstByteDeadline
                 let remaining = deadline.timeIntervalSinceNow
                 if remaining <= 0 {
                     lock.lock()
@@ -333,17 +334,24 @@ final class StreamingForwarder {
                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return }
 
             if upstreamProtocol == .anthropic {
-                // Anthropic SSE: message_start has input_tokens, message_delta has output_tokens
+                // Anthropic SSE: message_start has input/cache usage, message_delta has output usage.
                 if let type = json["type"] as? String {
                     if type == "message_start", let message = json["message"] as? [String: Any],
                        let usage = message["usage"] as? [String: Any] {
                         lock.lock()
-                        if let input = usage["input_tokens"] as? Int { capturedInputTokens = input }
+                        if let input = RequestForwarder.totalInputTokens(from: usage) {
+                            capturedInputTokens = input
+                        }
                         lock.unlock()
                     }
                     if type == "message_delta", let usage = json["usage"] as? [String: Any] {
                         lock.lock()
-                        if let output = usage["output_tokens"] as? Int { capturedOutputTokens = output }
+                        if let input = RequestForwarder.totalInputTokens(from: usage) {
+                            capturedInputTokens = input
+                        }
+                        if let output = RequestForwarder.outputTokens(from: usage) {
+                            capturedOutputTokens = output
+                        }
                         lock.unlock()
                     }
                 }
@@ -351,8 +359,12 @@ final class StreamingForwarder {
                 // OpenAI SSE: last chunk may contain usage
                 if let usage = json["usage"] as? [String: Any] {
                     lock.lock()
-                    if let input = usage["prompt_tokens"] as? Int { capturedInputTokens = input }
-                    if let output = usage["completion_tokens"] as? Int { capturedOutputTokens = output }
+                    if let input = RequestForwarder.totalInputTokens(from: usage) {
+                        capturedInputTokens = input
+                    }
+                    if let output = RequestForwarder.outputTokens(from: usage) {
+                        capturedOutputTokens = output
+                    }
                     lock.unlock()
                 }
             }
@@ -366,6 +378,7 @@ final class StreamingForwarder {
     private let firstByteTimeout: TimeInterval
     private let streamTimeout: TimeInterval
     private let requestDeadline: Date
+    private let streamDeadline: Date
     private let keepaliveInterval: TimeInterval
     private let apiKeys: [String]
     private let incomingProtocol: RequestForwarder.RequestProtocol
@@ -386,6 +399,7 @@ final class StreamingForwarder {
         firstByteTimeout: TimeInterval? = nil,
         streamTimeout: TimeInterval? = nil,
         requestDeadline: Date? = nil,
+        streamDeadline: Date? = nil,
         keepaliveInterval: TimeInterval = 15,
         apiKeys: [String],
         incomingProtocol: RequestForwarder.RequestProtocol,
@@ -404,6 +418,7 @@ final class StreamingForwarder {
         self.firstByteTimeout = firstByteTimeout ?? timeout
         self.streamTimeout = streamTimeout ?? timeout
         self.requestDeadline = requestDeadline ?? Date().addingTimeInterval(timeout)
+        self.streamDeadline = streamDeadline ?? Date().addingTimeInterval(streamTimeout ?? timeout)
         self.keepaliveInterval = max(0.01, keepaliveInterval)
         self.apiKeys = apiKeys.filter { !$0.isEmpty }
         self.incomingProtocol = incomingProtocol
@@ -481,6 +496,7 @@ final class StreamingForwarder {
                 firstByteTimeout: attemptFirstByteTimeout,
                 streamTimeout: streamTimeout,
                 requestDeadline: requestDeadline,
+                streamDeadline: streamDeadline,
                 keepaliveInterval: keepaliveInterval,
                 requestID: requestID
             )
@@ -579,7 +595,7 @@ final class StreamingForwarder {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = method
         urlRequest.httpBody = body
-        urlRequest.timeoutInterval = streamTimeout
+        urlRequest.timeoutInterval = effectiveStreamTimeout
         for (key, value) in headers {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
@@ -588,14 +604,16 @@ final class StreamingForwarder {
 
     private func streamingConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
-        // Per-read inactivity timeout: allow long reasoning pauses (a model may emit the first
-        // token quickly, then pause 60-120s while thinking). First-byte fast-fail is enforced
-        // by wait()'s semaphore deadline, NOT by URLSession. Using firstByteTimeout here would
-        // kill legitimate mid-stream pauses (NSURLErrorTimedOut mid-stream).
-        configuration.timeoutIntervalForRequest = streamTimeout
-        configuration.timeoutIntervalForResource = streamTimeout
+        // The first-byte fast-fail is enforced by wait(). URLSession uses the remaining
+        // client-derived stream budget so it cannot outlive the downstream request.
+        configuration.timeoutIntervalForRequest = effectiveStreamTimeout
+        configuration.timeoutIntervalForResource = effectiveStreamTimeout
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         return configuration
+    }
+
+    private var effectiveStreamTimeout: TimeInterval {
+        max(0.1, min(streamTimeout, streamDeadline.timeIntervalSinceNow))
     }
 
     private func emptyCompletion(statusCode: Int, didWriteBody: Bool = false, error: Error? = nil) -> Completion {

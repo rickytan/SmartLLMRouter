@@ -2,6 +2,39 @@ import XCTest
 @testable import SmartLLMRouter
 
 final class ProxyEndpointSupportTests: XCTestCase {
+    func testUpstreamTimeoutUsesClientStainlessHeader() {
+        let timeout = ProxyEndpointSupport.upstreamTimeout(
+            from: ["X-Stainless-Timeout": "600"],
+            fallback: 300
+        )
+
+        XCTAssertEqual(timeout.interval, 600)
+        XCTAssertEqual(timeout.sourceHeader, "x-stainless-timeout")
+    }
+
+    func testUpstreamTimeoutPrefersReadTimeoutAndClampsUnsafeValues() {
+        let timeout = ProxyEndpointSupport.upstreamTimeout(
+            from: [
+                "x-stainless-timeout": "600",
+                "X-Stainless-Read-Timeout": "999999",
+            ],
+            fallback: 300
+        )
+
+        XCTAssertEqual(timeout.interval, 86_400)
+        XCTAssertEqual(timeout.sourceHeader, "x-stainless-read-timeout")
+    }
+
+    func testUpstreamTimeoutIgnoresInvalidClientHeader() {
+        let timeout = ProxyEndpointSupport.upstreamTimeout(
+            from: ["x-stainless-timeout": "not-a-timeout"],
+            fallback: 300
+        )
+
+        XCTAssertEqual(timeout.interval, 300)
+        XCTAssertNil(timeout.sourceHeader)
+    }
+
     func testForwardedResponseHeadersPreserveUpstreamContentTypeAndRetryMetadata() {
         let headers = ProxyEndpointSupport.forwardedResponseHeaders(
             bodyCount: 42,
@@ -160,6 +193,34 @@ final class AnthropicRequestTests: XCTestCase {
 
         let openaiBody = try ProtocolConverter.anthropicToOpenAI(body: anthropicBody)
         XCTAssertEqual(openaiBody["stream"] as? Bool, true)
+        XCTAssertEqual(
+            (openaiBody["stream_options"] as? [String: Any])?["include_usage"] as? Bool,
+            true
+        )
+    }
+
+    func testOpenAIStreamUsageRequestPreservesExistingOptions() throws {
+        let original: [String: Any] = [
+            "model": "gpt-test",
+            "stream": true,
+            "stream_options": ["custom_option": "preserved"],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: original)
+
+        let updatedData = ProtocolConverter.requestingOpenAIStreamUsage(in: data)
+        let updated = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: updatedData) as? [String: Any]
+        )
+        let options = try XCTUnwrap(updated["stream_options"] as? [String: Any])
+
+        XCTAssertEqual(options["include_usage"] as? Bool, true)
+        XCTAssertEqual(options["custom_option"] as? String, "preserved")
+    }
+
+    func testNonStreamingOpenAIRequestIsNotModifiedForUsage() throws {
+        let data = Data(#"{"model":"gpt-test","stream":false}"#.utf8)
+
+        XCTAssertEqual(ProtocolConverter.requestingOpenAIStreamUsage(in: data), data)
     }
 
     // MARK: System Prompt
@@ -1084,6 +1145,23 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(usage.output, 200)
     }
 
+    func testParseClaudeCodeCacheOnlyInputUsage() {
+        let responseJson: [String: Any] = [
+            "id": "msg_cached",
+            "usage": [
+                "input_tokens": 0,
+                "output_tokens": 12,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 8_192,
+            ],
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: responseJson)
+
+        let usage = RequestForwarder.parseUsage(from: data, isAnthropic: true)
+        XCTAssertEqual(usage.input, 8_192)
+        XCTAssertEqual(usage.output, 12)
+    }
+
     func testParseAnthropicUsageWithCacheTokens() {
         // Anthropic spec: usage can have cache tokens
         let responseJson: [String: Any] = [
@@ -1098,7 +1176,7 @@ final class UsageParsingTests: XCTestCase {
         let data = try! JSONSerialization.data(withJSONObject: responseJson)
 
         let usage = RequestForwarder.parseUsage(from: data, isAnthropic: true)
-        XCTAssertEqual(usage.input, 100)
+        XCTAssertEqual(usage.input, 225)
         XCTAssertEqual(usage.output, 200)
     }
 
@@ -1112,6 +1190,18 @@ final class UsageParsingTests: XCTestCase {
         let usage = RequestForwarder.parseUsage(from: data, isAnthropic: false)
         XCTAssertEqual(usage.input, 50)
         XCTAssertEqual(usage.output, 75)
+    }
+
+    func testParseOpenAICompatibleUsageAliases() {
+        let responseJson: [String: Any] = [
+            "id": "chatcmpl-123",
+            "usage": ["input_tokens": 60, "output_tokens": 80],
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: responseJson)
+
+        let usage = RequestForwarder.parseUsage(from: data, isAnthropic: false)
+        XCTAssertEqual(usage.input, 60)
+        XCTAssertEqual(usage.output, 80)
     }
 
     func testParseUsageMissing() {

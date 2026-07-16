@@ -477,12 +477,12 @@ final class RouterRuntimeState {
         }
 
         if let usage = json["usage"] as? [String: Any] {
-            return usage["input_tokens"] as? Int ?? usage["prompt_tokens"] as? Int
+            return RequestForwarder.totalInputTokens(from: usage)
         }
 
         if let error = json["error"] as? [String: Any],
            let usage = error["usage"] as? [String: Any] {
-            return usage["input_tokens"] as? Int ?? usage["prompt_tokens"] as? Int
+            return RequestForwarder.totalInputTokens(from: usage)
         }
 
         return estimateTokensFromModelLocked(modelName)
