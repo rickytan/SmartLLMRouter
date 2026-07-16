@@ -193,7 +193,7 @@ final class MultipartEndpointHandler {
     }
 
     private func getFirstAvailableChannel() -> Channel? {
-        services.runtimeState.enabledChannelsSnapshot().first
+        services.runtimeState.availableChannelsSnapshot().first
     }
 
     private func extractModelName(from body: Data) -> String? {

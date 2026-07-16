@@ -136,6 +136,18 @@ final class HTTPForwardingClient {
             lastIndex = keyEntry.index
 
             if case let .success(data, statusCode, _) = result {
+                if statusCode == 429,
+                   let channelID,
+                   let apiKeyAvailabilityStore {
+                    let expiration = apiKeyAvailabilityStore.markRateLimited(
+                        channelID: channelID,
+                        apiKey: apiKey,
+                        allAPIKeys: apiKeys
+                    )
+                    let until = expiration.map { ISO8601DateFormatter().string(from: $0) } ?? "unknown"
+                    Log.warn("[\(requestID)] \(channelName) API key #\(keyEntry.index + 1) rate-limited until \(until)")
+                }
+
                 if ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: statusCode, body: data),
                    let channelID,
                    let apiKeyAvailabilityStore {

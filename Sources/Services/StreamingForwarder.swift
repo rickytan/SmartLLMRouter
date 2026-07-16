@@ -513,6 +513,18 @@ final class StreamingForwarder {
                 return completion
             }
 
+            if completion.statusCode == 429,
+               let channelID,
+               let apiKeyAvailabilityStore {
+                let expiration = apiKeyAvailabilityStore.markRateLimited(
+                    channelID: channelID,
+                    apiKey: apiKey,
+                    allAPIKeys: apiKeys
+                )
+                let until = expiration.map { ISO8601DateFormatter().string(from: $0) } ?? "unknown"
+                Log.warn("[\(requestID)] \(channelName) streaming API key #\(keyEntry.index + 1) rate-limited until \(until)")
+            }
+
             if ProxyEndpointSupport.shouldMarkAPIKeyUnavailable(statusCode: completion.statusCode, body: completion.body),
                let channelID,
                let apiKeyAvailabilityStore {
@@ -662,6 +674,34 @@ final class StreamingForwarder {
             } catch {
                 Log.error("[\(requestID)] Failed to write streaming error: \(error.localizedDescription)")
             }
+        }
+    }
+
+    static func writeUpstreamErrorEvent(
+        _ body: Data,
+        requestID: String,
+        targetProtocol: RequestForwarder.RequestProtocol,
+        to writer: HttpResponseBodyWriter
+    ) {
+        guard !body.isEmpty else {
+            writeErrorEvent(
+                "Upstream returned an empty error response",
+                requestID: requestID,
+                targetProtocol: targetProtocol,
+                to: writer
+            )
+            return
+        }
+
+        let originalBody = String(decoding: body, as: UTF8.self)
+        let event = SSEEncoder.encode(
+            event: targetProtocol == .anthropic ? "error" : nil,
+            data: originalBody
+        )
+        do {
+            try writer.write(Data(event.utf8))
+        } catch {
+            Log.error("[\(requestID)] Failed to write upstream streaming error: \(error.localizedDescription)")
         }
     }
 

@@ -27,7 +27,7 @@ enum CircuitState: Equatable {
 /// Thread-safe via internal serial queue.
 final class CircuitBreaker {
     // Configuration
-    private let consecutiveFailureThreshold: Int
+    private var consecutiveFailureThreshold: Int
     private let failureRateThreshold: Double
     private let rollingWindowSize: Int
     private let openTimeout: TimeInterval
@@ -180,6 +180,14 @@ final class CircuitBreaker {
         lock.lock()
         defer { lock.unlock() }
         return states
+    }
+
+    /// Update the consecutive-failure limit without replacing the shared breaker.
+    /// Existing failure history is preserved and the new limit applies to the next failure.
+    func updateConsecutiveFailureThreshold(_ threshold: Int) {
+        lock.lock()
+        consecutiveFailureThreshold = max(1, threshold)
+        lock.unlock()
     }
 
     // MARK: - Private

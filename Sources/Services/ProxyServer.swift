@@ -1009,7 +1009,9 @@ final class ProxyServer: ObservableObject {
         headers: [String: String]
     ) -> HttpResponse {
         var responseHeaders: [String: String] = [:]
-        responseHeaders["content-type"] = isStream ? "text/event-stream" : "application/json"
+        let upstreamContentType = headers.first { $0.key.lowercased() == "content-type" }?.value
+        responseHeaders["content-type"] = upstreamContentType
+            ?? (isStream ? "text/event-stream" : "application/json")
         responseHeaders["content-length"] = String(body.count)
         for (key, value) in headers {
             if key.lowercased().hasPrefix("x-") || key.lowercased() == "retry-after" {
@@ -1265,7 +1267,22 @@ final class ProxyServer: ObservableObject {
                     continue
                 }
 
-                StreamingForwarder.writeErrorEvent(finalMessage, requestID: "#\(reqId)", targetProtocol: incomingProtocol, to: writer)
+                if completion.statusCode < 200 || completion.statusCode >= 300,
+                   !completion.body.isEmpty {
+                    StreamingForwarder.writeUpstreamErrorEvent(
+                        completion.body,
+                        requestID: "#\(reqId)",
+                        targetProtocol: incomingProtocol,
+                        to: writer
+                    )
+                } else {
+                    StreamingForwarder.writeErrorEvent(
+                        finalMessage,
+                        requestID: "#\(reqId)",
+                        targetProtocol: incomingProtocol,
+                        to: writer
+                    )
+                }
                 self.routerCompleteRequest(requestID: reqIdString)
                 return
             }

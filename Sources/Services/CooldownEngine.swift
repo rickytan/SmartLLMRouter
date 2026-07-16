@@ -78,6 +78,15 @@ final class CooldownEngine: ObservableObject {
 
     /// Start a cooldown for a channel
     func startCooldown(channelID: String, duration: TimeInterval, reason: String = "Error") {
+        startCooldown(
+            channelID: channelID,
+            until: Date().addingTimeInterval(duration),
+            reason: reason
+        )
+    }
+
+    /// Start a cooldown ending at an absolute time shared with key-level state.
+    func startCooldown(channelID: String, until: Date, reason: String = "Error") {
         // Remove any existing cooldown for this channel
         cooldowns.removeAll { $0.channelID == channelID }
 
@@ -86,14 +95,14 @@ final class CooldownEngine: ObservableObject {
             id: UUID().uuidString,
             channelID: channelID,
             startTime: Date(),
-            duration: duration,
+            duration: max(0, until.timeIntervalSinceNow),
             reason: reason
         )
 
         cooldowns.append(entry)
         saveCooldowns()
 
-        Log.info("Cooldown started for channel \(channelID) - \(duration)s (\(reason))")
+        Log.info("Cooldown started for channel \(channelID) until \(until) (\(reason))")
 
         // Update ChannelStore's cooldown flags
         updateChannelCooldownFlags()
@@ -130,7 +139,7 @@ final class CooldownEngine: ObservableObject {
     // MARK: - Private
 
     private func loadCooldowns() {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        guard let data = channelStore.defaults.data(forKey: userDefaultsKey),
               let decoded = try? JSONDecoder().decode([CooldownEntry].self, from: data)
         else {
             cooldowns = []
@@ -147,7 +156,7 @@ final class CooldownEngine: ObservableObject {
         let active = cooldowns.filter(\.isActive)
         do {
             let encoded = try JSONEncoder().encode(active)
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+            channelStore.defaults.set(encoded, forKey: userDefaultsKey)
         } catch {
             Log.error("Failed to save cooldowns: \(error.localizedDescription)")
         }
