@@ -488,7 +488,12 @@ final class StreamingForwarder {
 
             let apiKey = keyEntry.key
             var keyedHeaders = headers
-            ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: upstreamProtocol)
+            ProxyEndpointSupport.setAuthHeaders(
+                &keyedHeaders,
+                apiKey: apiKey,
+                protocol: upstreamProtocol,
+                upstreamURL: url
+            )
 
             let delegate = StreamDelegate(
                 writer: synchronizedWriter,

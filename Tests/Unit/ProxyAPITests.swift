@@ -72,6 +72,52 @@ final class ProxyEndpointSupportTests: XCTestCase {
             "application/json"
         )
     }
+
+    func testAnthropicAuthHeadersIncludeBothCompatibleAuthForms() {
+        var headers: [String: String] = [:]
+
+        ProxyEndpointSupport.setAuthHeaders(
+            &headers,
+            apiKey: "secret",
+            protocol: .anthropic,
+            upstreamURL: URL(string: "https://api.anthropic.com/v1/messages")
+        )
+
+        XCTAssertEqual(headers["x-api-key"], "secret")
+        XCTAssertEqual(headers["authorization"], "Bearer secret")
+        XCTAssertEqual(headers["anthropic-version"], "2023-06-01")
+    }
+
+    func testAnthropicAuthHeadersPreserveClientVersionHeader() {
+        var headers: [String: String] = ["Anthropic-Version": "2024-01-01"]
+
+        ProxyEndpointSupport.setAuthHeaders(
+            &headers,
+            apiKey: "secret",
+            protocol: .anthropic,
+            upstreamURL: URL(string: "https://api.anthropic.com/v1/messages")
+        )
+
+        XCTAssertEqual(headers["x-api-key"], "secret")
+        XCTAssertEqual(headers["authorization"], "Bearer secret")
+        XCTAssertEqual(headers["Anthropic-Version"], "2024-01-01")
+        XCTAssertNil(headers["anthropic-version"])
+    }
+
+    func testOpenAIAuthHeadersUseOnlyBearerToken() {
+        var headers: [String: String] = ["x-api-key": "stale"]
+
+        ProxyEndpointSupport.setAuthHeaders(
+            &headers,
+            apiKey: "secret",
+            protocol: .openai,
+            upstreamURL: URL(string: "https://api.openai.com/v1/chat/completions")
+        )
+
+        XCTAssertEqual(headers["authorization"], "Bearer secret")
+        XCTAssertNil(headers["x-api-key"])
+        XCTAssertNil(headers["anthropic-version"])
+    }
 }
 
 // MARK: - Protocol Detection Tests

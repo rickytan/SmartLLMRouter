@@ -44,15 +44,24 @@ enum ProxyEndpointSupport {
     static func setAuthHeaders(
         _ headers: inout [String: String],
         apiKey: String,
-        protocol targetProtocol: RequestForwarder.RequestProtocol
+        protocol targetProtocol: RequestForwarder.RequestProtocol,
+        upstreamURL _: URL? = nil
     ) {
         switch targetProtocol {
         case .anthropic:
             headers["x-api-key"] = apiKey
-            headers["anthropic-version"] = "2023-06-01"
+            headers["authorization"] = "Bearer \(apiKey)"
+            if !hasHeader("anthropic-version", in: headers) {
+                headers["anthropic-version"] = "2023-06-01"
+            }
         case .openai, .unknown:
             headers["authorization"] = "Bearer \(apiKey)"
+            headers.removeValue(forKey: "x-api-key")
         }
+    }
+
+    private static func hasHeader(_ name: String, in headers: [String: String]) -> Bool {
+        headers.keys.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     static func errorResponse(_ statusCode: Int, _ message: String) -> HttpResponse {

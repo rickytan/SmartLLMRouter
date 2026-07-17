@@ -702,7 +702,7 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertTrue(completion.isSuccess)
         XCTAssertEqual(capturedAPIKey, "anthropic-key")
         XCTAssertEqual(capturedVersion, "2023-06-01")
-        XCTAssertNil(capturedAuthorization)
+        XCTAssertEqual(capturedAuthorization, "Bearer anthropic-key")
         XCTAssertEqual(completion.inputTokens, 100)
         XCTAssertTrue(writer.string.hasPrefix(upstreamEvent))
         XCTAssertTrue(writer.string.contains("event: message_stop"))

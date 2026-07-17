@@ -139,7 +139,12 @@ final class HTTPForwardingClient {
 
             let apiKey = keyEntry.key
             var keyedHeaders = headers
-            ProxyEndpointSupport.setAuthHeaders(&keyedHeaders, apiKey: apiKey, protocol: targetProtocol)
+            ProxyEndpointSupport.setAuthHeaders(
+                &keyedHeaders,
+                apiKey: apiKey,
+                protocol: targetProtocol,
+                upstreamURL: url
+            )
             let result = forwardSync(
                 url: url,
                 method: method,
