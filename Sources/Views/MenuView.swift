@@ -5,7 +5,8 @@ import SwiftUI
 struct MenuView: View {
     private struct RecentModelSummary: Identifiable {
         let latest: UsageRecord
-        let totalTokens: Int
+        let inputTokens: Int
+        let outputTokens: Int
 
         var id: String { latest.model }
     }
@@ -100,13 +101,13 @@ struct MenuView: View {
                     .font(DesignToken.Font.system(size: 10, weight: .medium))
                     .foregroundColor(DesignToken.Colors.textTertiary)
 
-                Text(L10n.Menu.statsSummary(
-                    usage.todayStats.totalRequests,
-                    usage.todayStats.totalTokens
-                ))
-                .font(DesignToken.Font.micro())
-                .foregroundColor(DesignToken.Colors.textSecondary)
-                .lineLimit(1)
+                Text(L10n.Menu.requestsCount(usage.todayStats.totalRequests))
+                    .font(DesignToken.Font.micro())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .lineLimit(1)
+
+                tokenMetric(icon: "arrow.down", value: usage.todayStats.totalInputTokens)
+                tokenMetric(icon: "arrow.up", value: usage.todayStats.totalOutputTokens)
 
                 Spacer()
 
@@ -281,7 +282,8 @@ struct MenuView: View {
                 }
                 return RecentModelSummary(
                     latest: latest,
-                    totalTokens: records.reduce(0) { $0 + $1.totalTokens }
+                    inputTokens: records.reduce(0) { $0 + $1.inputTokens },
+                    outputTokens: records.reduce(0) { $0 + $1.outputTokens }
                 )
             }
             .sorted { $0.latest.timestamp > $1.latest.timestamp }
@@ -316,7 +318,7 @@ struct MenuView: View {
                         .lineLimit(1)
                 }
 
-                Text(requestMetadata(record, totalTokens: summary.totalTokens))
+                Text(requestMetadata(record, summary: summary))
                     .font(DesignToken.Font.monoMicro())
                     .foregroundColor(record.isError
                         ? DesignToken.Colors.statusOffline
@@ -328,12 +330,19 @@ struct MenuView: View {
         .frame(minHeight: 30)
     }
 
-    private func requestMetadata(_ record: UsageRecord, totalTokens: Int) -> String {
-        L10n.Menu.requestMetadata(
-            record.channelName,
-            compactCount(totalTokens),
-            Int(record.latency)
-        )
+    private func requestMetadata(_ record: UsageRecord, summary: RecentModelSummary) -> String {
+        "\(record.channelName)  ↓\(compactCount(summary.inputTokens))  ↑\(compactCount(summary.outputTokens))  \(Int(record.latency))ms"
+    }
+
+    private func tokenMetric(icon: String, value: Int) -> some View {
+        HStack(spacing: DesignToken.Spacing.xxs) {
+            Image(systemName: icon)
+                .font(DesignToken.Font.system(size: 8, weight: .semibold))
+            Text(compactCount(value))
+                .font(DesignToken.Font.monoMicro())
+        }
+        .foregroundColor(DesignToken.Colors.textSecondary)
+        .lineLimit(1)
     }
 
     private func statusCodeBadge(_ statusCode: Int) -> some View {

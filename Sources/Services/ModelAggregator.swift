@@ -202,7 +202,7 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
             request.httpMethod = "GET"
             request.timeoutInterval = 5 // 5s timeout per channel
 
-            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
+            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol, upstreamURL: url)
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -244,14 +244,18 @@ final class ModelAggregator: ModelAggregating, @unchecked Sendable {
     private func applyAuthHeaders(
         to request: inout URLRequest,
         apiKey: String,
-        protocol targetProtocol: RequestForwarder.RequestProtocol
+        protocol targetProtocol: RequestForwarder.RequestProtocol,
+        upstreamURL: URL? = nil
     ) {
-        switch targetProtocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .unknown:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        var headers: [String: String] = [:]
+        ProxyEndpointSupport.setAuthHeaders(
+            &headers,
+            apiKey: apiKey,
+            protocol: targetProtocol,
+            upstreamURL: upstreamURL ?? request.url
+        )
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
         }
     }
 

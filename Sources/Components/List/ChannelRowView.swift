@@ -7,6 +7,7 @@ import SwiftUI
 struct ChannelRowView: View {
     let channelID: String
     let index: Int
+    let circuitState: CircuitState
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
     @State private var isHovered = false
@@ -14,10 +15,16 @@ struct ChannelRowView: View {
     @State private var showingEditSheet = false
 
     @MainActor
-    init(channelID: String, index: Int, services: AppServices? = nil) {
+    init(
+        channelID: String,
+        index: Int,
+        circuitState: CircuitState = .closed,
+        services: AppServices? = nil
+    ) {
         let services = services ?? .shared
         self.channelID = channelID
         self.index = index
+        self.circuitState = circuitState
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
     }
@@ -44,12 +51,7 @@ struct ChannelRowView: View {
                 .accessibilityIdentifier("channel.dragHandle.\(index)")
 
             // Status Indicator
-            StatusIndicatorView(
-                isRunning: channel.isEnabled && !channel.isCoolingDown,
-                isCooldown: channel.isCoolingDown
-            )
-            .frame(width: DesignToken.Layout.statusDotSize, height: DesignToken.Layout.statusDotSize)
-            .accessibilityIdentifier("channel.status.\(index)")
+            channelStatusIndicator
 
             // Channel Info
             VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
@@ -136,6 +138,35 @@ struct ChannelRowView: View {
             AddChannelView(editingChannel: channel)
         }
         .accessibilityIdentifier("channel.row.\(index)")
+    }
+
+    @ViewBuilder
+    private var channelStatusIndicator: some View {
+        switch circuitState {
+        case .open:
+            Image(systemName: "bolt.slash.fill")
+                .font(DesignToken.Font.system(size: 10, weight: .semibold))
+                .foregroundColor(DesignToken.Colors.statusOffline)
+                .frame(width: 14, height: 14)
+                .help(L10n.CircuitBreaker.stateOpen)
+                .accessibilityLabel(L10n.CircuitBreaker.stateOpen)
+                .accessibilityIdentifier("channel.status.\(index).circuitOpen")
+        case .halfOpen:
+            Image(systemName: "bolt.horizontal.circle")
+                .font(DesignToken.Font.system(size: 11, weight: .semibold))
+                .foregroundColor(DesignToken.Colors.statusWarning)
+                .frame(width: 14, height: 14)
+                .help(L10n.CircuitBreaker.stateHalfOpen)
+                .accessibilityLabel(L10n.CircuitBreaker.stateHalfOpen)
+                .accessibilityIdentifier("channel.status.\(index).circuitHalfOpen")
+        case .closed:
+            StatusIndicatorView(
+                isRunning: channel.isEnabled && !channel.isCoolingDown,
+                isCooldown: channel.isCoolingDown
+            )
+            .frame(width: 14, height: 14)
+            .accessibilityIdentifier("channel.status.\(index)")
+        }
     }
 }
 

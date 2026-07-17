@@ -331,7 +331,7 @@ final class ChannelManager: ObservableObject {
             request.httpMethod = "GET"
             request.timeoutInterval = 30
 
-            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol)
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol, upstreamURL: url)
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -527,7 +527,7 @@ final class ChannelManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol)
+            applyAuthHeaders(to: &request, apiKey: apiKey, protocol: modelsEndpoint.protocol, upstreamURL: url)
 
         do {
             let (data, response) = try await connectionTransport.data(for: request)
@@ -607,14 +607,18 @@ final class ChannelManager: ObservableObject {
     private func applyAuthHeaders(
         to request: inout URLRequest,
         apiKey: String,
-        protocol targetProtocol: RequestForwarder.RequestProtocol
+        protocol targetProtocol: RequestForwarder.RequestProtocol,
+        upstreamURL: URL? = nil
     ) {
-        switch targetProtocol {
-        case .anthropic:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        case .openai, .unknown:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        var headers: [String: String] = [:]
+        ProxyEndpointSupport.setAuthHeaders(
+            &headers,
+            apiKey: apiKey,
+            protocol: targetProtocol,
+            upstreamURL: upstreamURL ?? request.url
+        )
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
         }
     }
 
@@ -638,7 +642,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol, upstreamURL: url)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: [:] as [String: Any])
 
@@ -711,7 +715,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol, upstreamURL: url)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
         guard request.httpBody != nil else {
@@ -763,7 +767,7 @@ final class ChannelManager: ObservableObject {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol, upstreamURL: url)
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: testBody)
         if request.httpBody == nil {
@@ -890,7 +894,7 @@ final class ChannelManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
-        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol)
+        applyAuthHeaders(to: &request, apiKey: apiKey, protocol: endpoint.protocol, upstreamURL: url)
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)

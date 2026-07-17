@@ -28,12 +28,13 @@ A **lightweight, native macOS menu bar proxy** for Claude Code — protocol conv
 ### Key Features
 *   ✅ **Multi-Provider Support**: Manage Anthropic and OpenAI-compatible channels, with built-in templates plus optional metadata refresh from `models.dev`.
 *   🔑 **Multiple Keys per Channel**: Keep API keys in an explicit order and automatically skip a key that is rejected or exhausted.
-*   🔄 **Smart Auto-Failover**: Priority-based routing with channel cooldowns and in-memory credential availability tracking for 401 and unrecoverable quota/billing errors.
+*   🔄 **Smart Auto-Failover**: Priority-based routing with circuit-breaker state, channel cooldowns, and in-memory credential availability tracking for 401, 429, and unrecoverable quota/billing errors.
 *   🔀 **Protocol Adapter**: Seamless conversion between Anthropic (Claude) and OpenAI formats.
-*   📊 **Real-time Stats**: Track daily token usage and estimated costs (30-day history).
+*   📊 **Real-time Stats**: Track requests, input/output tokens, per-channel usage, and estimated costs (30-day history). When compatible providers omit usage, successful responses use conservative local estimates.
 *   📤 **Config Export & Import**: One-click export all channels (optional AES-GCM encryption). Share with teammates — they import in one click. Duplicate detection prevents overwrites.
 *   🔄 **Sparkle Auto-Update**: Stay up to date with built-in Sparkle update checks.
 *   📦 **Provider Metadata**: Built-in `providers.json` templates, refreshed from `models.dev` at most once per day or on demand.
+*   🧰 **Diagnostics**: About > Report Issue can create a GitHub issue and optionally export a redacted local diagnostics bundle for troubleshooting.
 *   🛡️ **Local & Secure**: All channel API keys are stored as JSON in one macOS Keychain item.
 
 ---
@@ -361,8 +362,16 @@ flowchart TD
 *   **Open**: Channel failed too many times. Temporarily excluded.
 *   **Half-Open**: After cool-down, a probe request tests recovery.
 *   The consecutive-failure threshold is configurable in **Settings > Advanced** (default: 5).
+*   Channel rows show circuit state directly: normal channels use the regular status indicator, open channels are marked with a red blocked state, and half-open channels use a warning state.
 
 Credential availability is tracked separately from channel health. A rejected key is skipped for later requests during the current app session without disabling or deleting its channel. A key that returns 429 receives an expiring cooldown; when every usable key in a channel is cooling down, that channel is temporarily excluded. The 429 cooldown duration is configurable in **Settings > Advanced**.
+
+### Usage Accounting
+*   Exact upstream usage is used whenever a provider returns it.
+*   Anthropic cache read/write input tokens are counted as input tokens.
+*   Successful OpenAI-compatible and Anthropic responses that omit usage receive conservative local input/output estimates so the Usage tab and menu bar do not stay at zero.
+*   Failed requests are recorded as requests but do not receive estimated tokens.
+*   The Usage tab aggregates per-channel requests, input tokens, output tokens, and estimated cost. The menu popover groups recent requests by model and shows the latest status plus input/output totals.
 
 ---
 

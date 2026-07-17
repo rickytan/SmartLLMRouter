@@ -12,6 +12,11 @@ final class ClaudeCodeConfigManager: ObservableObject {
     private let configFile: URL
     private let envKey = "env"
     private let anthropicBaseURLKey = "ANTHROPIC_BASE_URL"
+    private let jsonWritingOptions: JSONSerialization.WritingOptions = [
+        .prettyPrinted,
+        .sortedKeys,
+        .withoutEscapingSlashes
+    ]
 
     init(configDirectory: URL? = nil) {
         let directory = configDirectory
@@ -106,7 +111,7 @@ final class ClaudeCodeConfigManager: ObservableObject {
         }
 
         do {
-            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+            let data = try JSONSerialization.data(withJSONObject: json, options: jsonWritingOptions)
             try data.write(to: configFile, options: .atomic)
             configExists = true
             currentURL = url
@@ -151,7 +156,7 @@ final class ClaudeCodeConfigManager: ObservableObject {
 
             let restoredData = try JSONSerialization.data(
                 withJSONObject: currentJSON,
-                options: [.prettyPrinted, .sortedKeys]
+                options: jsonWritingOptions
             )
             try restoredData.write(to: configFile, options: .atomic)
             loadState(port: port)

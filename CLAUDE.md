@@ -39,6 +39,9 @@ xcodebuild test -workspace SmartLLMRouter.xcworkspace -scheme SmartLLMRouter -de
 - Channels can be disabled without deletion; this state is persisted and excluded from routing and model aggregation.
 - The app is XcodeGen-first. `project.yml` is authoritative; generated `.xcodeproj` and `.xcworkspace` files are not source files.
 - Release builds use static CocoaPods linkage, whole-module optimization, dead-code stripping, and Developer ID signing. CI builds and tests use Debug because unit tests use `@testable import`.
+- Usage tracking records requests, input tokens, output tokens, and estimated cost. Prefer exact upstream usage; only estimate tokens for successful responses that omit usage. Do not estimate tokens for failed upstream responses.
+- Channels Tab shows runtime circuit-breaker state in each channel row. Keep `ChannelRowView` fed by `CircuitBreaker` snapshots when changing channel list rendering.
+- About > Report Issue can open GitHub issue creation and optionally export a redacted diagnostics file. Keep log export redaction conservative around API keys, tokens, and authorization headers.
 
 ## Architecture
 
@@ -76,6 +79,7 @@ CooldownEngine       CircuitBreaker / SwitchLock / UsageTracker
 - `ProxyServer` maps local endpoints to focused endpoint handlers. `ModelEndpointHandler` serves aggregated `/v1/models`; forwarding handlers preserve the client-facing protocol while converting upstream requests and responses where needed.
 - `SmartRouter` makes model-first routing decisions. It considers only enabled, healthy channels and uses `CircuitBreaker`, `CooldownEngine`, and `SwitchLock` for failover coordination.
 - `ModelAggregator` caches the deduplicated enabled-model set. `ChannelStore` invalidates that cache after channel/model changes.
+- `UsageTracker` is the persisted request/usage store. Request forwarding and streaming forwarding should pass exact usage when available, and fall back to conservative local estimates only after a successful response body or stream has actually been written.
 
 ### Singleton Policy
 
@@ -93,7 +97,7 @@ CooldownEngine       CircuitBreaker / SwitchLock / UsageTracker
 7. **Generated Code**: `Sources/Generated/` (L10n.swift, Assets+Generated.swift) committed to repo for fresh-clone builds.
 
 ## Pending Tasks
-- Expand isolated unit tests around configuration-file writers, usage persistence, channel/model aggregation, and endpoint-handler fallback paths.
+- Expand isolated unit tests around configuration-file writers, usage persistence and estimation, channel/model aggregation, and endpoint-handler fallback paths.
 - Keep new services explicit and extend isolated tests at storage, network, and filesystem boundaries.
 - Evaluate shell configuration UX only if both interactive and non-interactive shell support is required; `.zshenv` remains the default for non-interactive clients.
 
@@ -112,7 +116,7 @@ CooldownEngine       CircuitBreaker / SwitchLock / UsageTracker
 - Sources/Services/ShellConfigManager.swift — `.zshenv` configuration (auto-proxy setup)
 
 ## Design System (DESIGN.md)
-- Menu: 300pt wide, 12pt padding
+- Menu: 304pt wide, 12pt padding. Recent requests are grouped by model and should show latest status plus compact input/output token totals.
 - Settings: 560×420pt window
 - **Colors (Light/Dark)**:
   - Backgrounds: `#FFFFFF` / `#1C1C1E` (bgPrimary), `#F2F2F7` / `#2C2C2E` (bgSecondary)
@@ -129,6 +133,7 @@ CooldownEngine       CircuitBreaker / SwitchLock / UsageTracker
 ## Testing
 - Unit tests are in `Tests/Unit`; use isolated `UserDefaults`, temporary persistence URLs, and `KeychainManagerTestSupport` for all storage tests. Never exercise the production Keychain from tests.
 - `ChannelStoreTestSupport` and `KeychainManagerTestSupport` create isolated dependencies. New tests should construct dependencies explicitly and avoid global state.
+- For usage tests, cover both exact provider usage and missing-usage fallback. Failed responses should stay at zero tokens.
 - UI tests are in `Tests/UI` and depend on `ACCESSIBILITY_IDS.md`. Add identifiers with every new interactive control.
 - Run the Debug test configuration locally and in CI:
   ```bash
