@@ -1213,6 +1213,45 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(usage.output, 0)
     }
 
+    func testParseUsageFallsBackToEstimatedTokensWhenProviderOmitsUsage() throws {
+        let request = try JSONSerialization.data(withJSONObject: [
+            "model": "sensenova-test",
+            "messages": [["role": "user", "content": "Explain this request in a concise way"]],
+            "stream": false,
+        ])
+        let response = try JSONSerialization.data(withJSONObject: [
+            "choices": [[
+                "message": ["role": "assistant", "content": "A concise response"],
+            ]],
+        ])
+
+        let usage = RequestForwarder.parseUsage(
+            from: response,
+            isAnthropic: false,
+            requestBody: request
+        )
+
+        XCTAssertGreaterThan(usage.input, 0)
+        XCTAssertGreaterThan(usage.output, 0)
+    }
+
+    func testParseUsagePrefersExactProviderValuesOverEstimates() throws {
+        let request = Data(#"{"messages":[{"role":"user","content":"hello"}]}"#.utf8)
+        let response = try JSONSerialization.data(withJSONObject: [
+            "usage": ["prompt_tokens": 11, "completion_tokens": 7],
+            "choices": [["message": ["content": "response"]]],
+        ])
+
+        let usage = RequestForwarder.parseUsage(
+            from: response,
+            isAnthropic: false,
+            requestBody: request
+        )
+
+        XCTAssertEqual(usage.input, 11)
+        XCTAssertEqual(usage.output, 7)
+    }
+
     func testParseUsageInvalidData() {
         let data = "invalid json".data(using: .utf8)!
 

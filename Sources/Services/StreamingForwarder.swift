@@ -69,6 +69,8 @@ final class StreamingForwarder {
         private var completionError: Error?
         private var capturedInputTokens = 0
         private var capturedOutputTokens = 0
+        private let estimatedInputTokens: Int
+        private var estimatedOutputText = ""
         private var responseHeaderLatency: TimeInterval?
         private var timeToFirstByte: TimeInterval?
         private var clientDisconnected = false
@@ -81,12 +83,14 @@ final class StreamingForwarder {
             incomingProtocol: RequestForwarder.RequestProtocol,
             upstreamProtocol: RequestForwarder.RequestProtocol,
             messageID: String,
-            model: String
+            model: String,
+            estimatedInputTokens: Int
         ) {
             self.writer = writer
             self.incomingProtocol = incomingProtocol
             self.upstreamProtocol = upstreamProtocol
             self.converter = OpenAIToAnthropicSSEConverter(messageID: messageID, model: model)
+            self.estimatedInputTokens = estimatedInputTokens
         }
 
         func urlSession(
@@ -288,6 +292,13 @@ final class StreamingForwarder {
             }
 
             lock.lock()
+            let canEstimateUsage = statusCode >= 200 && statusCode < 300 && wroteBody
+            let finalInputTokens = capturedInputTokens > 0
+                ? capturedInputTokens
+                : (canEstimateUsage ? estimatedInputTokens : 0)
+            let finalOutputTokens = capturedOutputTokens > 0
+                ? capturedOutputTokens
+                : (canEstimateUsage ? RequestForwarder.estimatedTokenCount(for: estimatedOutputText) : 0)
             let completion = Completion(
                 statusCode: statusCode,
                 headers: headers,
@@ -296,8 +307,8 @@ final class StreamingForwarder {
                 didWriteBody: wroteBody,
                 didWriteKeepalive: wroteKeepalive,
                 error: completionError,
-                inputTokens: capturedInputTokens,
-                outputTokens: capturedOutputTokens,
+                inputTokens: finalInputTokens,
+                outputTokens: finalOutputTokens,
                 responseHeaderLatency: responseHeaderLatency,
                 timeToFirstByte: timeToFirstByte,
                 clientDisconnected: clientDisconnected,
@@ -332,6 +343,13 @@ final class StreamingForwarder {
         private func extractUsage(from data: String) {
             guard let jsonData = data.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return }
+
+            let outputFragment = RequestForwarder.outputText(fromStreamingEvent: json)
+            if !outputFragment.isEmpty {
+                lock.lock()
+                estimatedOutputText += outputFragment
+                lock.unlock()
+            }
 
             if upstreamProtocol == .anthropic {
                 // Anthropic SSE: message_start has input/cache usage, message_delta has output usage.
@@ -477,7 +495,8 @@ final class StreamingForwarder {
                 incomingProtocol: incomingProtocol,
                 upstreamProtocol: upstreamProtocol,
                 messageID: "msg_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
-                model: model
+                model: model,
+                estimatedInputTokens: RequestForwarder.estimatedInputTokens(from: body)
             )
             let attemptFirstByteTimeout = min(firstByteTimeout, remainingBudget)
             let configuration = streamingConfiguration()

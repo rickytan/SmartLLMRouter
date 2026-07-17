@@ -570,12 +570,15 @@ struct ChannelsTab: View {
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
     private let channelExportService: ChannelExportService
+    private let circuitBreaker: CircuitBreaker
+    private let circuitRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var showingAddChannel = false
     @State private var showingConfigImporter = false
     @State private var isTestingAll = false
     @State private var channelSearchText = ""
     @State private var channelFilter: ChannelListFilter = .all
     @State private var showingSortBySpeedConfirmation = false
+    @State private var circuitStates: [String: CircuitState] = [:]
 
     @MainActor
     init(services: AppServices? = nil) {
@@ -583,6 +586,7 @@ struct ChannelsTab: View {
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
         channelExportService = services.channelExportService
+        circuitBreaker = services.circuitBreaker
     }
 
     var body: some View {
@@ -608,6 +612,10 @@ struct ChannelsTab: View {
         }
         .sheet(isPresented: $showingConfigImporter) {
             ConfigImporterView()
+        }
+        .onAppear(perform: refreshCircuitStates)
+        .onReceive(circuitRefreshTimer) { _ in
+            refreshCircuitStates()
         }
     }
 
@@ -737,11 +745,19 @@ struct ChannelsTab: View {
             List {
                 if isFilteringChannels {
                     ForEach(filteredChannels) { channel in
-                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
+                        ChannelRowView(
+                            channelID: channel.id,
+                            index: channelStore.channels.firstIndex(of: channel) ?? 0,
+                            circuitState: circuitStates[channel.id] ?? .closed
+                        )
                     }
                 } else {
                     ForEach(channelStore.channels) { channel in
-                        ChannelRowView(channelID: channel.id, index: channelStore.channels.firstIndex(of: channel) ?? 0)
+                        ChannelRowView(
+                            channelID: channel.id,
+                            index: channelStore.channels.firstIndex(of: channel) ?? 0,
+                            circuitState: circuitStates[channel.id] ?? .closed
+                        )
                     }
                     .onMove(perform: channelStore.moveChannel)
                 }
@@ -765,6 +781,10 @@ struct ChannelsTab: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("settings.channels.noMatches")
+    }
+
+    private func refreshCircuitStates() {
+        circuitStates = circuitBreaker.allStates()
     }
 
     private var channelsFooter: some View {
@@ -1195,8 +1215,25 @@ struct ChannelStat: Identifiable {
     let id = UUID()
     let channelName: String
     let requests: Int
-    let tokens: Int
+    let inputTokens: Int
+    let outputTokens: Int
     let cost: Double
+
+    var totalTokens: Int { inputTokens + outputTokens }
+}
+
+private struct ChannelStatAccumulator {
+    var requests = 0
+    var inputTokens = 0
+    var outputTokens = 0
+    var cost = 0.0
+
+    mutating func add(_ record: UsageRecord) {
+        requests += 1
+        inputTokens += record.inputTokens
+        outputTokens += record.outputTokens
+        cost += record.estimatedCost
+    }
 }
 
 // Channel colors for chart legend
@@ -1399,18 +1436,10 @@ struct UsageTab: View {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: Date())
 
-        var statsMap: [String: (requests: Int, tokens: Int, cost: Double)] = [:]
+        var statsMap: [String: ChannelStatAccumulator] = [:]
 
         for record in usage.records where record.timestamp >= todayStart {
-            if let existing = statsMap[record.channelName] {
-                statsMap[record.channelName] = (
-                    existing.requests + 1,
-                    existing.tokens + record.totalTokens,
-                    existing.cost + record.estimatedCost
-                )
-            } else {
-                statsMap[record.channelName] = (1, record.totalTokens, record.estimatedCost)
-            }
+            statsMap[record.channelName, default: ChannelStatAccumulator()].add(record)
         }
 
         return statsMap
@@ -1418,10 +1447,11 @@ struct UsageTab: View {
                 ChannelStat(
                     channelName: channelName,
                     requests: value.requests,
-                    tokens: value.tokens,
+                    inputTokens: value.inputTokens,
+                    outputTokens: value.outputTokens,
                     cost: value.cost)
             }
-            .sorted { $0.tokens > $1.tokens }
+            .sorted { $0.totalTokens > $1.totalTokens }
     }
 
     private func formatTokens(_ count: Int) -> String {
@@ -1450,7 +1480,8 @@ struct ChannelStatRow: View {
 
             HStack(spacing: DesignToken.Spacing.lg) {
                 statItem(label: L10n.Settings.usageRequests, value: "\(stat.requests)")
-                statItem(label: L10n.Settings.usageTokens, value: formatTokens(stat.tokens))
+                statItem(label: L10n.Settings.usageInputTokens, value: formatTokens(stat.inputTokens))
+                statItem(label: L10n.Settings.usageOutputTokens, value: formatTokens(stat.outputTokens))
                 statItem(label: L10n.Settings.usageCost, value: String(format: "$%.2f", stat.cost))
             }
         }

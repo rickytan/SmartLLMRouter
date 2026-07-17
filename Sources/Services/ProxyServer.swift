@@ -531,7 +531,11 @@ final class ProxyServer: ObservableObject {
             }
 
             // Parse usage
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(
+                from: data,
+                isAnthropic: upstreamProtocol == .anthropic,
+                requestBody: (200..<300).contains(statusCode) ? forwardedBody : nil
+            )
 
             // Convert response if needed
             var responseBody: Data? = data
@@ -746,7 +750,11 @@ final class ProxyServer: ObservableObject {
             let latency = Date().timeIntervalSince(startTime)
 
             // Parse usage
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(
+                from: data,
+                isAnthropic: upstreamProtocol == .anthropic,
+                requestBody: (200..<300).contains(statusCode) ? forwardedBody : nil
+            )
 
             // Convert response if needed
             var responseBody: Data? = data
@@ -945,7 +953,11 @@ final class ProxyServer: ObservableObject {
             }
 
             let latency = Date().timeIntervalSince(startTime)
-            let usage = RequestForwarder.parseUsage(from: data, isAnthropic: upstreamProtocol == .anthropic)
+            let usage = RequestForwarder.parseUsage(
+                from: data,
+                isAnthropic: upstreamProtocol == .anthropic,
+                requestBody: (200..<300).contains(statusCode) ? forwardedBody : nil
+            )
 
             var responseBody: Data? = data
             if statusCode >= 200 && statusCode < 300 && incomingProtocol != upstreamProtocol {

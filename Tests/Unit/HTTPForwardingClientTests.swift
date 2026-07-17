@@ -749,6 +749,44 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(completion.outputTokens, 45)
     }
 
+    func testStreamingForwarderEstimatesUsageWhenOpenAICompatibleProviderOmitsIt() throws {
+        let server = HttpServer()
+        let upstreamStream = """
+        data: {"choices":[{"delta":{"content":"fallback response"},"finish_reason":null}]}
+
+        data: [DONE]
+
+        """
+        server.post["/v1/chat/completions"] = { _ in
+            .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data(upstreamStream.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        let body = Data(#"{"stream":true,"messages":[{"role":"user","content":"hello from Claude Code"}]}"#.utf8)
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: body,
+            timeout: 5,
+            apiKeys: ["openai-key"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .openai,
+            channelName: "SenseNova-compatible Channel",
+            requestID: "#stream-estimated-usage-test",
+            model: "sensenova-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertGreaterThan(completion.inputTokens, 0)
+        XCTAssertGreaterThan(completion.outputTokens, 0)
+    }
+
     func testStreamingForwarderDoesNotDuplicateAnthropicMessageStop() throws {
         let server = HttpServer()
         let upstreamStream = """

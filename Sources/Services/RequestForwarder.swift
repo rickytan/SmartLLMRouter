@@ -60,30 +60,25 @@ enum RequestForwarder {
     }
 
     /// Parse usage from response body
-    static func parseUsage(from body: Data?, isAnthropic: Bool) -> (input: Int, output: Int) {
+    static func parseUsage(
+        from body: Data?,
+        isAnthropic: Bool,
+        requestBody: Data? = nil
+    ) -> (input: Int, output: Int) {
         guard let body,
               let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
         else {
             return (0, 0)
         }
 
-        if isAnthropic {
-            if let usage = json["usage"] as? [String: Any] {
-                return (
-                    totalInputTokens(from: usage) ?? 0,
-                    outputTokens(from: usage) ?? 0
-                )
-            }
-        } else {
-            if let usage = json["usage"] as? [String: Any] {
-                return (
-                    totalInputTokens(from: usage) ?? 0,
-                    outputTokens(from: usage) ?? 0
-                )
-            }
-        }
-
-        return (0, 0)
+        let usage = json["usage"] as? [String: Any]
+        let exactInput = usage.flatMap(totalInputTokens(from:)) ?? 0
+        let exactOutput = usage.flatMap(outputTokens(from:)) ?? 0
+        guard let requestBody else { return (exactInput, exactOutput) }
+        return (
+            exactInput > 0 ? exactInput : estimatedInputTokens(from: requestBody),
+            exactOutput > 0 ? exactOutput : estimatedOutputTokens(from: json, isAnthropic: isAnthropic)
+        )
     }
 
     /// Anthropic reports uncached, cache-write, and cache-read input separately.
@@ -98,6 +93,105 @@ enum RequestForwarder {
 
     static func outputTokens(from usage: [String: Any]) -> Int? {
         usage["output_tokens"] as? Int ?? usage["completion_tokens"] as? Int
+    }
+
+    /// Some OpenAI-compatible providers ignore `stream_options.include_usage`.
+    /// Use a conservative fallback only when the upstream supplied no usage.
+    static func estimatedInputTokens(from body: Data) -> Int {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return estimatedTokenCount(for: String(data: body, encoding: .utf8) ?? "")
+        }
+
+        let payloadKeys = ["system", "messages", "prompt", "input", "tools"]
+        let payload = payloadKeys.compactMap { key -> Any? in
+            guard let value = json[key] else { return nil }
+            return [key: value]
+        }
+        guard !payload.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: data, encoding: .utf8) else {
+            return 0
+        }
+        return estimatedTokenCount(for: text)
+    }
+
+    static func estimatedTokenCount(for text: String) -> Int {
+        guard !text.isEmpty else { return 0 }
+
+        var asciiCount = 0
+        var nonASCIICharacters = 0
+        for scalar in text.unicodeScalars {
+            if scalar.isASCII {
+                asciiCount += 1
+            } else if !CharacterSet.nonBaseCharacters.contains(scalar) {
+                nonASCIICharacters += 1
+            }
+        }
+        return max(1, Int(ceil(Double(asciiCount) / 4.0)) + nonASCIICharacters)
+    }
+
+    static func outputText(fromStreamingEvent json: [String: Any]) -> String {
+        var fragments: [String] = []
+
+        if let choices = json["choices"] as? [[String: Any]] {
+            for choice in choices {
+                if let delta = choice["delta"] as? [String: Any] {
+                    appendOutputFragments(from: delta, to: &fragments)
+                }
+                if let text = choice["text"] as? String {
+                    fragments.append(text)
+                }
+            }
+        }
+
+        if let delta = json["delta"] as? [String: Any] {
+            appendOutputFragments(from: delta, to: &fragments)
+        }
+        if let contentBlock = json["content_block"] as? [String: Any] {
+            appendOutputFragments(from: contentBlock, to: &fragments)
+        }
+
+        return fragments.joined()
+    }
+
+    private static func estimatedOutputTokens(from json: [String: Any], isAnthropic: Bool) -> Int {
+        var fragments: [String] = []
+        if isAnthropic, let content = json["content"] as? [[String: Any]] {
+            content.forEach { appendOutputFragments(from: $0, to: &fragments) }
+        } else if let choices = json["choices"] as? [[String: Any]] {
+            for choice in choices {
+                if let message = choice["message"] as? [String: Any] {
+                    appendOutputFragments(from: message, to: &fragments)
+                }
+                if let text = choice["text"] as? String {
+                    fragments.append(text)
+                }
+            }
+        }
+        return estimatedTokenCount(for: fragments.joined())
+    }
+
+    private static func appendOutputFragments(from object: [String: Any], to fragments: inout [String]) {
+        for key in ["content", "text", "reasoning_content", "partial_json", "arguments"] {
+            if let value = object[key] as? String {
+                fragments.append(value)
+            } else if let values = object[key] as? [[String: Any]] {
+                values.forEach { appendOutputFragments(from: $0, to: &fragments) }
+            }
+        }
+
+        if let toolCalls = object["tool_calls"] as? [[String: Any]] {
+            for toolCall in toolCalls {
+                if let function = toolCall["function"] as? [String: Any] {
+                    appendOutputFragments(from: function, to: &fragments)
+                }
+            }
+        }
+        if let input = object["input"],
+           let data = try? JSONSerialization.data(withJSONObject: input),
+           let text = String(data: data, encoding: .utf8) {
+            fragments.append(text)
+        }
     }
 
     /// Detect if request body indicates streaming mode
