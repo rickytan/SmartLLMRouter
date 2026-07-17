@@ -118,6 +118,10 @@ final class ConfigurationManagerTests: XCTestCase {
         XCTAssertTrue(manager.isActive)
         XCTAssertEqual(manager.currentURL, "http://127.0.0.1:4242")
         XCTAssertTrue(FileManager.default.fileExists(atPath: configDirectory.appendingPathComponent("settings.json.bak").path))
+
+        let rawContent = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(rawContent.contains(#""ANTHROPIC_BASE_URL" : "http://127.0.0.1:4242""#))
+        XCTAssertFalse(rawContent.contains(#"http:\/\/127.0.0.1"#))
     }
 
     func testClaudeTakeoverRestoreReturnsNestedEnvironmentToPreviousValue() throws {
@@ -141,6 +145,10 @@ final class ConfigurationManagerTests: XCTestCase {
         XCTAssertEqual(env["ANTHROPIC_BASE_URL"] as? String, "https://example.com/api/coding")
         XCTAssertEqual(restored["theme"] as? String, "light")
         XCTAssertFalse(manager.isActive)
+
+        let rawContent = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(rawContent.contains(#""ANTHROPIC_BASE_URL" : "https://example.com/api/coding""#))
+        XCTAssertFalse(rawContent.contains(#"https:\/\/example.com"#))
     }
 
     func testClaudeTakeoverCanDeactivateConfigCreatedFromScratch() throws {
