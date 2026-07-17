@@ -261,14 +261,16 @@ final class ProxyServer: ObservableObject {
     private func readRequestState(
         request _: HttpRequest,
         bodyData: Data,
-        reqIdString: String
+        reqIdString: String,
+        requestProtocol: RequestForwarder.RequestProtocol
     ) -> RequestState? {
         let modelName = extractModelName(from: bodyData)
         let override = services.modelOverrideState.snapshot()
         let routingModelName = override.selectedModelID ?? modelName
         guard let decision = services.runtimeState.selectChannel(
             requestID: reqIdString,
-            modelName: routingModelName
+            modelName: routingModelName,
+            requestProtocol: requestProtocol
         ) else {
             return nil
         }
@@ -367,7 +369,8 @@ final class ProxyServer: ObservableObject {
         guard let state = readRequestState(
             request: request,
             bodyData: bodyData,
-            reqIdString: reqIdString
+            reqIdString: reqIdString,
+            requestProtocol: incomingProtocol
         ) else {
             Log.error("[#\(reqId)] No available channels or missing API key")
             return errorResponse(503, "No available channel - all channels in cooldown or no channels configured")

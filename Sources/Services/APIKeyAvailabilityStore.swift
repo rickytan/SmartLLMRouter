@@ -41,15 +41,40 @@ final class APIKeyAvailabilityStore {
 
         removeExpiredRateLimitsLocked()
 
-        return apiKeys.enumerated().compactMap { index, key in
+        return categorizedKeysLocked(for: channelID, apiKeys: apiKeys).available
+    }
+
+    /// Returns healthy keys when any exist; otherwise returns rate-limited keys
+    /// in configured order as a last-resort probe set.
+    func attemptKeys(for channelID: String, apiKeys: [String]) -> [(index: Int, key: String)] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        removeExpiredRateLimitsLocked()
+        let keys = categorizedKeysLocked(for: channelID, apiKeys: apiKeys)
+        return keys.available.isEmpty ? keys.rateLimited : keys.available
+    }
+
+    private func categorizedKeysLocked(
+        for channelID: String,
+        apiKeys: [String]
+    ) -> (available: [(index: Int, key: String)], rateLimited: [(index: Int, key: String)]) {
+        var available: [(index: Int, key: String)] = []
+        var rateLimited: [(index: Int, key: String)] = []
+
+        for (index, key) in apiKeys.enumerated() {
             let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedKey.isEmpty else { return nil }
+            guard !trimmedKey.isEmpty else { continue }
             let scope = KeyScope(channelID: channelID, apiKey: trimmedKey)
-            guard unauthorizedKeys[scope] == nil, rateLimitedKeys[scope] == nil else {
-                return nil
+            guard unauthorizedKeys[scope] == nil else { continue }
+            let entry = (index: index, key: trimmedKey)
+            if rateLimitedKeys[scope] == nil {
+                available.append(entry)
+            } else {
+                rateLimited.append(entry)
             }
-            return (index, trimmedKey)
         }
+        return (available, rateLimited)
     }
 
     /// Cool down one key after a 429. If every otherwise usable key is cooling,

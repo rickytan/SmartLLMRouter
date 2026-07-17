@@ -78,6 +78,55 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b", "Bearer key-b"])
     }
 
+    func testForwardSyncProbesAllCoolingKeysInConfiguredOrder() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            let authorization = request.headers["authorization"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "Bearer key-a" {
+                return Self.jsonResponse(
+                    statusCode: 429,
+                    json: ["error": ["message": "rate limit exceeded"]]
+                )
+            }
+            return Self.jsonResponse(statusCode: 200, json: ["ok": true])
+        }
+
+        let port = try start(server)
+        let client = HTTPForwardingClient()
+        let availability = APIKeyAvailabilityStore()
+        for key in ["key-a", "key-b"] {
+            availability.markRateLimited(
+                channelID: "channel-a",
+                apiKey: key,
+                allAPIKeys: ["key-a", "key-b"]
+            )
+        }
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+
+        let forwardResult = client.forwardSyncWithAPIKeyFailover(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{}".utf8),
+            timeout: 5,
+            apiKeys: ["key-a", "key-b"],
+            targetProtocol: .openai,
+            channelName: "Test Channel",
+            requestID: "#all-cooling",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability
+        )
+
+        guard case let .success(_, statusCode, _) = forwardResult.result else {
+            XCTFail("Expected cooling keys to be probed when no healthy key exists")
+            return
+        }
+        XCTAssertEqual(statusCode, 200)
+        XCTAssertEqual(forwardResult.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b"])
+    }
+
     func testRateLimitedAPIKeyBecomesAvailableAfterCooldownExpires() {
         var currentDate = Date(timeIntervalSince1970: 1_000)
         let availability = APIKeyAvailabilityStore(now: { currentDate })
@@ -523,6 +572,58 @@ final class HTTPForwardingClientTests: XCTestCase {
             authorizations,
             ["Bearer limited-key", "Bearer healthy-key", "Bearer healthy-key"]
         )
+    }
+
+    func testStreamingForwarderProbesAllCoolingKeysInConfiguredOrder() throws {
+        let server = HttpServer()
+        var authorizations: [String] = []
+        server.post["/v1/chat/completions"] = { request in
+            let authorization = request.headers["authorization"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "Bearer key-a" {
+                return Self.jsonResponse(
+                    statusCode: 429,
+                    json: ["error": ["message": "rate limit exceeded"]]
+                )
+            }
+            return .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n".utf8))
+                try writer.write(Data("data: [DONE]\n\n".utf8))
+            }
+        }
+
+        let port = try start(server)
+        let availability = APIKeyAvailabilityStore()
+        for key in ["key-a", "key-b"] {
+            availability.markRateLimited(
+                channelID: "channel-a",
+                apiKey: key,
+                allAPIKeys: ["key-a", "key-b"]
+            )
+        }
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data("{\"stream\":true}".utf8),
+            timeout: 5,
+            apiKeys: ["key-a", "key-b"],
+            incomingProtocol: .anthropic,
+            upstreamProtocol: .openai,
+            channelName: "Test Channel",
+            channelID: "channel-a",
+            apiKeyAvailabilityStore: availability,
+            requestID: "#stream-all-cooling",
+            model: "gpt-test"
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertEqual(completion.keyIndex, 1)
+        XCTAssertEqual(authorizations, ["Bearer key-a", "Bearer key-b"])
+        XCTAssertTrue(writer.string.contains("\"text\":\"ok\""))
     }
 
     func testStreamingForwarderSkipsPreviouslyUnauthorizedAPIKey() throws {

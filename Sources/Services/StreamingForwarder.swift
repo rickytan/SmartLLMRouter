@@ -409,7 +409,7 @@ final class StreamingForwarder {
         apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil,
         requestID: String,
         model: String,
-        maxAPIKeyAttempts: Int = 3
+        maxAPIKeyAttempts: Int = .max
     ) {
         self.url = url
         self.method = method
@@ -435,7 +435,7 @@ final class StreamingForwarder {
         let synchronizedWriter = SynchronizedWriter(writer)
         let availableKeys: [(index: Int, key: String)]
         if let channelID, let apiKeyAvailabilityStore {
-            availableKeys = apiKeyAvailabilityStore.availableKeys(for: channelID, apiKeys: apiKeys)
+            availableKeys = apiKeyAvailabilityStore.attemptKeys(for: channelID, apiKeys: apiKeys)
         } else {
             availableKeys = apiKeys.enumerated().compactMap { index, key in
                 let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)

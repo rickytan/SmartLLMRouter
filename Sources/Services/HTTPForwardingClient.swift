@@ -102,7 +102,7 @@ final class HTTPForwardingClient {
     ) -> APIKeyForwardResult {
         let keys: [(index: Int, key: String)]
         if let channelID, let apiKeyAvailabilityStore {
-            keys = apiKeyAvailabilityStore.availableKeys(for: channelID, apiKeys: apiKeys)
+            keys = apiKeyAvailabilityStore.attemptKeys(for: channelID, apiKeys: apiKeys)
         } else {
             keys = apiKeys.enumerated().compactMap { index, key in
                 let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
