@@ -639,6 +639,144 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertNotNil(updatedPrimary?.cooldownUntil)
     }
 
+    func testUnknownModelDoesNotRouteToUnrelatedModelEvenWithSmartFallbackEnabled() {
+        let unrelated = makeChannel(
+            name: "Cloudflare",
+            priority: 1,
+            modelIdentifier: "@cf/moonshotai/kimi-k2.6"
+        )
+        isolatedStore.store.addChannel(unrelated)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+
+        let decision = runtimeState.selectChannel(
+            requestID: "req-no-unrelated-model",
+            modelName: "glm-5.2"
+        )
+
+        XCTAssertNil(decision)
+    }
+
+    func testCoolingMatchingChannelIsPreferredOverHealthyUnrelatedChannel() {
+        let matching = makeChannel(name: "Theta", priority: 1, modelIdentifier: "glm-5.2")
+        let unrelated = makeChannel(
+            name: "Cloudflare",
+            priority: 2,
+            modelIdentifier: "@cf/moonshotai/kimi-k2.6"
+        )
+        isolatedStore.store.addChannel(matching)
+        isolatedStore.store.addChannel(unrelated)
+        runtimeState.markChannelRateLimited(
+            channelID: matching.id,
+            until: Date().addingTimeInterval(600)
+        )
+
+        let decision = runtimeState.selectChannel(
+            requestID: "req-probe-matching-cooldown",
+            modelName: "glm-5.2"
+        )
+
+        XCTAssertEqual(decision?.channel.id, matching.id)
+        XCTAssertEqual(decision?.effectiveModel, "glm-5.2")
+    }
+
+    func testSmartFallbackUsesHealthyAlternativeBeforeCoolingRequestedModel() {
+        let matching = makeChannel(name: "Theta", priority: 1, modelIdentifier: "glm-5.2")
+        let fallback = makeChannel(
+            name: "Cloudflare",
+            priority: 2,
+            modelIdentifier: "@cf/moonshotai/kimi-k2.6"
+        )
+        isolatedStore.store.addChannel(matching)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+        runtimeState.markChannelRateLimited(
+            channelID: matching.id,
+            until: Date().addingTimeInterval(600)
+        )
+
+        let decision = runtimeState.selectChannel(
+            requestID: "req-smart-fallback-before-cooldown",
+            modelName: "glm-5.2"
+        )
+
+        XCTAssertEqual(decision?.channel.id, fallback.id)
+        XCTAssertEqual(decision?.originalModel, "glm-5.2")
+        XCTAssertEqual(decision?.effectiveModel, "@cf/moonshotai/kimi-k2.6")
+        XCTAssertEqual(decision?.isRetry, false)
+    }
+
+    func testRetryUsesSmartFallbackBeforeAnotherCoolingRequestedModelChannel() {
+        let primary = makeChannel(name: "Primary", priority: 1, modelIdentifier: "glm-5.2")
+        let coolingSecondary = makeChannel(name: "Secondary", priority: 2, modelIdentifier: "glm-5.2")
+        let fallback = makeChannel(
+            name: "Fallback",
+            priority: 3,
+            modelIdentifier: "@cf/moonshotai/kimi-k2.6"
+        )
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(coolingSecondary)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+        runtimeState.markChannelRateLimited(
+            channelID: coolingSecondary.id,
+            until: Date().addingTimeInterval(600)
+        )
+
+        let initial = runtimeState.selectChannel(
+            requestID: "req-retry-smart-fallback",
+            modelName: "glm-5.2"
+        )
+        let retry = runtimeState.handleError(
+            requestID: "req-retry-smart-fallback",
+            statusCode: 429,
+            modelName: "glm-5.2",
+            requestProtocol: .openai
+        )
+
+        XCTAssertEqual(initial?.channel.id, primary.id)
+        XCTAssertEqual(retry?.channel.id, fallback.id)
+        XCTAssertEqual(retry?.effectiveModel, "@cf/moonshotai/kimi-k2.6")
+    }
+
+    func testAllCoolingMatchingChannelsAreProbedInPriorityOrder() {
+        let primary = makeChannel(name: "Primary", priority: 1, modelIdentifier: "glm-5.2")
+        let secondary = makeChannel(name: "Secondary", priority: 2, modelIdentifier: "glm-5.2")
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(secondary)
+        let cooldownUntil = Date().addingTimeInterval(600)
+        runtimeState.markChannelRateLimited(channelID: primary.id, until: cooldownUntil)
+        runtimeState.markChannelRateLimited(channelID: secondary.id, until: cooldownUntil)
+
+        let initial = runtimeState.selectChannel(
+            requestID: "req-all-cooling",
+            modelName: "glm-5.2"
+        )
+        let retry = runtimeState.handleError(
+            requestID: "req-all-cooling",
+            statusCode: 429,
+            modelName: "glm-5.2"
+        )
+
+        XCTAssertEqual(initial?.channel.id, primary.id)
+        XCTAssertEqual(retry?.channel.id, secondary.id)
+        XCTAssertEqual(retry?.effectiveModel, "glm-5.2")
+    }
+
     func testRoutingDecision_L1_To_L2_Fallback() throws {
         let ch1 = makeChannel(name: "Primary", priority: 1)
         let ch2 = makeChannel(name: "Secondary", priority: 2)
