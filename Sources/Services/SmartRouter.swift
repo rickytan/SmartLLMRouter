@@ -215,7 +215,11 @@ final class RouterRuntimeState {
         return channels.first { $0.id == activeChannelID && $0.isEnabled } ?? enabled.first
     }
 
-    func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
+    func selectChannel(
+        requestID: String,
+        modelName: String? = nil,
+        requestProtocol: RequestForwarder.RequestProtocol? = nil
+    ) -> RoutingDecision? {
         lock.lock()
         defer { lock.unlock() }
 
@@ -229,7 +233,10 @@ final class RouterRuntimeState {
                 selectedChannel = match.channel
                 effectiveModel = match.model.identifier
             } else if let match = bestModelMatch(in: channelGroups.cooling, requestedModel: model) {
-                let fallbackProtocol = requestProtocol(for: match.channel)
+                let fallbackProtocol = resolvedRequestProtocol(
+                    requestProtocol,
+                    fallbackChannel: match.channel
+                )
                 if smartFallbackEnabled,
                    let fallback = fallbackModelCandidateLocked(
                        actualTokensUsed: 0,
@@ -324,11 +331,23 @@ final class RouterRuntimeState {
         retryCounter[requestID] = currentRetryCount + 1
 
         let channelGroups = channelCandidateGroupsLocked(excluding: attemptedChannelIDs)
+        let actualTokensUsed = parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0
+        let minimumContextLength = errorType == .contextLengthExceeded && actualTokensUsed > 0
+            ? actualTokensUsed
+            : nil
         let availableMatch = modelName.flatMap { model in
-            bestModelMatch(in: channelGroups.available, requestedModel: model)
+            bestModelMatch(
+                in: channelGroups.available,
+                requestedModel: model,
+                minimumContextLength: minimumContextLength
+            )
         }
         let coolingMatch = modelName.flatMap { model in
-            bestModelMatch(in: channelGroups.cooling, requestedModel: model)
+            bestModelMatch(
+                in: channelGroups.cooling,
+                requestedModel: model,
+                minimumContextLength: minimumContextLength
+            )
         }
         let availableChannel = availableMatch?.channel ?? (modelName == nil ? channelGroups.available.first : nil)
         let availableModel = availableMatch?.model.identifier ?? modelName
@@ -352,7 +371,7 @@ final class RouterRuntimeState {
            let fallback = selectFallbackModelLocked(
                requestID: requestID,
                originalModel: modelName ?? "unknown",
-               actualTokensUsed: parseActualTokensUsedLocked(from: errorBody, modelName: modelName) ?? 0,
+               actualTokensUsed: actualTokensUsed,
                errorType: errorType,
                apiProtocol: requestProtocol ?? .openai,
                excludedChannelIDs: attemptedChannelIDs,
@@ -384,7 +403,8 @@ final class RouterRuntimeState {
 
     private func bestModelMatch(
         in availableChannels: [Channel],
-        requestedModel: String
+        requestedModel: String,
+        minimumContextLength: Int? = nil
     ) -> (channel: Channel, model: ModelEntry)? {
         var bestScore = ModelSwitcher.ModelMatchScore.none
         var bestMatch: (channel: Channel, model: ModelEntry)?
@@ -393,6 +413,10 @@ final class RouterRuntimeState {
         // the first (highest-priority) channel when match quality is tied.
         for channel in availableChannels {
             for model in channel.models where model.isEnabled {
+                if let minimumContextLength,
+                   model.contextLength.map({ $0 > minimumContextLength }) != true {
+                    continue
+                }
                 let score = ModelSwitcher.modelMatchScore(
                     requested: requestedModel,
                     stored: model.identifier
@@ -464,7 +488,7 @@ final class RouterRuntimeState {
         for channel in availableChannels {
             for model in channel.models where model.isEnabled {
                 guard let contextLength = model.contextLength,
-                      requestProtocol(for: channel) == apiProtocol,
+                      isProtocolCompatible(channel.protocol, with: apiProtocol),
                       contextLength > actualTokensUsed
                 else {
                     continue
@@ -567,12 +591,37 @@ final class RouterRuntimeState {
         }
     }
 
-    private func requestProtocol(for channel: Channel) -> RequestForwarder.RequestProtocol {
+    private func resolvedRequestProtocol(
+        _ requestProtocol: RequestForwarder.RequestProtocol?,
+        fallbackChannel: Channel
+    ) -> RequestForwarder.RequestProtocol {
+        if let requestProtocol, requestProtocol != .unknown {
+            return requestProtocol
+        }
+        return defaultRequestProtocol(for: fallbackChannel)
+    }
+
+    private func defaultRequestProtocol(for channel: Channel) -> RequestForwarder.RequestProtocol {
         switch channel.protocol {
         case .openai, .auto: .openai
         case .anthropic: .anthropic
         }
     }
+
+    private func isProtocolCompatible(
+        _ channelProtocol: APIProtocol,
+        with requestProtocol: RequestForwarder.RequestProtocol
+    ) -> Bool {
+        switch channelProtocol {
+        case .auto:
+            true
+        case .openai:
+            requestProtocol == .openai
+        case .anthropic:
+            requestProtocol == .anthropic
+        }
+    }
+
 }
 
 final class ModelOverrideRuntimeState {
@@ -681,9 +730,17 @@ final class SmartRouter: ObservableObject {
     // MARK: - Routing Logic
 
     /// Select the best available channel for a request
-    func selectChannel(requestID: String, modelName: String? = nil) -> RoutingDecision? {
+    func selectChannel(
+        requestID: String,
+        modelName: String? = nil,
+        requestProtocol: RequestForwarder.RequestProtocol? = nil
+    ) -> RoutingDecision? {
         syncRuntimeSettings()
-        return services.runtimeState.selectChannel(requestID: requestID, modelName: modelName)
+        return services.runtimeState.selectChannel(
+            requestID: requestID,
+            modelName: modelName,
+            requestProtocol: requestProtocol
+        )
     }
 
     /// Handle an error and decide if we should retry with another channel

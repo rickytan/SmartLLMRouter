@@ -77,7 +77,8 @@ final class MultipartEndpointHandler {
         let routingModelName = override.selectedModelID ?? modelName
         guard let decision = services.runtimeState.selectChannel(
             requestID: reqIdString,
-            modelName: routingModelName
+            modelName: routingModelName,
+            requestProtocol: .openai
         ) else {
             return nil
         }

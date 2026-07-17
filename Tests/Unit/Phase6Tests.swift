@@ -715,6 +715,78 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertEqual(decision?.isRetry, false)
     }
 
+    func testAnthropicRequestUsesAnthropicFallbackWhenCoolingMatchUsesAutoProtocol() {
+        let matching = makeChannel(
+            name: "Auto",
+            priority: 1,
+            modelIdentifier: "glm-5.2",
+            protocol: .auto
+        )
+        let fallback = makeChannel(
+            name: "Anthropic",
+            priority: 2,
+            modelIdentifier: "claude-sonnet",
+            protocol: .anthropic
+        )
+        isolatedStore.store.addChannel(matching)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+        runtimeState.markChannelRateLimited(
+            channelID: matching.id,
+            until: Date().addingTimeInterval(600)
+        )
+
+        let decision = runtimeState.selectChannel(
+            requestID: "req-anthropic-fallback-from-auto",
+            modelName: "glm-5.2",
+            requestProtocol: .anthropic
+        )
+
+        XCTAssertEqual(decision?.channel.id, fallback.id)
+        XCTAssertEqual(decision?.effectiveModel, "claude-sonnet")
+    }
+
+    func testAutoProtocolChannelIsCompatibleWithAnthropicSmartFallback() {
+        let matching = makeChannel(
+            name: "Anthropic",
+            priority: 1,
+            modelIdentifier: "claude-opus",
+            protocol: .anthropic
+        )
+        let fallback = makeChannel(
+            name: "Auto",
+            priority: 2,
+            modelIdentifier: "claude-sonnet",
+            protocol: .auto
+        )
+        isolatedStore.store.addChannel(matching)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+        runtimeState.markChannelRateLimited(
+            channelID: matching.id,
+            until: Date().addingTimeInterval(600)
+        )
+
+        let decision = runtimeState.selectChannel(
+            requestID: "req-auto-anthropic-fallback",
+            modelName: "claude-opus",
+            requestProtocol: .anthropic
+        )
+
+        XCTAssertEqual(decision?.channel.id, fallback.id)
+        XCTAssertEqual(decision?.effectiveModel, "claude-sonnet")
+    }
+
     func testRetryUsesSmartFallbackBeforeAnotherCoolingRequestedModelChannel() {
         let primary = makeChannel(name: "Primary", priority: 1, modelIdentifier: "glm-5.2")
         let coolingSecondary = makeChannel(name: "Secondary", priority: 2, modelIdentifier: "glm-5.2")
@@ -840,6 +912,114 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         XCTAssertEqual(decision?.channel.id, ch2.id, "Should failover to Secondary (ch2)")
     }
 
+    func testContextExceededSkipsSameModelWithInsufficientContext() throws {
+        let primary = makeChannel(
+            name: "Primary",
+            priority: 1,
+            modelIdentifier: "gpt-4o",
+            contextLength: 8_192
+        )
+        let insufficient = makeChannel(
+            name: "Secondary",
+            priority: 2,
+            modelIdentifier: "gpt-4o",
+            contextLength: 8_192
+        )
+        let fallback = makeChannel(
+            name: "Fallback",
+            priority: 3,
+            modelIdentifier: "gpt-4o-large-context",
+            contextLength: 32_768
+        )
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(insufficient)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+
+        let initial = runtimeState.selectChannel(
+            requestID: "req-context-capacity",
+            modelName: "gpt-4o",
+            requestProtocol: .openai
+        )
+        let errorBody = try JSONSerialization.data(withJSONObject: [
+            "error": ["code": "context_length_exceeded"],
+            "usage": ["input_tokens": 9_000]
+        ])
+        let retry = runtimeState.handleError(
+            requestID: "req-context-capacity",
+            statusCode: 400,
+            modelName: "gpt-4o",
+            errorBody: errorBody,
+            requestProtocol: .openai
+        )
+
+        XCTAssertEqual(initial?.channel.id, primary.id)
+        XCTAssertEqual(retry?.channel.id, fallback.id)
+        XCTAssertEqual(retry?.effectiveModel, "gpt-4o-large-context")
+    }
+
+    func testContextExceededPrefersSameModelWithSufficientContext() throws {
+        let primary = makeChannel(
+            name: "Primary",
+            priority: 1,
+            modelIdentifier: "gpt-4o",
+            contextLength: 8_192
+        )
+        let insufficient = makeChannel(
+            name: "Secondary",
+            priority: 2,
+            modelIdentifier: "gpt-4o",
+            contextLength: 8_192
+        )
+        let sufficient = makeChannel(
+            name: "LargeContext",
+            priority: 3,
+            modelIdentifier: "gpt-4o",
+            contextLength: 32_768
+        )
+        let fallback = makeChannel(
+            name: "Fallback",
+            priority: 4,
+            modelIdentifier: "gpt-4o-fallback",
+            contextLength: 64_000
+        )
+        isolatedStore.store.addChannel(primary)
+        isolatedStore.store.addChannel(insufficient)
+        isolatedStore.store.addChannel(sufficient)
+        isolatedStore.store.addChannel(fallback)
+        runtimeState.updateSettings(
+            mode: .auto,
+            maxRetries: 3,
+            smartFallbackEnabled: true,
+            maxFallbackCost: 2
+        )
+
+        _ = runtimeState.selectChannel(
+            requestID: "req-context-same-model",
+            modelName: "gpt-4o",
+            requestProtocol: .openai
+        )
+        let errorBody = try JSONSerialization.data(withJSONObject: [
+            "error": ["code": "context_length_exceeded"],
+            "usage": ["input_tokens": 9_000]
+        ])
+        let retry = runtimeState.handleError(
+            requestID: "req-context-same-model",
+            statusCode: 400,
+            modelName: "gpt-4o",
+            errorBody: errorBody,
+            requestProtocol: .openai
+        )
+
+        XCTAssertEqual(retry?.channel.id, sufficient.id)
+        XCTAssertEqual(retry?.effectiveModel, "gpt-4o")
+    }
+
     func testErrorHandling_DoesNotRetryPreviouslyAttemptedChannel() throws {
         let ch1 = makeChannel(name: "Primary", priority: 1)
         let ch2 = makeChannel(name: "Secondary", priority: 2)
@@ -926,13 +1106,15 @@ final class SmartRoutingIntegrationTests: XCTestCase {
     private func makeChannel(
         name: String,
         priority: Int,
-        modelIdentifier: String = "gpt-4o"
+        modelIdentifier: String = "gpt-4o",
+        contextLength: Int = 8192,
+        protocol: APIProtocol = .openai
     ) -> Channel {
         let model = ModelEntry(
             id: modelIdentifier,
             identifier: modelIdentifier,
             displayName: modelIdentifier,
-            contextLength: 8192,
+            contextLength: contextLength,
             inputPricePer1M: 5.0,
             outputPricePer1M: 15.0
         )
@@ -940,7 +1122,7 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             name: name,
             baseURL: "https://\(name.lowercased()).example.com",
             priority: priority,
-            protocol: .openai,
+            protocol: `protocol`,
             models: [model]
         )
     }
