@@ -782,15 +782,19 @@ struct ChannelsTab: View {
         } else if filteredChannels.isEmpty {
             noMatchingChannelsView
         } else {
-            List(selection: $selectedChannelIDs) {
+            List {
                 if isFilteringChannels {
                     ForEach(filteredChannels) { channel in
                         ChannelRowView(
                             channelID: channel.id,
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed
+                            circuitState: circuitStates[channel.id] ?? .closed,
+                            isSelected: selectedChannelIDs.contains(channel.id)
                         )
-                        .tag(channel.id)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleRowClick(channelID: channel.id)
+                        }
                         .listRowBackground(
                             selectedChannelIDs.contains(channel.id)
                                 ? DesignToken.Colors.accent.opacity(0.08)
@@ -802,9 +806,13 @@ struct ChannelsTab: View {
                         ChannelRowView(
                             channelID: channel.id,
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed
+                            circuitState: circuitStates[channel.id] ?? .closed,
+                            isSelected: selectedChannelIDs.contains(channel.id)
                         )
-                        .tag(channel.id)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleRowClick(channelID: channel.id)
+                        }
                         .listRowBackground(
                             selectedChannelIDs.contains(channel.id)
                                 ? DesignToken.Colors.accent.opacity(0.08)
@@ -840,6 +848,35 @@ struct ChannelsTab: View {
                 .keyboardShortcut(.escape)
                 .hidden()
             )
+        }
+    }
+
+    /// Handle row click with Cmd/Shift modifier support
+    private func handleRowClick(channelID: String) {
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) {
+            // Toggle individual selection
+            if selectedChannelIDs.contains(channelID) {
+                selectedChannelIDs.remove(channelID)
+            } else {
+                selectedChannelIDs.insert(channelID)
+            }
+        } else if flags.contains(.shift) {
+            // Range select: select from last selected to current
+            let allChannels = isFilteringChannels ? filteredChannels : channelStore.channels
+            let ids = allChannels.map(\.id)
+            guard let currentIdx = ids.firstIndex(of: channelID) else { return }
+            // Find the last selected ID by its position in the visible list
+            let lastSelectedIdx = ids.lastIndex(where: { selectedChannelIDs.contains($0) })
+            if let lastIdx = lastSelectedIdx {
+                let range = min(lastIdx, currentIdx)...max(lastIdx, currentIdx)
+                selectedChannelIDs.formUnion(ids[range])
+            } else {
+                selectedChannelIDs.insert(channelID)
+            }
+        } else {
+            // Plain click: select only this channel
+            selectedChannelIDs = [channelID]
         }
     }
 
