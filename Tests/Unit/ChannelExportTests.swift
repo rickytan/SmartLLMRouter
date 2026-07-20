@@ -143,6 +143,27 @@ final class ChannelExportServiceTests: XCTestCase {
         XCTAssertEqual(parsedChannels.first?.protocolBaseURLs, endpoints)
     }
 
+    func testExportJSONDoesNotEscapeSlashesInURLs() async throws {
+        let endpoints = [
+            Channel.openAIEndpointKey: "https://openai.example.com/v1",
+            Channel.anthropicEndpointKey: "https://anthropic.example.com/v1/messages"
+        ]
+        let channel = createTestChannel(
+            id: "url-channel",
+            baseURL: "https://openai.example.com/v1",
+            protocolBaseURLs: endpoints,
+            protocolType: .auto
+        )
+        try isolatedKeychain.manager.setAPIKey("url-key", for: channel.id)
+
+        let data = try await service.exportChannels([channel])
+        let jsonText = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertTrue(jsonText.contains(#""baseURL" : "https://openai.example.com/v1""#))
+        XCTAssertTrue(jsonText.contains(#""anthropic" : "https://anthropic.example.com/v1/messages""#))
+        XCTAssertFalse(jsonText.contains(#"https:\/\/"#))
+    }
+
     func testExportIncludesMultipleAPIKeys() async throws {
         let channel = createTestChannel()
         try isolatedKeychain.manager.setAPIKeys(["key-a", "key-b"], for: channel.id)

@@ -782,30 +782,43 @@ struct ChannelsTab: View {
         } else if filteredChannels.isEmpty {
             noMatchingChannelsView
         } else {
-            List(selection: $selectedChannelIDs) {
+            List {
                 if isFilteringChannels {
                     ForEach(filteredChannels) { channel in
                         ChannelRowView(
                             channelID: channel.id,
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed
+                            circuitState: circuitStates[channel.id] ?? .closed,
+                            isSelected: selectedChannelIDs.contains(channel.id)
                         )
                         .tag(channel.id)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(channelListRowInsets)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleChannelSelection(channel.id)
+                        }
                     }
                 } else {
                     ForEach(channelStore.channels) { channel in
                         ChannelRowView(
                             channelID: channel.id,
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed
+                            circuitState: circuitStates[channel.id] ?? .closed,
+                            isSelected: selectedChannelIDs.contains(channel.id)
                         )
                         .tag(channel.id)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(channelListRowInsets)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleChannelSelection(channel.id)
+                        }
                     }
                     .onMove(perform: channelStore.moveChannel)
                 }
             }
             .listStyle(.bordered(alternatesRowBackgrounds: false))
-            .tint(DesignToken.Colors.accent)
             .accessibilityIdentifier("settings.channels.list")
             .background(
                 // Cmd+A: select all (visible/filtered) channels
@@ -832,6 +845,28 @@ struct ChannelsTab: View {
                 .hidden()
             )
         }
+    }
+
+    private func handleChannelSelection(_ channelID: String) {
+        let modifiers = NSApp.currentEvent?.modifierFlags ?? []
+        if modifiers.contains(.command) {
+            if selectedChannelIDs.contains(channelID) {
+                selectedChannelIDs.remove(channelID)
+            } else {
+                selectedChannelIDs.insert(channelID)
+            }
+        } else {
+            selectedChannelIDs = [channelID]
+        }
+    }
+
+    private var channelListRowInsets: EdgeInsets {
+        EdgeInsets(
+            top: 0,
+            leading: DesignToken.Spacing.xs,
+            bottom: 0,
+            trailing: DesignToken.Spacing.xs
+        )
     }
 
     private var noMatchingChannelsView: some View {
