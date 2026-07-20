@@ -71,6 +71,22 @@ struct SettingsView: View {
         }
         .frame(width: selectedTab.size.width, height: selectedTab.size.height)
         .animation(.easeInOut(duration: 0.18), value: selectedTab)
+        .background(
+            // Cmd+1~5: switch tabs
+            Group {
+                Button("Tab 1") { selectedTab = .general }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Tab 2") { selectedTab = .channels }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Tab 3") { selectedTab = .advanced }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("Tab 4") { selectedTab = .usage }
+                    .keyboardShortcut("4", modifiers: .command)
+                Button("Tab 5") { selectedTab = .about }
+                    .keyboardShortcut("5", modifiers: .command)
+            }
+            .hidden()
+        )
     }
 }
 
@@ -775,6 +791,11 @@ struct ChannelsTab: View {
                             circuitState: circuitStates[channel.id] ?? .closed
                         )
                         .tag(channel.id)
+                        .listRowBackground(
+                            selectedChannelIDs.contains(channel.id)
+                                ? DesignToken.Colors.accent.opacity(0.08)
+                                : Color.clear
+                        )
                     }
                 } else {
                     ForEach(channelStore.channels) { channel in
@@ -784,6 +805,11 @@ struct ChannelsTab: View {
                             circuitState: circuitStates[channel.id] ?? .closed
                         )
                         .tag(channel.id)
+                        .listRowBackground(
+                            selectedChannelIDs.contains(channel.id)
+                                ? DesignToken.Colors.accent.opacity(0.08)
+                                : Color.clear
+                        )
                     }
                     .onMove(perform: channelStore.moveChannel)
                 }
@@ -804,6 +830,14 @@ struct ChannelsTab: View {
                     handleFocusSearch()
                 }
                 .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+            )
+            .background(
+                // ESC: clear selection
+                Button("Clear Selection") {
+                    selectedChannelIDs.removeAll()
+                }
+                .keyboardShortcut(.escape)
                 .hidden()
             )
         }
