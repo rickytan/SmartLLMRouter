@@ -579,6 +579,8 @@ struct ChannelsTab: View {
     @State private var channelFilter: ChannelListFilter = .all
     @State private var showingSortBySpeedConfirmation = false
     @State private var circuitStates: [String: CircuitState] = [:]
+    @State private var selectedChannelIDs: Set<String> = []
+    @FocusState private var isSearchFieldFocused: Bool
 
     @MainActor
     init(services: AppServices? = nil) {
@@ -617,6 +619,27 @@ struct ChannelsTab: View {
         .onReceive(circuitRefreshTimer) { _ in
             refreshCircuitStates()
         }
+        .onChange(of: channelStore.channels) { newChannels in
+            // Prune stale selection IDs when channels are deleted
+            let validIDs = Set(newChannels.map(\.id))
+            selectedChannelIDs = selectedChannelIDs.intersection(validIDs)
+        }
+    }
+
+    /// Cmd+A: select all (visible/filtered) channels
+    private func handleSelectAll() {
+        // Defocus search field first so TextField doesn't swallow Cmd+A
+        isSearchFieldFocused = false
+        if isFilteringChannels {
+            selectedChannelIDs = Set(filteredChannels.map(\.id))
+        } else {
+            selectedChannelIDs = Set(channelStore.channels.map(\.id))
+        }
+    }
+
+    /// Cmd+F: focus search field
+    private func handleFocusSearch() {
+        isSearchFieldFocused = true
     }
 
     private var channelsHeaderActions: some View {
@@ -706,6 +729,7 @@ struct ChannelsTab: View {
                 TextField(L10n.Settings.channelsSearchPlaceholder, text: $channelSearchText)
                     .textFieldStyle(.plain)
                     .font(DesignToken.Font.caption())
+                    .focused($isSearchFieldFocused)
             }
             .padding(.horizontal, DesignToken.Spacing.sm)
             .frame(maxWidth: .infinity, minHeight: DesignToken.Layout.buttonMinHeight)
@@ -742,7 +766,7 @@ struct ChannelsTab: View {
         } else if filteredChannels.isEmpty {
             noMatchingChannelsView
         } else {
-            List {
+            List(selection: $selectedChannelIDs) {
                 if isFilteringChannels {
                     ForEach(filteredChannels) { channel in
                         ChannelRowView(
@@ -750,6 +774,7 @@ struct ChannelsTab: View {
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
                             circuitState: circuitStates[channel.id] ?? .closed
                         )
+                        .tag(channel.id)
                     }
                 } else {
                     ForEach(channelStore.channels) { channel in
@@ -758,12 +783,29 @@ struct ChannelsTab: View {
                             index: channelStore.channels.firstIndex(of: channel) ?? 0,
                             circuitState: circuitStates[channel.id] ?? .closed
                         )
+                        .tag(channel.id)
                     }
                     .onMove(perform: channelStore.moveChannel)
                 }
             }
             .listStyle(.bordered(alternatesRowBackgrounds: false))
             .accessibilityIdentifier("settings.channels.list")
+            .background(
+                // Cmd+A: select all (visible/filtered) channels
+                Button("Select All") {
+                    handleSelectAll()
+                }
+                .keyboardShortcut("a", modifiers: .command)
+                .hidden()
+            )
+            .background(
+                // Cmd+F: focus search field
+                Button("Focus Search") {
+                    handleFocusSearch()
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+            )
         }
     }
 
@@ -792,11 +834,12 @@ struct ChannelsTab: View {
             IconButton(
                 icon: "square.and.arrow.up",
                 tooltip: L10n.ChannelExport.exportChannels,
-                isDisabled: channelStore.channels.isEmpty
+                isDisabled: selectedChannelIDs.isEmpty
             ) {
-                channelExportService.showExportOptions(channels: channelStore.channels)
+                let channelsToExport = channelStore.channels.filter { selectedChannelIDs.contains($0.id) }
+                channelExportService.showExportOptions(channels: channelsToExport)
             }
-            .help(L10n.ChannelExport.exportChannels)
+            .help(selectedChannelIDs.isEmpty ? L10n.ChannelExport.exportChannels : L10n.ChannelExport.exportSelectedHint(selectedChannelIDs.count))
             .accessibilityIdentifier("settings.channels.exportChannels")
 
             IconButton(
