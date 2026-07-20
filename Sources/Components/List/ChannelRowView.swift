@@ -8,7 +8,6 @@ struct ChannelRowView: View {
     let channelID: String
     let index: Int
     let circuitState: CircuitState
-    let isSelected: Bool
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
     @State private var isHovered = false
@@ -20,14 +19,12 @@ struct ChannelRowView: View {
         channelID: String,
         index: Int,
         circuitState: CircuitState = .closed,
-        isSelected: Bool = false,
         services: AppServices? = nil
     ) {
         let services = services ?? .shared
         self.channelID = channelID
         self.index = index
         self.circuitState = circuitState
-        self.isSelected = isSelected
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
     }
@@ -191,7 +188,7 @@ struct ChannelRowView: View {
             )
 
             return VStack(spacing: 0) {
-                ChannelRowView(channelID: sampleChannel.id, index: 0, isSelected: false)
+                ChannelRowView(channelID: sampleChannel.id, index: 0)
             }
             .padding()
             .frame(width: 400)
