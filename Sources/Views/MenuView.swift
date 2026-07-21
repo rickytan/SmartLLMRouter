@@ -275,7 +275,7 @@ struct MenuView: View {
     }
 
     private var recentModelSummaries: [RecentModelSummary] {
-        Dictionary(grouping: usage.records, by: \.model)
+        Dictionary(grouping: usage.displayRecords, by: \.model)
             .compactMap { _, records -> RecentModelSummary? in
                 guard let latest = records.max(by: { $0.timestamp < $1.timestamp }) else {
                     return nil

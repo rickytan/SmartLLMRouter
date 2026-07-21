@@ -1202,7 +1202,24 @@ final class ProxyServer: ObservableObject {
                     channelID: channel.id,
                     apiKeyAvailabilityStore: self.services.apiKeyAvailabilityStore,
                     requestID: "#\(reqId)",
-                    model: model
+                    model: model,
+                    onUsageUpdate: { [weak self] inputTokens, outputTokens in
+                        guard let self else { return }
+                        self.services.usageTracker.updateInFlightUsage(
+                            requestID: reqIdString,
+                            channelID: channel.id,
+                            channelName: channel.name,
+                            model: model,
+                            inputTokens: inputTokens,
+                            outputTokens: outputTokens,
+                            estimatedCost: self.estimateCost(
+                                channel: channel,
+                                inputTokens: inputTokens,
+                                outputTokens: outputTokens
+                            ),
+                            latency: Date().timeIntervalSince(startTime) * 1000
+                        )
+                    }
                 )
                 let protocolName = upstreamProtocol == .anthropic ? "anthropic" : "openai"
                 let remainingBudget = String(format: "%.1f", max(0, requestDeadline.timeIntervalSinceNow))
@@ -1244,6 +1261,7 @@ final class ProxyServer: ObservableObject {
 
                 let usage = (input: completion.inputTokens, output: completion.outputTokens)
                 self.services.usageTracker.recordUsage(
+                    requestID: reqIdString,
                     channelID: channel.id,
                     channelName: channel.name,
                     model: model,
