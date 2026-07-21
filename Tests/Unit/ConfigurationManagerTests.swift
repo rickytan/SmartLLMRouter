@@ -178,8 +178,135 @@ final class ConfigurationManagerTests: XCTestCase {
         XCTAssertFalse(manager.isActive)
     }
 
+    func testOpenCodeTakeoverAddsProviderAndPreservesExistingProviders() throws {
+        let configDirectory = temporaryDirectory.appendingPathComponent(".config/opencode", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        let configFile = configDirectory.appendingPathComponent("opencode.json")
+        try writeJSON([
+            "provider": [
+                "huoshan": [
+                    "name": "Volcengine",
+                    "npm": "@ai-sdk/openai-compatible",
+                    "options": [
+                        "baseURL": "https://ark.cn-beijing.volces.com/api/coding",
+                        "apiKey": "existing-key"
+                    ]
+                ]
+            ],
+            "enabled_providers": ["huoshan"],
+            "disabled_providers": ["smartllmrouter"]
+        ], to: configFile)
+        let manager = OpenCodeConfigManager(configDirectory: configDirectory)
+
+        manager.toggleTakeover(enable: true, port: 4242)
+
+        let updated = try readJSON(from: configFile)
+        let providers = try XCTUnwrap(updated["provider"] as? [String: Any])
+        XCTAssertNotNil(providers["huoshan"])
+        let smartProvider = try XCTUnwrap(providers["smartllmrouter"] as? [String: Any])
+        let options = try XCTUnwrap(smartProvider["options"] as? [String: Any])
+        XCTAssertEqual(smartProvider["name"] as? String, "SmartLLM Router")
+        XCTAssertEqual(smartProvider["npm"] as? String, "@ai-sdk/openai-compatible")
+        XCTAssertEqual(options["baseURL"] as? String, "http://127.0.0.1:4242/v1")
+        XCTAssertEqual(options["apiKey"] as? String, "smartllmrouter")
+        XCTAssertEqual(updated["enabled_providers"] as? [String], ["huoshan", "smartllmrouter"])
+        XCTAssertEqual(updated["disabled_providers"] as? [String], [])
+        XCTAssertTrue(manager.isActive)
+        XCTAssertEqual(manager.currentURL, "http://127.0.0.1:4242/v1")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: configDirectory.appendingPathComponent("opencode.json.bak").path))
+
+        let rawContent = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(rawContent.contains(#""baseURL" : "http://127.0.0.1:4242/v1""#))
+        XCTAssertFalse(rawContent.contains(#"http:\/\/127.0.0.1"#))
+    }
+
+    func testOpenCodeTakeoverRestoreRemovesSmartProviderWhenItDidNotExistBefore() throws {
+        let configDirectory = temporaryDirectory.appendingPathComponent(".config/opencode", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        let configFile = configDirectory.appendingPathComponent("opencode.json")
+        try writeJSON([
+            "theme": "dark",
+            "provider": [
+                "huoshan": [
+                    "name": "Volcengine",
+                    "options": ["baseURL": "https://ark.cn-beijing.volces.com/api/coding"]
+                ]
+            ],
+            "enabled_providers": ["huoshan"]
+        ], to: configFile)
+        let manager = OpenCodeConfigManager(configDirectory: configDirectory)
+
+        manager.toggleTakeover(enable: true, port: 1897)
+        var active = try readJSON(from: configFile)
+        active["theme"] = "light"
+        try writeJSON(active, to: configFile)
+        manager.toggleTakeover(enable: false, port: 1897)
+
+        let restored = try readJSON(from: configFile)
+        let providers = try XCTUnwrap(restored["provider"] as? [String: Any])
+        XCTAssertNotNil(providers["huoshan"])
+        XCTAssertNil(providers["smartllmrouter"])
+        XCTAssertEqual(restored["theme"] as? String, "light")
+        XCTAssertEqual(restored["enabled_providers"] as? [String], ["huoshan"])
+        XCTAssertFalse(manager.isActive)
+    }
+
+    func testCodexTakeoverAddsChatProviderAndRestoresPreviousProvider() throws {
+        let configDirectory = temporaryDirectory.appendingPathComponent(".codex", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        let configFile = configDirectory.appendingPathComponent("config.toml")
+        let original = """
+        model = "gpt-5.5"
+        model_provider = "openai"
+
+        [mcp_servers.node]
+        command = "node"
+        """
+        try original.write(to: configFile, atomically: true, encoding: .utf8)
+        let manager = CodexConfigManager(configDirectory: configDirectory)
+
+        manager.toggleTakeover(enable: true, port: 4242)
+
+        let active = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(active.contains(#"model_provider = "smartllmrouter""#))
+        XCTAssertTrue(active.contains("[model_providers.smartllmrouter]"))
+        XCTAssertTrue(active.contains(#"base_url = "http://127.0.0.1:4242/v1""#))
+        XCTAssertTrue(active.contains(#"wire_api = "chat""#))
+        XCTAssertTrue(active.contains("requires_openai_auth = false"))
+        XCTAssertTrue(active.contains("[mcp_servers.node]"))
+        XCTAssertFalse(active.contains(#"http:\/\/127.0.0.1"#))
+        XCTAssertTrue(manager.isActive)
+        XCTAssertEqual(manager.currentURL, "http://127.0.0.1:4242/v1")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: configDirectory.appendingPathComponent("config.toml.bak").path))
+
+        let userEditedActive = active.replacingOccurrences(of: #"model = "gpt-5.5""#, with: #"model = "glm-5.2""#)
+        try userEditedActive.write(to: configFile, atomically: true, encoding: .utf8)
+        manager.toggleTakeover(enable: false, port: 4242)
+
+        let restored = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(restored.contains(#"model = "glm-5.2""#))
+        XCTAssertTrue(restored.contains(#"model_provider = "openai""#))
+        XCTAssertFalse(restored.contains("[model_providers.smartllmrouter]"))
+        XCTAssertTrue(restored.contains("[mcp_servers.node]"))
+        XCTAssertFalse(manager.isActive)
+    }
+
+    func testCodexTakeoverCanDeactivateConfigCreatedFromScratch() throws {
+        let configDirectory = temporaryDirectory.appendingPathComponent(".codex", isDirectory: true)
+        let configFile = configDirectory.appendingPathComponent("config.toml")
+        let manager = CodexConfigManager(configDirectory: configDirectory)
+
+        manager.toggleTakeover(enable: true, port: 1897)
+        manager.toggleTakeover(enable: false, port: 1897)
+
+        let restored = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertFalse(restored.contains("model_provider"))
+        XCTAssertFalse(restored.contains("[model_providers.smartllmrouter]"))
+        XCTAssertFalse(manager.isActive)
+    }
+
     private func writeJSON(_ json: [String: Any], to url: URL) throws {
-        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try data.write(to: url)
     }
 

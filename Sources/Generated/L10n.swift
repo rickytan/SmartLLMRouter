@@ -374,6 +374,20 @@ internal enum L10n {
       L10n.tr("Localizable", "claudecode.takeoverToggle", fallback: "Take over Claude Code config")
     }
   }
+  internal enum Codex {
+    /// Config file not found at ~/.codex/config.toml
+    internal static var configNotFound: String {
+      L10n.tr("Localizable", "codex.configNotFound", fallback: "Config file not found at ~/.codex/config.toml")
+    }
+    /// Add a SmartLLM Router chat provider to ~/.codex/config.toml and make it the active model provider. A backup is created automatically.
+    internal static var takeoverDescription: String {
+      L10n.tr("Localizable", "codex.takeoverDescription", fallback: "Add a SmartLLM Router chat provider to ~/.codex/config.toml and make it the active model provider. A backup is created automatically.")
+    }
+    /// Take over Codex config
+    internal static var takeoverToggle: String {
+      L10n.tr("Localizable", "codex.takeoverToggle", fallback: "Take over Codex config")
+    }
+  }
   internal enum ConfigImporter {
     /// Deselect All
     internal static var deselectAll: String {
@@ -840,6 +854,20 @@ internal enum L10n {
     /// Next → (%d channels)
     internal static func nextWithCount(_ p1: Int) -> String {
       return L10n.tr("Localizable", "onboarding.next.withCount", p1, fallback: "Next → (%d channels)")
+    }
+  }
+  internal enum Opencode {
+    /// Config file not found at ~/.config/opencode/opencode.json
+    internal static var configNotFound: String {
+      L10n.tr("Localizable", "opencode.configNotFound", fallback: "Config file not found at ~/.config/opencode/opencode.json")
+    }
+    /// Add a SmartLLM Router provider to ~/.config/opencode/opencode.json. Existing providers are preserved and a backup is created automatically.
+    internal static var takeoverDescription: String {
+      L10n.tr("Localizable", "opencode.takeoverDescription", fallback: "Add a SmartLLM Router provider to ~/.config/opencode/opencode.json. Existing providers are preserved and a backup is created automatically.")
+    }
+    /// Take over OpenCode config
+    internal static var takeoverToggle: String {
+      L10n.tr("Localizable", "opencode.takeoverToggle", fallback: "Take over OpenCode config")
     }
   }
   internal enum Rectifier {
