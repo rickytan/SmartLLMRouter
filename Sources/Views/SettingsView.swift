@@ -596,6 +596,8 @@ struct ChannelsTab: View {
     @State private var showingSortBySpeedConfirmation = false
     @State private var circuitStates: [String: CircuitState] = [:]
     @State private var selectedChannelIDs: Set<String> = []
+    @State private var selectionAnchorChannelID: String?
+    @State private var keyDownMonitor: Any?
     @FocusState private var isSearchFieldFocused: Bool
 
     @MainActor
@@ -631,7 +633,13 @@ struct ChannelsTab: View {
         .sheet(isPresented: $showingConfigImporter) {
             ConfigImporterView()
         }
-        .onAppear(perform: refreshCircuitStates)
+        .onAppear {
+            refreshCircuitStates()
+            installChannelsKeyDownMonitor()
+        }
+        .onDisappear {
+            removeChannelsKeyDownMonitor()
+        }
         .onReceive(circuitRefreshTimer) { _ in
             refreshCircuitStates()
         }
@@ -639,6 +647,12 @@ struct ChannelsTab: View {
             // Prune stale selection IDs when channels are deleted
             let validIDs = Set(newChannels.map(\.id))
             selectedChannelIDs = selectedChannelIDs.intersection(validIDs)
+            if let selectionAnchorChannelID, !validIDs.contains(selectionAnchorChannelID) {
+                self.selectionAnchorChannelID = nil
+            }
+        }
+        .onExitCommand {
+            clearChannelSelection()
         }
     }
 
@@ -651,6 +665,7 @@ struct ChannelsTab: View {
         } else {
             selectedChannelIDs = Set(channelStore.channels.map(\.id))
         }
+        selectionAnchorChannelID = visibleChannelIDs.first
     }
 
     /// Cmd+F: focus search field
@@ -839,7 +854,7 @@ struct ChannelsTab: View {
             .background(
                 // ESC: clear selection
                 Button("Clear Selection") {
-                    selectedChannelIDs.removeAll()
+                    clearChannelSelection()
                 }
                 .keyboardShortcut(.escape)
                 .hidden()
@@ -849,15 +864,92 @@ struct ChannelsTab: View {
 
     private func handleChannelSelection(_ channelID: String) {
         let modifiers = NSApp.currentEvent?.modifierFlags ?? []
+        if modifiers.contains(.shift) {
+            handleRangeChannelSelection(channelID, extending: modifiers.contains(.command))
+            return
+        }
+
         if modifiers.contains(.command) {
             if selectedChannelIDs.contains(channelID) {
                 selectedChannelIDs.remove(channelID)
             } else {
                 selectedChannelIDs.insert(channelID)
             }
+            selectionAnchorChannelID = channelID
         } else {
             selectedChannelIDs = [channelID]
+            selectionAnchorChannelID = channelID
         }
+    }
+
+    private func clearChannelSelection() {
+        selectedChannelIDs.removeAll()
+        selectionAnchorChannelID = nil
+        isSearchFieldFocused = false
+    }
+
+    private func handleRangeChannelSelection(_ channelID: String, extending: Bool) {
+        let visibleIDs = visibleChannelIDs
+        guard let targetIndex = visibleIDs.firstIndex(of: channelID) else {
+            selectedChannelIDs = [channelID]
+            selectionAnchorChannelID = channelID
+            return
+        }
+
+        let anchorID = rangeSelectionAnchorID(in: visibleIDs, targetIndex: targetIndex) ?? channelID
+
+        guard let anchorIndex = visibleIDs.firstIndex(of: anchorID) else {
+            selectedChannelIDs = [channelID]
+            selectionAnchorChannelID = channelID
+            return
+        }
+
+        let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
+        let rangeSelection = Set(visibleIDs[range])
+        if extending {
+            selectedChannelIDs.formUnion(rangeSelection)
+        } else {
+            selectedChannelIDs = rangeSelection
+        }
+        selectionAnchorChannelID = anchorID
+    }
+
+    private func rangeSelectionAnchorID(in visibleIDs: [String], targetIndex: Int) -> String? {
+        if let selectionAnchorChannelID, visibleIDs.contains(selectionAnchorChannelID) {
+            return selectionAnchorChannelID
+        }
+
+        return selectedChannelIDs.compactMap { selectedID in
+            visibleIDs.firstIndex(of: selectedID).map { index in
+                (distance: abs(index - targetIndex), id: selectedID)
+            }
+        }
+        .min(by: { $0.distance < $1.distance })?
+        .id
+    }
+
+    private var visibleChannelIDs: [String] {
+        (isFilteringChannels ? filteredChannels : channelStore.channels).map(\.id)
+    }
+
+    private func installChannelsKeyDownMonitor() {
+        guard keyDownMonitor == nil else { return }
+        keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.keyCode == 53 else { return event }
+            guard !showingAddChannel, !showingConfigImporter, !showingSortBySpeedConfirmation else {
+                return event
+            }
+            if !selectedChannelIDs.isEmpty || isSearchFieldFocused {
+                clearChannelSelection()
+            }
+            return event
+        }
+    }
+
+    private func removeChannelsKeyDownMonitor() {
+        guard let keyDownMonitor else { return }
+        NSEvent.removeMonitor(keyDownMonitor)
+        self.keyDownMonitor = nil
     }
 
     private var channelListRowInsets: EdgeInsets {
@@ -1510,7 +1602,7 @@ struct UsageTab: View {
         var dailyChannelMap: [DayChannelKey: (tokens: Int, requests: Int, cost: Double)] = [:]
 
         // Aggregate records
-        for record in usage.records where record.timestamp >= startDate {
+        for record in usage.displayRecords where record.timestamp >= startDate {
             let dayStart = calendar.startOfDay(for: record.timestamp)
             let key = DayChannelKey(date: dayStart, channelName: record.channelName)
             if let existing = dailyChannelMap[key] {
@@ -1541,7 +1633,7 @@ struct UsageTab: View {
 
         var statsMap: [String: ChannelStatAccumulator] = [:]
 
-        for record in usage.records where record.timestamp >= todayStart {
+        for record in usage.displayRecords where record.timestamp >= todayStart {
             statsMap[record.channelName, default: ChannelStatAccumulator()].add(record)
         }
 
