@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "providers": [
     {
       "id": "anthropic",
@@ -289,16 +289,66 @@
       ],
       "base_urls": {
         "openai": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "anthropic": "https://dashscope.aliyuncs.com/compatible-mode/anthropic"
+        "anthropic": "https://dashscope.aliyuncs.com/apps/anthropic"
+      }
+    },
+    {
+      "id": "dashscope_international",
+      "name_en": "Alibaba DashScope (International)",
+      "name_zh": "阿里百炼（国际站）",
+      "supports_protocols": [
+        "openai",
+        "anthropic"
+      ],
+      "default_models": [
+        {
+          "model": "qwen-max",
+          "protocol": "openai",
+          "context_length": 32768,
+          "input_price": 5.6,
+          "output_price": 16.8
+        },
+        {
+          "model": "qwen-plus",
+          "protocol": "openai",
+          "context_length": 131072,
+          "input_price": 1.12,
+          "output_price": 2.8
+        },
+        {
+          "model": "qwen-turbo",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.04,
+          "output_price": 0.2
+        },
+        {
+          "model": "qwen-max",
+          "protocol": "anthropic",
+          "context_length": 32768,
+          "input_price": 5.6,
+          "output_price": 16.8
+        },
+        {
+          "model": "qwen-plus",
+          "protocol": "anthropic",
+          "context_length": 131072,
+          "input_price": 1.12,
+          "output_price": 2.8
+        }
+      ],
+      "base_urls": {
+        "openai": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "anthropic": "https://dashscope-intl.aliyuncs.com/apps/anthropic"
       }
     },
     {
       "id": "minimax",
       "name_en": "MiniMax",
       "name_zh": "MiniMax",
-      "base_url": "https://api.minimaxi.com/v1",
       "supports_protocols": [
-        "openai"
+        "openai",
+        "anthropic"
       ],
       "default_models": [
         {
@@ -314,8 +364,64 @@
           "context_length": 128000,
           "input_price": 0.07,
           "output_price": 0.56
+        },
+        {
+          "model": "MiniMax-M2.7",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.3,
+          "output_price": 1.2
+        },
+        {
+          "model": "MiniMax-M2.7-highspeed",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.6,
+          "output_price": 2.4
+        },
+        {
+          "model": "MiniMax-M3",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.3,
+          "output_price": 1.2,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
+        },
+        {
+          "model": "MiniMax-M2.7",
+          "protocol": "anthropic",
+          "context_length": 204800,
+          "input_price": 0.3,
+          "output_price": 1.2
+        },
+        {
+          "model": "MiniMax-M2.7-highspeed",
+          "protocol": "anthropic",
+          "context_length": 204800,
+          "input_price": 0.6,
+          "output_price": 2.4
+        },
+        {
+          "model": "MiniMax-M3",
+          "protocol": "anthropic",
+          "context_length": 1000000,
+          "input_price": 0.3,
+          "output_price": 1.2,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
         }
-      ]
+      ],
+      "base_urls": {
+        "openai": "https://api.minimaxi.com/v1",
+        "anthropic": "https://api.minimaxi.com/anthropic"
+      }
     },
     {
       "id": "moonshot",
@@ -353,9 +459,9 @@
       "id": "zhipu",
       "name_en": "Zhipu AI (ChatGLM)",
       "name_zh": "智谱 AI (ChatGLM)",
-      "base_url": "https://open.bigmodel.cn/api/paas/v4",
       "supports_protocols": [
-        "openai"
+        "openai",
+        "anthropic"
       ],
       "default_models": [
         {
@@ -378,8 +484,111 @@
           "context_length": 1000000,
           "input_price": 0.14,
           "output_price": 0.14
+        },
+        {
+          "model": "glm-5.2",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "glm-5.1",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "glm-4.7",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.6,
+          "output_price": 2.2
+        },
+        {
+          "model": "glm-5.2",
+          "protocol": "anthropic",
+          "context_length": 1000000,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "glm-5.1",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 1.4,
+          "output_price": 4.4
+        },
+        {
+          "model": "glm-4.7",
+          "protocol": "anthropic",
+          "context_length": 204800,
+          "input_price": 0.6,
+          "output_price": 2.2
         }
-      ]
+      ],
+      "base_urls": {
+        "openai": "https://open.bigmodel.cn/api/paas/v4",
+        "anthropic": "https://open.bigmodel.cn/api/anthropic"
+      }
+    },
+    {
+      "id": "zai_coding_plan",
+      "name_en": "Z.AI Coding Plan",
+      "name_zh": "Z.AI Coding Plan",
+      "supports_protocols": [
+        "openai",
+        "anthropic"
+      ],
+      "default_models": [
+        {
+          "model": "glm-5.2",
+          "protocol": "openai",
+          "context_length": 1000000,
+          "input_price": 0.0,
+          "output_price": 0.0
+        },
+        {
+          "model": "glm-5.1",
+          "protocol": "openai",
+          "context_length": 200000,
+          "input_price": 0.0,
+          "output_price": 0.0
+        },
+        {
+          "model": "glm-4.7",
+          "protocol": "openai",
+          "context_length": 204800,
+          "input_price": 0.0,
+          "output_price": 0.0
+        },
+        {
+          "model": "glm-5.2",
+          "protocol": "anthropic",
+          "context_length": 1000000,
+          "input_price": 0.0,
+          "output_price": 0.0
+        },
+        {
+          "model": "glm-5.1",
+          "protocol": "anthropic",
+          "context_length": 200000,
+          "input_price": 0.0,
+          "output_price": 0.0
+        },
+        {
+          "model": "glm-4.7",
+          "protocol": "anthropic",
+          "context_length": 204800,
+          "input_price": 0.0,
+          "output_price": 0.0
+        }
+      ],
+      "base_urls": {
+        "openai": "https://api.z.ai/api/coding/paas/v4",
+        "anthropic": "https://api.z.ai/api/anthropic"
+      }
     },
     {
       "id": "mistral",
@@ -637,6 +846,16 @@
           "input_types": [
             "text",
             "audio"
+          ]
+        },
+        {
+          "model": "mimo-v2",
+          "protocol": "anthropic",
+          "context_length": 32768,
+          "input_price": 0.0,
+          "output_price": 0.0,
+          "input_types": [
+            "text"
           ]
         }
       ],
@@ -1421,32 +1640,87 @@
       "name_en": "Kimi For Coding",
       "name_zh": "Kimi Coding",
       "supports_protocols": [
-        "openai"
+        "openai",
+        "anthropic"
       ],
       "default_models": [
         {
-          "model": "k2p6",
+          "model": "k3",
           "protocol": "openai",
-          "context_length": 262144,
+          "context_length": 1048576,
           "input_price": 0,
-          "output_price": 0
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
         },
         {
-          "model": "k2p5",
+          "model": "kimi-for-coding",
           "protocol": "openai",
           "context_length": 262144,
           "input_price": 0,
-          "output_price": 0
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
         },
         {
-          "model": "kimi-k2-thinking",
+          "model": "kimi-for-coding-highspeed",
           "protocol": "openai",
           "context_length": 262144,
           "input_price": 0,
-          "output_price": 0
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
+        },
+        {
+          "model": "k3",
+          "protocol": "anthropic",
+          "context_length": 1048576,
+          "input_price": 0,
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
+        },
+        {
+          "model": "kimi-for-coding",
+          "protocol": "anthropic",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
+        },
+        {
+          "model": "kimi-for-coding-highspeed",
+          "protocol": "anthropic",
+          "context_length": 262144,
+          "input_price": 0,
+          "output_price": 0,
+          "input_types": [
+            "text",
+            "image",
+            "video"
+          ]
         }
       ],
-      "base_url": "https://api.kimi.com/coding/v1"
+      "base_urls": {
+        "openai": "https://api.kimi.com/coding/v1",
+        "anthropic": "https://api.kimi.com/coding/"
+      }
     },
     {
       "id": "inception",
