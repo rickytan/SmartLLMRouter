@@ -352,6 +352,7 @@
 "channelExport.openMessage" = "Select a .slmr.json file to import";
 "channelExport.exportSuccess" = "Export Successful";
 "channelExport.exportSuccessDetail" = "Successfully exported %d channels";
+"channelExport.exportSelectedHint" = "Export %d selected channels";
 "channelExport.exportFailed" = "Export Failed";
 "channelExport.importSuccess" = "Import Successful";
 "channelExport.importSuccessDetail" = "Successfully imported %d channels";

@@ -8,6 +8,7 @@ struct ChannelRowView: View {
     let channelID: String
     let index: Int
     let circuitState: CircuitState
+    let isSelected: Bool
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
     @State private var isHovered = false
@@ -19,12 +20,14 @@ struct ChannelRowView: View {
         channelID: String,
         index: Int,
         circuitState: CircuitState = .closed,
+        isSelected: Bool = false,
         services: AppServices? = nil
     ) {
         let services = services ?? .shared
         self.channelID = channelID
         self.index = index
         self.circuitState = circuitState
+        self.isSelected = isSelected
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _channelManager = ObservedObject(wrappedValue: services.channelManager)
     }
@@ -126,8 +129,19 @@ struct ChannelRowView: View {
         }
         .padding(.vertical, DesignToken.Spacing.sm)
         .padding(.horizontal, DesignToken.Spacing.md)
-        .background(isHovered ? DesignToken.Colors.hoverFill : Color.clear)
-        .cornerRadius(DesignToken.Layout.buttonCornerRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignToken.Layout.rowCornerRadius, style: .continuous)
+                .fill(rowBackgroundColor)
+        )
+        .overlay(alignment: .leading) {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(DesignToken.Colors.accent)
+                    .frame(width: 2)
+                    .padding(.vertical, DesignToken.Spacing.sm)
+            }
+        }
         .opacity(channel.isEnabled ? 1.0 : 0.5)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: DesignToken.Animation.hoverDuration)) {
@@ -138,6 +152,16 @@ struct ChannelRowView: View {
             AddChannelView(editingChannel: channel)
         }
         .accessibilityIdentifier("channel.row.\(index)")
+    }
+
+    private var rowBackgroundColor: Color {
+        if isSelected {
+            return DesignToken.Colors.accent.opacity(0.1)
+        }
+        if isHovered {
+            return DesignToken.Colors.hoverFill
+        }
+        return Color.clear
     }
 
     @ViewBuilder
@@ -188,7 +212,7 @@ struct ChannelRowView: View {
             )
 
             return VStack(spacing: 0) {
-                ChannelRowView(channelID: sampleChannel.id, index: 0)
+                ChannelRowView(channelID: sampleChannel.id, index: 0, isSelected: false)
             }
             .padding()
             .frame(width: 400)

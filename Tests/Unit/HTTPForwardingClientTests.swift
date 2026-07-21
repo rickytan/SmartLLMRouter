@@ -3,6 +3,8 @@ import XCTest
 @testable import SmartLLMRouter
 
 final class HTTPForwardingClientTests: XCTestCase {
+    private static let portLock = NSLock()
+    private static var nextPort: in_port_t = 31_000
     private var server: HttpServer?
     private var port: in_port_t = 0
 
@@ -1061,7 +1063,8 @@ final class HTTPForwardingClientTests: XCTestCase {
     }
 
     private func start(_ server: HttpServer) throws -> in_port_t {
-        for candidate in in_port_t(31_000)...in_port_t(31_100) {
+        for _ in 0..<101 {
+            let candidate = Self.nextCandidatePort()
             do {
                 try server.start(candidate, forceIPv4: true)
                 self.server = server
@@ -1078,6 +1081,14 @@ final class HTTPForwardingClientTests: XCTestCase {
         )
     }
 
+    private static func nextCandidatePort() -> in_port_t {
+        portLock.lock()
+        defer { portLock.unlock() }
+        let candidate = nextPort
+        nextPort = nextPort >= 31_100 ? 31_000 : nextPort + 1
+        return candidate
+    }
+
     private static func jsonResponse(statusCode: Int, json: [String: Any]) -> HttpResponse {
         let body = (try? JSONSerialization.data(withJSONObject: json)) ?? Data()
         let bytes = [UInt8](body)
@@ -1087,7 +1098,21 @@ final class HTTPForwardingClientTests: XCTestCase {
     }
 
     private final class CapturingBodyWriter: HttpResponseBodyWriter {
-        private(set) var data = Data()
+        private let lock = NSLock()
+        private var capturedData = Data()
+
+        private(set) var data: Data {
+            get {
+                lock.lock()
+                defer { lock.unlock() }
+                return capturedData
+            }
+            set {
+                lock.lock()
+                capturedData = newValue
+                lock.unlock()
+            }
+        }
 
         var string: String {
             String(data: data, encoding: .utf8) ?? ""
@@ -1096,19 +1121,27 @@ final class HTTPForwardingClientTests: XCTestCase {
         func write(_ file: String.File) throws {}
 
         func write(_ data: [UInt8]) throws {
-            self.data.append(contentsOf: data)
+            lock.lock()
+            capturedData.append(contentsOf: data)
+            lock.unlock()
         }
 
         func write(_ data: ArraySlice<UInt8>) throws {
-            self.data.append(contentsOf: data)
+            lock.lock()
+            capturedData.append(contentsOf: data)
+            lock.unlock()
         }
 
         func write(_ data: NSData) throws {
-            self.data.append(data as Data)
+            lock.lock()
+            capturedData.append(data as Data)
+            lock.unlock()
         }
 
         func write(_ data: Data) throws {
-            self.data.append(data)
+            lock.lock()
+            capturedData.append(data)
+            lock.unlock()
         }
     }
 
