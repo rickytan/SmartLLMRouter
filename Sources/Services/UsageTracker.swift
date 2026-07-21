@@ -37,6 +37,7 @@ struct UsageStats {
 /// All @Published updates are dispatched to main thread to avoid background-publish warnings.
 final class UsageTracker: ObservableObject {
     @Published private(set) var records: [UsageRecord] = []
+    @Published private(set) var displayRecords: [UsageRecord] = []
     @Published private(set) var todayStats = UsageStats.zero
     @Published private(set) var weekStats = UsageStats.zero
     @Published private(set) var monthStats = UsageStats.zero
@@ -49,6 +50,15 @@ final class UsageTracker: ObservableObject {
     /// Source of truth for mutations. `records` is a main-thread UI projection
     /// and may lag behind this queue while multiple requests complete quickly.
     private var storedRecords: [UsageRecord] = []
+    private var inFlightRecords: [String: UsageRecord] = [:]
+
+    private struct Projection {
+        let records: [UsageRecord]
+        let displayRecords: [UsageRecord]
+        let today: UsageStats
+        let week: UsageStats
+        let month: UsageStats
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -58,6 +68,7 @@ final class UsageTracker: ObservableObject {
     // MARK: - Public API (thread-safe, can be called from any thread)
 
     func recordUsage(
+        requestID: String? = nil,
         channelID: String,
         channelName: String,
         model: String,
@@ -93,14 +104,62 @@ final class UsageTracker: ObservableObject {
             }
 
             self.storedRecords = localRecords
+            if let requestID {
+                self.inFlightRecords.removeValue(forKey: requestID)
+            }
             self.saveRecords(localRecords)
-            let stats = self.computeStats(from: localRecords)
+            let projection = self.computeProjection(records: localRecords, inFlight: self.inFlightRecords)
 
             DispatchQueue.main.async {
-                self.records = localRecords
-                self.todayStats = stats.today
-                self.weekStats = stats.week
-                self.monthStats = stats.month
+                self.publishProjection(projection)
+            }
+        }
+    }
+
+    func updateInFlightUsage(
+        requestID: String,
+        channelID: String,
+        channelName: String,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        estimatedCost: Double,
+        latency: TimeInterval,
+        statusCode: Int = 200,
+        isError: Bool = false
+    ) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let timestamp = self.inFlightRecords[requestID]?.timestamp ?? Date()
+            self.inFlightRecords[requestID] = UsageRecord(
+                timestamp: timestamp,
+                channelID: channelID,
+                channelName: channelName,
+                model: model,
+                inputTokens: max(0, inputTokens),
+                outputTokens: max(0, outputTokens),
+                totalTokens: max(0, inputTokens) + max(0, outputTokens),
+                estimatedCost: max(0, estimatedCost),
+                latency: max(0, latency),
+                statusCode: statusCode,
+                isError: isError
+            )
+
+            let projection = self.computeProjection(records: self.storedRecords, inFlight: self.inFlightRecords)
+            DispatchQueue.main.async {
+                self.publishProjection(projection)
+            }
+        }
+    }
+
+    func finishInFlightUsage(requestID: String) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            guard self.inFlightRecords.removeValue(forKey: requestID) != nil else { return }
+
+            let projection = self.computeProjection(records: self.storedRecords, inFlight: self.inFlightRecords)
+            DispatchQueue.main.async {
+                self.publishProjection(projection)
             }
         }
     }
@@ -109,13 +168,12 @@ final class UsageTracker: ObservableObject {
         queue.async { [weak self] in
             guard let self else { return }
             self.storedRecords = []
+            self.inFlightRecords = [:]
             self.saveRecords([])
+            let projection = self.computeProjection(records: [], inFlight: [:])
 
             DispatchQueue.main.async {
-                self.records = []
-                self.todayStats = .zero
-                self.weekStats = .zero
-                self.monthStats = .zero
+                self.publishProjection(projection)
             }
         }
     }
@@ -131,13 +189,10 @@ final class UsageTracker: ObservableObject {
                 }
                 let decoded = try JSONDecoder().decode([UsageRecord].self, from: data)
                 self.storedRecords = decoded
-                let stats = self.computeStats(from: decoded)
+                let projection = self.computeProjection(records: decoded, inFlight: self.inFlightRecords)
 
                 DispatchQueue.main.async {
-                    self.records = decoded
-                    self.todayStats = stats.today
-                    self.weekStats = stats.week
-                    self.monthStats = stats.month
+                    self.publishProjection(projection)
                 }
                 Log.debug("Loaded \(decoded.count) usage records")
             } catch {
@@ -153,6 +208,30 @@ final class UsageTracker: ObservableObject {
         } catch {
             Log.error("Failed to save usage records: \(error.localizedDescription)")
         }
+    }
+
+    private func computeProjection(
+        records: [UsageRecord],
+        inFlight: [String: UsageRecord]
+    ) -> Projection {
+        let displayRecords = records + inFlight.values.sorted { $0.timestamp < $1.timestamp }
+        let stats = computeStats(from: displayRecords)
+        return Projection(
+            records: records,
+            displayRecords: displayRecords,
+            today: stats.today,
+            week: stats.week,
+            month: stats.month
+        )
+    }
+
+    @MainActor
+    private func publishProjection(_ projection: Projection) {
+        records = projection.records
+        displayRecords = projection.displayRecords
+        todayStats = projection.today
+        weekStats = projection.week
+        monthStats = projection.month
     }
 
     private func computeStats(from allRecords: [UsageRecord]) -> (today: UsageStats, week: UsageStats, month: UsageStats) {

@@ -2,6 +2,8 @@ import Foundation
 import Swifter
 
 final class StreamingForwarder {
+    typealias UsageUpdateHandler = (_ inputTokens: Int, _ outputTokens: Int) -> Void
+
     struct Completion {
         let statusCode: Int
         let headers: [String: String]
@@ -70,7 +72,11 @@ final class StreamingForwarder {
         private var capturedInputTokens = 0
         private var capturedOutputTokens = 0
         private let estimatedInputTokens: Int
+        private let onUsageUpdate: UsageUpdateHandler?
         private var estimatedOutputText = ""
+        private var lastReportedInputTokens = 0
+        private var lastReportedOutputTokens = 0
+        private var lastUsageReportDate = Date.distantPast
         private var responseHeaderLatency: TimeInterval?
         private var timeToFirstByte: TimeInterval?
         private var clientDisconnected = false
@@ -84,13 +90,15 @@ final class StreamingForwarder {
             upstreamProtocol: RequestForwarder.RequestProtocol,
             messageID: String,
             model: String,
-            estimatedInputTokens: Int
+            estimatedInputTokens: Int,
+            onUsageUpdate: UsageUpdateHandler?
         ) {
             self.writer = writer
             self.incomingProtocol = incomingProtocol
             self.upstreamProtocol = upstreamProtocol
             self.converter = OpenAIToAnthropicSSEConverter(messageID: messageID, model: model)
             self.estimatedInputTokens = estimatedInputTokens
+            self.onUsageUpdate = onUsageUpdate
         }
 
         func urlSession(
@@ -344,11 +352,14 @@ final class StreamingForwarder {
             guard let jsonData = data.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return }
 
+            var shouldReportUsage = false
+            var shouldForceUsageReport = false
             let outputFragment = RequestForwarder.outputText(fromStreamingEvent: json)
             if !outputFragment.isEmpty {
                 lock.lock()
                 estimatedOutputText += outputFragment
                 lock.unlock()
+                shouldReportUsage = true
             }
 
             if upstreamProtocol == .anthropic {
@@ -359,6 +370,8 @@ final class StreamingForwarder {
                         lock.lock()
                         if let input = RequestForwarder.totalInputTokens(from: usage) {
                             capturedInputTokens = input
+                            shouldReportUsage = true
+                            shouldForceUsageReport = true
                         }
                         lock.unlock()
                     }
@@ -366,9 +379,13 @@ final class StreamingForwarder {
                         lock.lock()
                         if let input = RequestForwarder.totalInputTokens(from: usage) {
                             capturedInputTokens = input
+                            shouldReportUsage = true
+                            shouldForceUsageReport = true
                         }
                         if let output = RequestForwarder.outputTokens(from: usage) {
                             capturedOutputTokens = output
+                            shouldReportUsage = true
+                            shouldForceUsageReport = true
                         }
                         lock.unlock()
                     }
@@ -379,12 +396,41 @@ final class StreamingForwarder {
                     lock.lock()
                     if let input = RequestForwarder.totalInputTokens(from: usage) {
                         capturedInputTokens = input
+                        shouldReportUsage = true
+                        shouldForceUsageReport = true
                     }
                     if let output = RequestForwarder.outputTokens(from: usage) {
                         capturedOutputTokens = output
+                        shouldReportUsage = true
+                        shouldForceUsageReport = true
                     }
                     lock.unlock()
                 }
+            }
+
+            if shouldReportUsage {
+                reportUsageIfChanged(force: shouldForceUsageReport)
+            }
+        }
+
+        private func reportUsageIfChanged(force: Bool) {
+            lock.lock()
+            let inputTokens = capturedInputTokens > 0 ? capturedInputTokens : estimatedInputTokens
+            let outputTokens = capturedOutputTokens > 0
+                ? capturedOutputTokens
+                : RequestForwarder.estimatedTokenCount(for: estimatedOutputText)
+            let changed = inputTokens != lastReportedInputTokens || outputTokens != lastReportedOutputTokens
+            let now = Date()
+            let shouldPublish = changed && (force || now.timeIntervalSince(lastUsageReportDate) >= 1)
+            if shouldPublish {
+                lastReportedInputTokens = inputTokens
+                lastReportedOutputTokens = outputTokens
+                lastUsageReportDate = now
+            }
+            lock.unlock()
+
+            if shouldPublish {
+                onUsageUpdate?(inputTokens, outputTokens)
             }
         }
     }
@@ -407,6 +453,7 @@ final class StreamingForwarder {
     private let requestID: String
     private let model: String
     private let maxAPIKeyAttempts: Int
+    private let onUsageUpdate: UsageUpdateHandler?
 
     init(
         url: URL,
@@ -427,7 +474,8 @@ final class StreamingForwarder {
         apiKeyAvailabilityStore: APIKeyAvailabilityStore? = nil,
         requestID: String,
         model: String,
-        maxAPIKeyAttempts: Int = .max
+        maxAPIKeyAttempts: Int = .max,
+        onUsageUpdate: UsageUpdateHandler? = nil
     ) {
         self.url = url
         self.method = method
@@ -447,6 +495,7 @@ final class StreamingForwarder {
         self.requestID = requestID
         self.model = model
         self.maxAPIKeyAttempts = max(1, maxAPIKeyAttempts)
+        self.onUsageUpdate = onUsageUpdate
     }
 
     func stream(to writer: HttpResponseBodyWriter, writesErrorOnFailure: Bool = true) -> Completion {
@@ -501,7 +550,8 @@ final class StreamingForwarder {
                 upstreamProtocol: upstreamProtocol,
                 messageID: "msg_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
                 model: model,
-                estimatedInputTokens: RequestForwarder.estimatedInputTokens(from: body)
+                estimatedInputTokens: RequestForwarder.estimatedInputTokens(from: body),
+                onUsageUpdate: onUsageUpdate
             )
             let attemptFirstByteTimeout = min(firstByteTimeout, remainingBudget)
             let configuration = streamingConfiguration()

@@ -175,6 +175,67 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(tracker.monthStats.totalRequests, 0)
     }
 
+    func testUsageTrackerIncludesInFlightUsageInStatsWithoutPersistingIt() async throws {
+        let tracker = UsageTracker(defaults: defaults)
+
+        tracker.updateInFlightUsage(
+            requestID: "req-stream",
+            channelID: "stream",
+            channelName: "Stream",
+            model: "glm-5.2",
+            inputTokens: 100,
+            outputTokens: 250,
+            estimatedCost: 0.03,
+            latency: 1_200
+        )
+
+        try await waitUntil { tracker.displayRecords.count == 1 }
+        XCTAssertTrue(tracker.records.isEmpty)
+        XCTAssertEqual(tracker.todayStats.totalRequests, 1)
+        XCTAssertEqual(tracker.todayStats.totalInputTokens, 100)
+        XCTAssertEqual(tracker.todayStats.totalOutputTokens, 250)
+
+        let reloaded = UsageTracker(defaults: defaults)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(reloaded.records.isEmpty)
+        XCTAssertTrue(reloaded.displayRecords.isEmpty)
+    }
+
+    func testUsageTrackerReplacesInFlightUsageWithFinalRecord() async throws {
+        let tracker = UsageTracker(defaults: defaults)
+
+        tracker.updateInFlightUsage(
+            requestID: "req-stream",
+            channelID: "stream",
+            channelName: "Stream",
+            model: "glm-5.2",
+            inputTokens: 100,
+            outputTokens: 250,
+            estimatedCost: 0.03,
+            latency: 1_200
+        )
+        try await waitUntil { tracker.displayRecords.count == 1 }
+
+        tracker.recordUsage(
+            requestID: "req-stream",
+            channelID: "stream",
+            channelName: "Stream",
+            model: "glm-5.2",
+            inputTokens: 120,
+            outputTokens: 300,
+            estimatedCost: 0.04,
+            latency: 1_500,
+            statusCode: 200,
+            isError: false
+        )
+
+        try await waitUntil { tracker.records.count == 1 && tracker.displayRecords.count == 1 }
+        XCTAssertEqual(tracker.records.first?.inputTokens, 120)
+        XCTAssertEqual(tracker.records.first?.outputTokens, 300)
+        XCTAssertEqual(tracker.todayStats.totalRequests, 1)
+        XCTAssertEqual(tracker.todayStats.totalTokens, 420)
+    }
+
     private func makeChannel(
         id: String,
         name: String,

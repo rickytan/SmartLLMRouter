@@ -751,6 +751,48 @@ final class HTTPForwardingClientTests: XCTestCase {
         XCTAssertEqual(completion.outputTokens, 45)
     }
 
+    func testStreamingForwarderReportsUsageUpdatesBeforeCompletion() throws {
+        let server = HttpServer()
+        let upstreamStream = """
+        data: {"choices":[{"delta":{"content":"ok"},"finish_reason":null}]}
+
+        data: {"choices":[],"usage":{"input_tokens":123,"output_tokens":45}}
+
+        data: [DONE]
+
+        """
+        server.post["/v1/chat/completions"] = { _ in
+            .raw(200, "OK", ["content-type": "text/event-stream"]) { writer in
+                try writer.write(Data(upstreamStream.utf8))
+            }
+        }
+
+        let port = try start(server)
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/v1/chat/completions"))
+        let writer = CapturingBodyWriter()
+        var updates: [(input: Int, output: Int)] = []
+        let forwarder = StreamingForwarder(
+            url: url,
+            headers: ["content-type": "application/json"],
+            body: Data(#"{"stream":true}"#.utf8),
+            timeout: 5,
+            apiKeys: ["openai-key"],
+            incomingProtocol: .openai,
+            upstreamProtocol: .openai,
+            channelName: "OpenAI Channel",
+            requestID: "#stream-usage-update-test",
+            model: "gpt-test",
+            onUsageUpdate: { input, output in
+                updates.append((input, output))
+            }
+        )
+
+        let completion = forwarder.stream(to: writer)
+
+        XCTAssertTrue(completion.isSuccess)
+        XCTAssertTrue(updates.contains { $0.input == 123 && $0.output == 45 })
+    }
+
     func testStreamingForwarderEstimatesUsageWhenOpenAICompatibleProviderOmitsIt() throws {
         let server = HttpServer()
         let upstreamStream = """
