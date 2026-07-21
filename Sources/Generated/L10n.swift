@@ -189,6 +189,10 @@ internal enum L10n {
     internal static var exportFailed: String {
       L10n.tr("Localizable", "channelExport.exportFailed", fallback: "Export Failed")
     }
+    /// Export %d selected channels
+    internal static func exportSelectedHint(_ p1: Int) -> String {
+      return L10n.tr("Localizable", "channelExport.exportSelectedHint", p1, fallback: "Export %d selected channels")
+    }
     /// Export Successful
     internal static var exportSuccess: String {
       L10n.tr("Localizable", "channelExport.exportSuccess", fallback: "Export Successful")

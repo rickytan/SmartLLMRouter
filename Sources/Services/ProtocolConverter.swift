@@ -882,12 +882,37 @@ struct OpenAIToAnthropicSSEConverter {
 
     private func encodeAnthropicEvent(event: String, object: [String: Any]) -> String {
         let data: String
-        if let jsonData = try? JSONSerialization.data(withJSONObject: object),
+        let jsonObject = jsonCompatibleObject(object) as? [String: Any] ?? object
+        if JSONSerialization.isValidJSONObject(jsonObject),
+           let jsonData = try? JSONSerialization.data(withJSONObject: jsonObject),
            let json = String(data: jsonData, encoding: .utf8) {
             data = json
         } else {
             data = "{\"type\":\"error\",\"error\":{\"type\":\"serialization_error\",\"message\":\"Failed to encode SSE event\"}}"
         }
         return SSEEncoder.encode(event: event, data: data)
+    }
+
+    private func jsonCompatibleObject(_ value: Any) -> Any {
+        switch value {
+        case is NSNull, is String, is NSNumber:
+            return value
+        case let value as Bool:
+            return value
+        case let value as Int:
+            return value
+        case let value as Double:
+            return value
+        case let value as Float:
+            return Double(value)
+        case let dictionary as [String: Any]:
+            return dictionary.reduce(into: [String: Any]()) { result, pair in
+                result[pair.key] = jsonCompatibleObject(pair.value)
+            }
+        case let array as [Any]:
+            return array.map(jsonCompatibleObject)
+        default:
+            return String(describing: value)
+        }
     }
 }

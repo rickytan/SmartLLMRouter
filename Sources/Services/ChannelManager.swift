@@ -202,34 +202,91 @@ final class ChannelManager: ObservableObject {
     }
 
     static func mergeProviderTemplates(base: [ProviderTemplate], updates: [ProviderTemplate]) -> [ProviderTemplate] {
-        var mergedById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
+        var mergedTemplates = base
         for update in updates {
-            if let existing = mergedById[update.id] {
-                // Merge endpoints: start with existing, let update override keys it provides.
-                // This preserves local anthropic URLs even when models.dev only returns openai.
-                var endpoints = existing.protocolBaseURLMap()
-                for (key, value) in update.protocolBaseURLMap() {
-                    endpoints[key] = value
-                }
-                let models = update.defaultModels.isEmpty ? existing.defaultModels : update.defaultModels
-                let protocols = update.supportsProtocols.isEmpty ? existing.supportsProtocols : update.supportsProtocols
-                mergedById[update.id] = ProviderTemplate(
-                    id: existing.id,
-                    nameEn: update.nameEn.isEmpty ? existing.nameEn : update.nameEn,
-                    nameZh: update.nameZh.isEmpty ? existing.nameZh : update.nameZh,
-                    baseUrls: endpoints.isEmpty ? existing.baseUrls : endpoints,
-                    baseURL: update.baseURL ?? existing.baseURL,
-                    supportsProtocols: protocols,
-                    defaultModels: models
+            if let existingIndex = mergedTemplates.firstIndex(where: { $0.id == update.id }) {
+                mergedTemplates[existingIndex] = mergedProviderTemplate(
+                    existing: mergedTemplates[existingIndex],
+                    update: update,
+                    mergeFallbackModels: false
+                )
+            } else if let endpointIndex = mergedTemplates.firstIndex(where: { sharesEndpoint($0, update) }) {
+                mergedTemplates[endpointIndex] = mergedProviderTemplate(
+                    existing: mergedTemplates[endpointIndex],
+                    update: update,
+                    mergeFallbackModels: true
                 )
             } else {
-                mergedById[update.id] = update
+                mergedTemplates.append(update)
             }
         }
 
-        return mergedById.values.sorted {
+        return mergedTemplates.sorted {
             $0.nameEn.localizedCaseInsensitiveCompare($1.nameEn) == .orderedAscending
         }
+    }
+
+    private static func mergedProviderTemplate(
+        existing: ProviderTemplate,
+        update: ProviderTemplate,
+        mergeFallbackModels: Bool
+    ) -> ProviderTemplate {
+        // Merge endpoints: start with existing, let update override keys it provides.
+        // This preserves local anthropic URLs even when models.dev only returns openai.
+        var endpoints = existing.protocolBaseURLMap()
+        for (key, value) in update.protocolBaseURLMap() {
+            endpoints[key] = value
+        }
+
+        return ProviderTemplate(
+            id: existing.id,
+            nameEn: existing.nameEn,
+            nameZh: existing.nameZh,
+            baseUrls: endpoints.isEmpty ? existing.baseUrls : endpoints,
+            baseURL: update.baseURL ?? existing.baseURL,
+            supportsProtocols: mergedProtocols(existing.supportsProtocols, update.supportsProtocols),
+            defaultModels: mergedProviderModels(
+                primary: update.defaultModels,
+                fallback: existing.defaultModels,
+                includeFallbackWhenPrimaryExists: mergeFallbackModels
+            )
+        )
+    }
+
+    private static func sharesEndpoint(_ lhs: ProviderTemplate, _ rhs: ProviderTemplate) -> Bool {
+        !Set(endpointKeys(for: lhs)).isDisjoint(with: endpointKeys(for: rhs))
+    }
+
+    private static func endpointKeys(for template: ProviderTemplate) -> [String] {
+        template.protocolBaseURLMap().compactMap { proto, url in
+            let normalizedURL = url
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                .lowercased()
+            guard !normalizedURL.isEmpty else { return nil }
+            return "\(proto.lowercased())|\(normalizedURL)"
+        }
+    }
+
+    private static func mergedProtocols(_ primary: [String], _ secondary: [String]) -> [String] {
+        var seen = Set<String>()
+        return (primary + secondary).filter { seen.insert($0).inserted }
+    }
+
+    private static func mergedProviderModels(
+        primary: [ProviderModel],
+        fallback: [ProviderModel],
+        includeFallbackWhenPrimaryExists: Bool
+    ) -> [ProviderModel] {
+        let preferred = primary.isEmpty ? fallback : primary
+        let secondary = primary.isEmpty || !includeFallbackWhenPrimaryExists ? [] : fallback
+        var seen = Set<String>()
+        return (preferred + secondary)
+            .filter { seen.insert("\($0.protocol)|\($0.model)").inserted }
+            .sorted {
+                if $0.protocol != $1.protocol { return $0.protocol < $1.protocol }
+                return $0.model.localizedCaseInsensitiveCompare($1.model) == .orderedAscending
+            }
     }
 
     /// Get provider template by ID

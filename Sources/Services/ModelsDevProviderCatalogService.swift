@@ -50,7 +50,8 @@ struct ModelsDevProviderCatalogService {
 
     static func parseTemplates(from data: Data) throws -> [ProviderTemplate] {
         let providers = try JSONDecoder().decode([String: ModelsDevProvider].self, from: data)
-        return providers.values.compactMap(makeTemplate(from:)).sorted {
+        let templates = providers.values.compactMap(makeTemplate(from:))
+        return deduplicatedTemplates(templates).sorted {
             $0.nameEn.localizedCaseInsensitiveCompare($1.nameEn) == .orderedAscending
         }
     }
@@ -106,6 +107,80 @@ struct ModelsDevProviderCatalogService {
         var seen = Set<String>()
         let uniqueValues = values.filter { seen.insert($0).inserted }
         return uniqueValues.isEmpty ? ["text"] : uniqueValues
+    }
+
+    private static func deduplicatedTemplates(_ templates: [ProviderTemplate]) -> [ProviderTemplate] {
+        var result: [ProviderTemplate] = []
+        for template in templates.sorted(by: shouldSortBeforeForDeduplication) {
+            guard let index = result.firstIndex(where: { sharesEndpoint($0, template) }) else {
+                result.append(template)
+                continue
+            }
+            result[index] = mergedTemplate(preferred: result[index], duplicate: template)
+        }
+        return result
+    }
+
+    private static func shouldSortBeforeForDeduplication(_ lhs: ProviderTemplate, _ rhs: ProviderTemplate) -> Bool {
+        let lhsScore = duplicatePenalty(lhs)
+        let rhsScore = duplicatePenalty(rhs)
+        if lhsScore != rhsScore { return lhsScore < rhsScore }
+        return lhs.nameEn.localizedCaseInsensitiveCompare(rhs.nameEn) == .orderedAscending
+    }
+
+    private static func duplicatePenalty(_ template: ProviderTemplate) -> Int {
+        let searchable = "\(template.id) \(template.nameEn)".lowercased()
+        var penalty = 0
+        if searchable.contains("coding plan") || searchable.contains("coding-plan") { penalty += 10 }
+        if searchable.contains("token plan") || searchable.contains("token-plan") { penalty += 10 }
+        return penalty
+    }
+
+    private static func sharesEndpoint(_ lhs: ProviderTemplate, _ rhs: ProviderTemplate) -> Bool {
+        !Set(endpointKeys(for: lhs)).isDisjoint(with: endpointKeys(for: rhs))
+    }
+
+    private static func endpointKeys(for template: ProviderTemplate) -> [String] {
+        template.protocolBaseURLMap().compactMap { proto, url in
+            let normalizedURL = url
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                .lowercased()
+            guard !normalizedURL.isEmpty else { return nil }
+            return "\(proto.lowercased())|\(normalizedURL)"
+        }
+    }
+
+    private static func mergedTemplate(preferred: ProviderTemplate, duplicate: ProviderTemplate) -> ProviderTemplate {
+        var endpoints = preferred.protocolBaseURLMap()
+        for (key, value) in duplicate.protocolBaseURLMap() where endpoints[key] == nil {
+            endpoints[key] = value
+        }
+
+        return ProviderTemplate(
+            id: preferred.id,
+            nameEn: preferred.nameEn,
+            nameZh: preferred.nameZh,
+            baseUrls: endpoints.isEmpty ? preferred.baseUrls : endpoints,
+            baseURL: preferred.baseURL ?? duplicate.baseURL,
+            supportsProtocols: mergedProtocols(preferred.supportsProtocols, duplicate.supportsProtocols),
+            defaultModels: mergedModels(preferred.defaultModels, duplicate.defaultModels)
+        )
+    }
+
+    private static func mergedProtocols(_ primary: [String], _ secondary: [String]) -> [String] {
+        var seen = Set<String>()
+        return (primary + secondary).filter { seen.insert($0).inserted }
+    }
+
+    private static func mergedModels(_ primary: [ProviderModel], _ secondary: [ProviderModel]) -> [ProviderModel] {
+        var seen = Set<String>()
+        return (primary + secondary)
+            .filter { seen.insert("\($0.protocol)|\($0.model)").inserted }
+            .sorted {
+                if $0.protocol != $1.protocol { return $0.protocol < $1.protocol }
+                return $0.model.localizedCaseInsensitiveCompare($1.model) == .orderedAscending
+            }
     }
 }
 

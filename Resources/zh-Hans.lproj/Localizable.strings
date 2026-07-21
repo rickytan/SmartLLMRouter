@@ -351,6 +351,7 @@
 "channelExport.openMessage" = "选择要导入的 .slmr.json 文件";
 "channelExport.exportSuccess" = "导出成功";
 "channelExport.exportSuccessDetail" = "成功导出 %d 个通道";
+"channelExport.exportSelectedHint" = "导出 %d 个选中的通道";
 "channelExport.exportFailed" = "导出失败";
 "channelExport.importSuccess" = "导入成功";
 "channelExport.importSuccessDetail" = "成功导入 %d 个通道";

@@ -168,6 +168,39 @@ final class ModelsDevProviderCatalogServiceTests: XCTestCase {
         XCTAssertTrue(templates.isEmpty)
     }
 
+    func testParseTemplatesDeduplicatesProvidersWithSameEndpointAndKeepsGeneralName() throws {
+        let json = """
+        {
+          "minimax": {
+            "id": "minimax",
+            "name": "MiniMax",
+            "npm": "@ai-sdk/anthropic",
+            "api": "https://api.minimax.io/anthropic/v1",
+            "models": {
+              "claude-compatible": { "id": "claude-compatible" }
+            }
+          },
+          "minimax-coding-plan": {
+            "id": "minimax-coding-plan",
+            "name": "MiniMax Token Plan",
+            "npm": "@ai-sdk/anthropic",
+            "api": "https://api.minimax.io/anthropic/v1/",
+            "models": {
+              "coding-only": { "id": "coding-only" }
+            }
+          }
+        }
+        """.data(using: .utf8)!
+
+        let templates = try ModelsDevProviderCatalogService.parseTemplates(from: json)
+
+        XCTAssertEqual(templates.count, 1)
+        XCTAssertEqual(templates[0].id, "minimax")
+        XCTAssertEqual(templates[0].nameEn, "MiniMax")
+        XCTAssertEqual(templates[0].baseURL(for: Channel.anthropicEndpointKey), "https://api.minimax.io/anthropic/v1")
+        XCTAssertEqual(templates[0].defaultModels.map(\.model), ["claude-compatible", "coding-only"])
+    }
+
     func testCacheTemplatesRoundTripsProviderTemplates() throws {
         let suiteName = "ModelsDevProviderCatalogServiceTests.\(UUID().uuidString)"
         let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -279,6 +312,52 @@ final class ModelsDevProviderCatalogServiceTests: XCTestCase {
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged[0].baseURL(for: Channel.openAIEndpointKey), "https://api.openai.com/v1")
         XCTAssertEqual(merged[0].defaultModels.map(\.model), ["gpt-new"])
+    }
+
+    @MainActor
+    func testMergeProviderTemplatesDeduplicatesDifferentIDsWithSameEndpoint() {
+        let builtIn = ProviderTemplate(
+            id: "moonshot",
+            nameEn: "Moonshot AI (Kimi)",
+            nameZh: "Moonshot AI (Kimi)",
+            baseURL: "https://api.moonshot.cn/v1",
+            supportsProtocols: [Channel.openAIEndpointKey],
+            defaultModels: [
+                ProviderModel(
+                    model: "moonshot-v1-8k",
+                    protocol: Channel.openAIEndpointKey,
+                    contextLength: 8_000,
+                    inputPrice: 1,
+                    outputPrice: 2,
+                    inputTypes: ["text"]
+                ),
+            ]
+        )
+        let remote = ProviderTemplate(
+            id: "moonshotai-cn",
+            nameEn: "Moonshot AI (China)",
+            nameZh: "Moonshot AI (China)",
+            baseURL: "https://api.moonshot.cn/v1/",
+            supportsProtocols: [Channel.openAIEndpointKey],
+            defaultModels: [
+                ProviderModel(
+                    model: "kimi-k2",
+                    protocol: Channel.openAIEndpointKey,
+                    contextLength: 128_000,
+                    inputPrice: 3,
+                    outputPrice: 4,
+                    inputTypes: ["text"]
+                ),
+            ]
+        )
+
+        let merged = ChannelManager.mergeProviderTemplates(base: [builtIn], updates: [remote])
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].id, "moonshot")
+        XCTAssertEqual(merged[0].nameEn, "Moonshot AI (Kimi)")
+        XCTAssertEqual(merged[0].baseURL(for: Channel.openAIEndpointKey), "https://api.moonshot.cn/v1/")
+        XCTAssertEqual(merged[0].defaultModels.map(\.model), ["kimi-k2", "moonshot-v1-8k"])
     }
 
     private var gregorianCalendar: Calendar {
