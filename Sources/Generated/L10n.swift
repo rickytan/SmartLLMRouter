@@ -491,18 +491,6 @@ internal enum L10n {
     internal static var copyEnv: String {
       L10n.tr("Localizable", "menu.copy.env", fallback: "Copy Env Config")
     }
-    /// Auto-Failover
-    internal static var failoverAuto: String {
-      L10n.tr("Localizable", "menu.failover.auto", fallback: "Auto-Failover")
-    }
-    /// Manual Mode
-    internal static var failoverManual: String {
-      L10n.tr("Localizable", "menu.failover.manual", fallback: "Manual Mode")
-    }
-    /// Skip failed channels after 429 / 5xx / 401
-    internal static var failoverSubtitle: String {
-      L10n.tr("Localizable", "menu.failover.subtitle", fallback: "Skip failed channels after 429 / 5xx / 401")
-    }
     /// Pause
     internal static var proxyPause: String {
       L10n.tr("Localizable", "menu.proxy.pause", fallback: "Pause")
@@ -539,21 +527,21 @@ internal enum L10n {
     internal static var requestsRecent: String {
       L10n.tr("Localizable", "menu.requests.recent", fallback: "Recent Requests")
     }
-    /// OpenAI / Anthropic
+    /// Client model
     internal static var routingProtocols: String {
-      L10n.tr("Localizable", "menu.routing.protocols", fallback: "OpenAI / Anthropic")
+      L10n.tr("Localizable", "menu.routing.protocols", fallback: "Client model")
     }
-    /// Routing
+    /// Model Override
     internal static var routingTitle: String {
-      L10n.tr("Localizable", "menu.routing.title", fallback: "Routing")
+      L10n.tr("Localizable", "menu.routing.title", fallback: "Model Override")
     }
-    /// Auto-route by requested model
+    /// Pass through the client's requested model
     internal static var routingDefaultSubtitle: String {
-      L10n.tr("Localizable", "menu.routing.default.subtitle", fallback: "Auto-route by requested model")
+      L10n.tr("Localizable", "menu.routing.default.subtitle", fallback: "Pass through the client's requested model")
     }
-    /// Force this model for client requests
+    /// Override the model field in client requests
     internal static var routingOverrideSubtitle: String {
-      L10n.tr("Localizable", "menu.routing.override.subtitle", fallback: "Force this model for client requests")
+      L10n.tr("Localizable", "menu.routing.override.subtitle", fallback: "Override the model field in client requests")
     }
     /// %lld%% errors
     internal static func statsErrorRate(_ p1: Int) -> String {
@@ -609,9 +597,9 @@ internal enum L10n {
     internal static func active(_ p1: Any) -> String {
       return L10n.tr("Localizable", "model.active", String(describing: p1), fallback: "Active: %@")
     }
-    /// Default (Passthrough)
+    /// Passthrough
     internal static var defaultPassthrough: String {
-      L10n.tr("Localizable", "model.default.passthrough", fallback: "Default (Passthrough)")
+      L10n.tr("Localizable", "model.default.passthrough", fallback: "Passthrough")
     }
     /// No models available
     internal static var noModelsAvailable: String {
@@ -954,10 +942,6 @@ internal enum L10n {
     /// Cooldown Period
     internal static var advancedCooldown: String {
       L10n.tr("Localizable", "settings.advanced.cooldown", fallback: "Cooldown Period")
-    }
-    /// Auto-Failover
-    internal static var advancedFailover: String {
-      L10n.tr("Localizable", "settings.advanced.failover", fallback: "Auto-Failover")
     }
     /// Max Fallback Cost
     internal static var advancedMaxFallbackCost: String {

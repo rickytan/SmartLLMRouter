@@ -26,18 +26,15 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(state.port, 1897)
         state.savePort(4242)
         state.savePort(0)
-        state.toggleAutoFailover()
         state.toggleLaunchAtLogin()
         state.completeOnboarding()
 
         XCTAssertEqual(state.port, 4242)
-        XCTAssertFalse(state.autoFailover)
         XCTAssertTrue(state.launchAtLogin)
         XCTAssertTrue(state.onboardingCompleted)
 
         let reloaded = AppState(defaults: defaults)
         XCTAssertEqual(reloaded.port, 4242)
-        XCTAssertFalse(reloaded.autoFailover)
         XCTAssertTrue(reloaded.launchAtLogin)
         XCTAssertTrue(reloaded.onboardingCompleted)
     }

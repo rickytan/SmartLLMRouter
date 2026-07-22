@@ -1,11 +1,5 @@
 import Foundation
 
-/// Routing mode for the SmartRouter
-enum RoutingMode: String, Codable, CaseIterable {
-    case manual = "Manual"
-    case auto = "Auto"
-}
-
 /// Error types that trigger cooldown/failover
 enum RouterErrorType: CustomStringConvertible {
     case rateLimit429
@@ -129,7 +123,6 @@ struct RoutingDecision {
 
 final class RouterRuntimeState {
     private let lock = NSRecursiveLock()
-    private var mode: RoutingMode = .auto
     private var maxRetries: Int = 3
     private var smartFallbackEnabled: Bool = false
     private var maxFallbackCost: Double = 2.0
@@ -149,7 +142,6 @@ final class RouterRuntimeState {
         self.circuitBreaker = circuitBreaker
         self.switchLock = switchLock
         let defaults = UserDefaults.standard
-        mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
         let savedMaxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
         maxRetries = savedMaxRetries == 0 ? 3 : savedMaxRetries
         smartFallbackEnabled = defaults.bool(forKey: "smartllm_smart_fallback_enabled")
@@ -157,9 +149,8 @@ final class RouterRuntimeState {
         maxFallbackCost = savedMaxFallbackCost > 0 ? savedMaxFallbackCost : 2.0
     }
 
-    func updateSettings(mode: RoutingMode, maxRetries: Int, smartFallbackEnabled: Bool, maxFallbackCost: Double) {
+    func updateSettings(maxRetries: Int, smartFallbackEnabled: Bool, maxFallbackCost: Double) {
         lock.lock()
-        self.mode = mode
         self.maxRetries = maxRetries
         self.smartFallbackEnabled = smartFallbackEnabled
         self.maxFallbackCost = maxFallbackCost
@@ -286,11 +277,6 @@ final class RouterRuntimeState {
 
         let errorType = RouterErrorType(statusCode: statusCode, errorBody: errorBody)
         Log.info("Handling error \(statusCode) for request \(requestID)")
-
-        if mode == .manual {
-            Log.info("Manual mode - no retry")
-            return nil
-        }
 
         if errorType == .forbidden403 {
             Log.info("Error type \(errorType) does not trigger failover")
@@ -650,7 +636,6 @@ final class SmartRouter: ObservableObject {
     static let circuitBreakerFailureThresholdRange = 1...10
     static let cooldown429MinutesRange = 1...1440
 
-    @Published var mode: RoutingMode = .auto
     @Published var maxRetries: Int = 3
     @Published var cooldown429Minutes: Int = 30
     @Published var cooldown5xxMinutes: Int = 10
@@ -674,7 +659,6 @@ final class SmartRouter: ObservableObject {
     // MARK: - Settings
 
     private func loadSettings() {
-        mode = RoutingMode(rawValue: defaults.string(forKey: "smartllm_router_mode") ?? "Auto") ?? .auto
         maxRetries = defaults.integer(forKey: "smartllm_router_max_retries")
         if maxRetries == 0 { maxRetries = 3 }
 
@@ -701,7 +685,6 @@ final class SmartRouter: ObservableObject {
     }
 
     func saveSettings() {
-        defaults.set(mode.rawValue, forKey: "smartllm_router_mode")
         defaults.set(maxRetries, forKey: "smartllm_router_max_retries")
         defaults.set(cooldown429Minutes, forKey: "smartllm_router_cooldown_429")
         defaults.set(cooldown5xxMinutes, forKey: "smartllm_router_cooldown_5xx")
@@ -720,7 +703,6 @@ final class SmartRouter: ObservableObject {
             activeChannelID: services.channelServices.store.activeChannelID
         )
         services.runtimeState.updateSettings(
-            mode: mode,
             maxRetries: maxRetries,
             smartFallbackEnabled: smartFallbackEnabled,
             maxFallbackCost: maxFallbackCost
@@ -793,12 +775,6 @@ final class SmartRouter: ObservableObject {
         if let h = hrs401 {
             cooldown401Hours = h
         }
-        saveSettings()
-    }
-
-    /// Update routing mode
-    func setMode(_ newMode: RoutingMode) {
-        mode = newMode
         saveSettings()
     }
 

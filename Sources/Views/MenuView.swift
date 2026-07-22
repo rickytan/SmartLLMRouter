@@ -141,32 +141,6 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: DesignToken.Spacing.xs) {
             sectionHeader(title: L10n.Menu.routingTitle, trailing: L10n.Menu.routingProtocols)
             modelSelector
-
-            Divider()
-
-            HStack(spacing: DesignToken.Spacing.sm) {
-                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
-                    Text(appState.autoFailover ? L10n.Menu.failoverAuto : L10n.Menu.failoverManual)
-                        .font(DesignToken.Font.h3())
-                        .foregroundColor(DesignToken.Colors.textPrimary)
-
-                    Text(L10n.Menu.failoverSubtitle)
-                        .font(DesignToken.Font.microSmall())
-                        .foregroundColor(DesignToken.Colors.textSecondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-
-                Spacer()
-
-                Toggle("", isOn: Binding(
-                    get: { appState.autoFailover },
-                    set: { _ in appState.toggleAutoFailover() }
-                ))
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .accessibilityIdentifier("menu.failover.toggle")
-            }
         }
         .padding(DesignToken.Spacing.sm)
         .background(DesignToken.Colors.bgSecondary)

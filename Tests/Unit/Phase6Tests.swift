@@ -563,7 +563,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
             usageTracker: UsageTracker(defaults: isolatedStore.defaults)
         )
         router = SmartRouter(services: services, defaults: isolatedStore.defaults)
-        router.mode = .auto
         router.maxRetries = 3
         router.smartFallbackEnabled = false
     }
@@ -647,7 +646,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         )
         isolatedStore.store.addChannel(unrelated)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -694,7 +692,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(matching)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -731,7 +728,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(matching)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -767,7 +763,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(matching)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -799,7 +794,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(coolingSecondary)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -935,7 +929,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(insufficient)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
@@ -993,7 +986,6 @@ final class SmartRoutingIntegrationTests: XCTestCase {
         isolatedStore.store.addChannel(sufficient)
         isolatedStore.store.addChannel(fallback)
         runtimeState.updateSettings(
-            mode: .auto,
             maxRetries: 3,
             smartFallbackEnabled: true,
             maxFallbackCost: 2
