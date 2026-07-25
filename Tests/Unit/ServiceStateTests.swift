@@ -98,6 +98,28 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
     }
 
+    func testMoveChannelByIDUpdatesPriorityOrder() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        defer { isolated.cleanup() }
+
+        let first = makeChannel(id: "first", name: "First", priority: 1)
+        let second = makeChannel(id: "second", name: "Second", priority: 2)
+        let third = makeChannel(id: "third", name: "Third", priority: 3)
+        isolated.store.addChannel(first)
+        isolated.store.addChannel(second)
+        isolated.store.addChannel(third)
+
+        isolated.store.moveChannel(id: "first", to: "third")
+
+        XCTAssertEqual(isolated.store.channels.map(\.id), ["second", "third", "first"])
+        XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
+
+        isolated.store.moveChannel(id: "first", to: "second")
+
+        XCTAssertEqual(isolated.store.channels.map(\.id), ["first", "second", "third"])
+        XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
+    }
+
     func testModelSwitcherExcludesDisabledChannelsAndClearsInvalidSelection() {
         let isolatedStore = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
         let isolatedKeychain = KeychainManagerTestSupport.makeIsolatedKeychainManager()
