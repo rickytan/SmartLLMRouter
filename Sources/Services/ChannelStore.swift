@@ -165,11 +165,43 @@ final class ChannelStore: ObservableObject {
     }
 
     func moveChannel(from source: IndexSet, to destination: Int) {
+        let orderBefore = channels.map(\.name).joined(separator: " > ")
+        Log.info(
+            "[ChannelReorder] Native move source=\(source.map(String.init).joined(separator: ",")) " +
+                "destination=\(destination) before=\(orderBefore)"
+        )
         channels.move(fromOffsets: source, toOffset: destination)
-        // Update priority based on new order
+        Log.info(
+            "[ChannelReorder] Native moved after=\(channels.map(\.name).joined(separator: " > "))"
+        )
+        updatePrioritiesAfterReorder()
+    }
+
+    func moveChannel(id sourceID: String, to targetID: String) {
+        guard sourceID != targetID,
+              let sourceIndex = channels.firstIndex(where: { $0.id == sourceID }),
+              let targetIndex = channels.firstIndex(where: { $0.id == targetID })
+        else {
+            return
+        }
+
+        let destination = targetIndex > sourceIndex ? targetIndex + 1 : targetIndex
+        Log.info(
+            "[ChannelReorder] Drop move source=\(sourceIndex) target=\(targetIndex) " +
+                "destination=\(destination) before=\(channels.map(\.name).joined(separator: " > "))"
+        )
+        channels.move(fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
+        Log.info(
+            "[ChannelReorder] Drop moved after=\(channels.map(\.name).joined(separator: " > "))"
+        )
+        updatePrioritiesAfterReorder()
+    }
+
+    private func updatePrioritiesAfterReorder() {
         for index in channels.indices {
             channels[index].priority = index + 1
         }
+        invalidateModelCache?()
         saveChannels()
     }
 
