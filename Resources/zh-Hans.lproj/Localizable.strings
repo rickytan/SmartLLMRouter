@@ -16,13 +16,10 @@
 "menu.proxy.start" = "启动";
 "menu.proxy.running.subtitle" = "代理正在监听本机请求";
 "menu.proxy.stopped.subtitle" = "代理已暂停，App 仍在运行";
-"menu.routing.title" = "路由";
-"menu.routing.protocols" = "OpenAI / Anthropic";
-"menu.routing.default.subtitle" = "按请求模型自动选择可用通道";
-"menu.routing.override.subtitle" = "客户端请求会强制使用该模型";
-"menu.failover.subtitle" = "429 / 5xx / 401 后自动跳过不可用通道";
-"menu.failover.auto" = "自动故障转移";
-"menu.failover.manual" = "手动模式";
+"menu.routing.title" = "模型覆盖";
+"menu.routing.protocols" = "客户端模型";
+"menu.routing.default.subtitle" = "直通客户端请求中的模型";
+"menu.routing.override.subtitle" = "覆盖客户端请求中的 model 字段";
 "menu.requests.recent" = "最近请求";
 "menu.requests.none" = "暂无请求记录";
 "menu.requests.count" = "%lld 条";
@@ -113,7 +110,6 @@
 "settings.channels.emptySubtitle" = "添加一个通道以开始使用";
 
 // Advanced Settings
-"settings.advanced.failover" = "自动故障转移";
 "settings.advanced.cooldown" = "冷却期";
 "settings.advanced.cooldown.429" = "频率限制 (429)";
 "settings.advanced.cooldown.5xx" = "服务器错误 (5xx)";
@@ -241,7 +237,7 @@
 
 // Model Switcher
 "model.selector.label" = "模型";
-"model.default.passthrough" = "默认 (直通)";
+"model.default.passthrough" = "直通客户端模型";
 "model.active" = "当前: %@";
 "model.protocol.incompatible" = "协议不兼容";
 "model.no.models.available" = "无可用模型";

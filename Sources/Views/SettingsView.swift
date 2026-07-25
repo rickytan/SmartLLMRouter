@@ -1149,7 +1149,6 @@ struct ChannelsTab: View {
 // MARK: - Advanced Tab
 
 struct AdvancedTab: View {
-    @ObservedObject private var appState: AppState
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var smartRouter: SmartRouter
     private let circuitBreaker: CircuitBreaker
@@ -1159,7 +1158,6 @@ struct AdvancedTab: View {
     @MainActor
     init(services: AppServices? = nil) {
         let services = services ?? .shared
-        _appState = ObservedObject(wrappedValue: services.appState)
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _smartRouter = ObservedObject(wrappedValue: services.smartRouter)
         circuitBreaker = services.circuitBreaker
@@ -1169,20 +1167,6 @@ struct AdvancedTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                 pageHeader
-
-                sectionTitle(L10n.Settings.advancedFailover)
-                GeneralFormCard {
-                    GeneralFormRow {
-                        Text(L10n.Settings.advancedFailover)
-                            .font(DesignToken.Font.body())
-                            .foregroundColor(DesignToken.Colors.textPrimary)
-                    } trailing: {
-                        Toggle("", isOn: $appState.autoFailover)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                    }
-                    .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
-                }
 
                 sectionTitle(L10n.Settings.advancedSmartFallback)
                 GeneralFormCard {
