@@ -702,6 +702,74 @@ private enum ChannelListFilter: String, CaseIterable, Identifiable {
     }
 }
 
+private struct ChannelReorderModifier: ViewModifier {
+    let channelID: String
+    let isEnabled: Bool
+    @Binding var draggingChannelID: String?
+    @Binding var dropTargetChannelID: String?
+    let moveAction: (String, String) -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .onDrag {
+                    draggingChannelID = channelID
+                    dropTargetChannelID = nil
+                    Log.info("[ChannelReorder] Drag started")
+                    return NSItemProvider(object: channelID as NSString)
+                }
+                .onDrop(
+                    of: [.text],
+                    delegate: ChannelReorderDropDelegate(
+                        targetChannelID: channelID,
+                        draggingChannelID: $draggingChannelID,
+                        dropTargetChannelID: $dropTargetChannelID,
+                        moveAction: moveAction
+                    )
+                )
+        } else {
+            content
+        }
+    }
+}
+
+private struct ChannelReorderDropDelegate: DropDelegate {
+    let targetChannelID: String
+    @Binding var draggingChannelID: String?
+    @Binding var dropTargetChannelID: String?
+    let moveAction: (String, String) -> Void
+
+    func dropEntered(info _: DropInfo) {
+        guard let sourceID = draggingChannelID, sourceID != targetChannelID else { return }
+        dropTargetChannelID = targetChannelID
+        Log.debug("[ChannelReorder] Candidate target changed")
+    }
+
+    func dropUpdated(info _: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info _: DropInfo) -> Bool {
+        defer {
+            draggingChannelID = nil
+            dropTargetChannelID = nil
+        }
+        guard let sourceID = draggingChannelID, sourceID != targetChannelID else {
+            return false
+        }
+        Log.info("[ChannelReorder] Drop committed")
+        moveAction(sourceID, targetChannelID)
+        return true
+    }
+
+    func dropExited(info _: DropInfo) {
+        if dropTargetChannelID == targetChannelID {
+            dropTargetChannelID = nil
+        }
+    }
+}
+
 struct ChannelsTab: View {
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var channelManager: ChannelManager
@@ -718,6 +786,8 @@ struct ChannelsTab: View {
     @State private var selectedChannelIDs: Set<String> = []
     @State private var selectionAnchorChannelID: String?
     @State private var keyDownMonitor: Any?
+    @State private var draggingChannelID: String?
+    @State private var dropTargetChannelID: String?
     @FocusState private var isSearchFieldFocused: Bool
 
     @MainActor
@@ -920,37 +990,12 @@ struct ChannelsTab: View {
             List {
                 if isFilteringChannels {
                     ForEach(filteredChannels) { channel in
-                        ChannelRowView(
-                            channelID: channel.id,
-                            index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed,
-                            isSelected: selectedChannelIDs.contains(channel.id)
-                        )
-                        .tag(channel.id)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(channelListRowInsets)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            handleChannelSelection(channel.id)
-                        }
+                        channelRow(for: channel)
                     }
                 } else {
                     ForEach(channelStore.channels) { channel in
-                        ChannelRowView(
-                            channelID: channel.id,
-                            index: channelStore.channels.firstIndex(of: channel) ?? 0,
-                            circuitState: circuitStates[channel.id] ?? .closed,
-                            isSelected: selectedChannelIDs.contains(channel.id)
-                        )
-                        .tag(channel.id)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(channelListRowInsets)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            handleChannelSelection(channel.id)
-                        }
+                        channelRow(for: channel, isReorderable: true)
                     }
-                    .onMove(perform: channelStore.moveChannel)
                 }
             }
             .listStyle(.bordered(alternatesRowBackgrounds: false))
@@ -980,6 +1025,34 @@ struct ChannelsTab: View {
                 .hidden()
             )
         }
+    }
+
+    private func channelRow(for channel: Channel, isReorderable: Bool = false) -> some View {
+        ChannelRowView(
+            channelID: channel.id,
+            index: channelStore.channels.firstIndex(of: channel) ?? 0,
+            circuitState: circuitStates[channel.id] ?? .closed,
+            isSelected: selectedChannelIDs.contains(channel.id)
+        )
+        .tag(channel.id)
+        .listRowBackground(Color.clear)
+        .listRowInsets(channelListRowInsets)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                handleChannelSelection(channel.id)
+            }
+        )
+        .modifier(ChannelReorderModifier(
+            channelID: channel.id,
+            isEnabled: isReorderable,
+            draggingChannelID: $draggingChannelID,
+            dropTargetChannelID: $dropTargetChannelID
+        ) { sourceID, targetID in
+            channelStore.moveChannel(id: sourceID, to: targetID)
+            selectionAnchorChannelID = sourceID
+            selectedChannelIDs = [sourceID]
+        })
     }
 
     private func handleChannelSelection(_ channelID: String) {
@@ -1196,7 +1269,6 @@ struct ChannelsTab: View {
 // MARK: - Advanced Tab
 
 struct AdvancedTab: View {
-    @ObservedObject private var appState: AppState
     @ObservedObject private var channelStore: ChannelStore
     @ObservedObject private var smartRouter: SmartRouter
     private let circuitBreaker: CircuitBreaker
@@ -1206,7 +1278,6 @@ struct AdvancedTab: View {
     @MainActor
     init(services: AppServices? = nil) {
         let services = services ?? .shared
-        _appState = ObservedObject(wrappedValue: services.appState)
         _channelStore = ObservedObject(wrappedValue: services.channelStore)
         _smartRouter = ObservedObject(wrappedValue: services.smartRouter)
         circuitBreaker = services.circuitBreaker
@@ -1216,20 +1287,6 @@ struct AdvancedTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignToken.Spacing.md) {
                 pageHeader
-
-                sectionTitle(L10n.Settings.advancedFailover)
-                GeneralFormCard {
-                    GeneralFormRow {
-                        Text(L10n.Settings.advancedFailover)
-                            .font(DesignToken.Font.body())
-                            .foregroundColor(DesignToken.Colors.textPrimary)
-                    } trailing: {
-                        Toggle("", isOn: $appState.autoFailover)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                    }
-                    .accessibilityIdentifier("settings.advanced.autoFailoverToggle")
-                }
 
                 sectionTitle(L10n.Settings.advancedSmartFallback)
                 GeneralFormCard {

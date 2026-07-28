@@ -26,18 +26,15 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(state.port, 1897)
         state.savePort(4242)
         state.savePort(0)
-        state.toggleAutoFailover()
         state.toggleLaunchAtLogin()
         state.completeOnboarding()
 
         XCTAssertEqual(state.port, 4242)
-        XCTAssertFalse(state.autoFailover)
         XCTAssertTrue(state.launchAtLogin)
         XCTAssertTrue(state.onboardingCompleted)
 
         let reloaded = AppState(defaults: defaults)
         XCTAssertEqual(reloaded.port, 4242)
-        XCTAssertFalse(reloaded.autoFailover)
         XCTAssertTrue(reloaded.launchAtLogin)
         XCTAssertTrue(reloaded.onboardingCompleted)
     }
@@ -98,6 +95,28 @@ final class ServiceStateTests: XCTestCase {
         isolated.store.sortChannelsByLatency()
 
         XCTAssertEqual(isolated.store.channels.map(\.id), ["fast", "slow", "unmeasured"])
+        XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
+    }
+
+    func testMoveChannelByIDUpdatesPriorityOrder() {
+        let isolated = ChannelStoreTestSupport.makeIsolatedChannelStore(useTempFile: false)
+        defer { isolated.cleanup() }
+
+        let first = makeChannel(id: "first", name: "First", priority: 1)
+        let second = makeChannel(id: "second", name: "Second", priority: 2)
+        let third = makeChannel(id: "third", name: "Third", priority: 3)
+        isolated.store.addChannel(first)
+        isolated.store.addChannel(second)
+        isolated.store.addChannel(third)
+
+        isolated.store.moveChannel(id: "first", to: "third")
+
+        XCTAssertEqual(isolated.store.channels.map(\.id), ["second", "third", "first"])
+        XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
+
+        isolated.store.moveChannel(id: "first", to: "second")
+
+        XCTAssertEqual(isolated.store.channels.map(\.id), ["first", "second", "third"])
         XCTAssertEqual(isolated.store.channels.map(\.priority), [1, 2, 3])
     }
 

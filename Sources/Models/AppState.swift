@@ -5,7 +5,6 @@ import Foundation
 final class AppState: ObservableObject {
     @Published var isProxyRunning: Bool = false
     @Published var port: Int = 1897
-    @Published var autoFailover: Bool = true
     @Published var isLoading: Bool = false
     @Published var launchAtLogin: Bool = false
     @Published var onboardingCompleted: Bool = false
@@ -20,7 +19,6 @@ final class AppState: ObservableObject {
             port = 1897
             defaults.set(port, forKey: "smartllm_port")
         }
-        autoFailover = defaults.object(forKey: "smartllm_auto_failover") as? Bool ?? true
         launchAtLogin = defaults.object(forKey: "smartllm_launch_at_login") as? Bool ?? false
     }
 
@@ -38,11 +36,6 @@ final class AppState: ObservableObject {
         guard newPort > 0, newPort <= 65535 else { return }
         port = newPort
         defaults.set(port, forKey: "smartllm_port")
-    }
-
-    func toggleAutoFailover() {
-        autoFailover.toggle()
-        defaults.set(autoFailover, forKey: "smartllm_auto_failover")
     }
 
     func toggleLaunchAtLogin() {

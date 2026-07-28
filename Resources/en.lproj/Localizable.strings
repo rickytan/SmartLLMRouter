@@ -16,13 +16,10 @@
 "menu.proxy.start" = "Start";
 "menu.proxy.running.subtitle" = "Listening for local requests";
 "menu.proxy.stopped.subtitle" = "Proxy paused. App stays open.";
-"menu.routing.title" = "Routing";
-"menu.routing.protocols" = "OpenAI / Anthropic";
-"menu.routing.default.subtitle" = "Auto-route by requested model";
-"menu.routing.override.subtitle" = "Force this model for client requests";
-"menu.failover.subtitle" = "Skip failed channels after 429 / 5xx / 401";
-"menu.failover.auto" = "Auto-Failover";
-"menu.failover.manual" = "Manual Mode";
+"menu.routing.title" = "Model Override";
+"menu.routing.protocols" = "Client model";
+"menu.routing.default.subtitle" = "Pass through the client's requested model";
+"menu.routing.override.subtitle" = "Override the model field in client requests";
 "menu.requests.recent" = "Recent Requests";
 "menu.requests.none" = "No recent requests";
 "menu.requests.count" = "%lld items";
@@ -113,7 +110,6 @@
 "settings.channels.emptySubtitle" = "Add one to get started";
 
 // Advanced Settings
-"settings.advanced.failover" = "Auto-Failover";
 "settings.advanced.cooldown" = "Cooldown Period";
 "settings.advanced.cooldown.429" = "Rate Limit (429)";
 "settings.advanced.cooldown.5xx" = "Server Error (5xx)";
@@ -243,7 +239,7 @@
 
 // Model Switcher
 "model.selector.label" = "Model";
-"model.default.passthrough" = "Default (Passthrough)";
+"model.default.passthrough" = "Passthrough";
 "model.active" = "Active: %@";
 "model.protocol.incompatible" = "Protocol incompatible";
 "model.no.models.available" = "No models available";
