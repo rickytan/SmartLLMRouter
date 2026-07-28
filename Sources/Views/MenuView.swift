@@ -109,6 +109,10 @@ struct MenuView: View {
                 tokenMetric(icon: "arrow.down", value: usage.todayStats.totalInputTokens)
                 tokenMetric(icon: "arrow.up", value: usage.todayStats.totalOutputTokens)
 
+                if appState.showTokenSpeed {
+                    tokenSpeedMetric
+                }
+
                 Spacer()
 
                 if usage.todayStats.totalRequests > 0 {
@@ -317,6 +321,28 @@ struct MenuView: View {
         }
         .foregroundColor(DesignToken.Colors.textSecondary)
         .lineLimit(1)
+    }
+
+    private var tokenSpeedMetric: some View {
+        HStack(spacing: DesignToken.Spacing.xxs) {
+            Image(systemName: "speedometer")
+                .font(DesignToken.Font.system(size: 8, weight: .semibold))
+            Text(verbatim: "\(formattedTokenSpeed) tk/s")
+                .font(DesignToken.Font.monoMicro())
+        }
+        .foregroundColor(DesignToken.Colors.textSecondary)
+        .lineLimit(1)
+        .accessibilityIdentifier("menu.tokenSpeed")
+    }
+
+    private var formattedTokenSpeed: String {
+        guard let speed = usage.currentTokenSpeed, speed.isFinite else {
+            return "--"
+        }
+        if speed < 10 {
+            return String(format: "%.1f", speed)
+        }
+        return String(format: "%.0f", speed)
     }
 
     private func statusCodeBadge(_ statusCode: Int) -> some View {

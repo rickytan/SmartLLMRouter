@@ -70,6 +70,8 @@
 "settings.general.section.proxy" = "代理服务";
 "settings.general.port.hint" = "代理服务监听的本地端口";
 "settings.general.auto_start.hint" = "登录 macOS 后自动运行 SmartLLMRouter";
+"settings.general.tokenSpeed" = "显示 Token 速度";
+"settings.general.tokenSpeed.hint" = "在菜单栏弹窗中显示最近一次请求的输出速度";
 "settings.general.integrations" = "开发工具集成";
 "settings.general.shell.supportHint" = "支持 zsh、bash";
 "settings.general.shell.configuredLabel" = "已配置";

@@ -41,6 +41,7 @@ final class UsageTracker: ObservableObject {
     @Published private(set) var todayStats = UsageStats.zero
     @Published private(set) var weekStats = UsageStats.zero
     @Published private(set) var monthStats = UsageStats.zero
+    @Published private(set) var currentTokenSpeed: Double?
 
     private let userDefaultsKey = "smartllm_router_usage_records"
     private let maxRecordsCount = 10000
@@ -58,6 +59,7 @@ final class UsageTracker: ObservableObject {
         let today: UsageStats
         let week: UsageStats
         let month: UsageStats
+        let tokenSpeed: Double?
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -221,7 +223,8 @@ final class UsageTracker: ObservableObject {
             displayRecords: displayRecords,
             today: stats.today,
             week: stats.week,
-            month: stats.month
+            month: stats.month,
+            tokenSpeed: Self.outputTokenSpeed(for: displayRecords.max(by: { $0.timestamp < $1.timestamp }))
         )
     }
 
@@ -232,6 +235,17 @@ final class UsageTracker: ObservableObject {
         todayStats = projection.today
         weekStats = projection.week
         monthStats = projection.month
+        currentTokenSpeed = projection.tokenSpeed
+    }
+
+    private static func outputTokenSpeed(for record: UsageRecord?) -> Double? {
+        guard let record,
+              record.outputTokens > 0,
+              record.latency > 0
+        else {
+            return nil
+        }
+        return Double(record.outputTokens) / (record.latency / 1_000)
     }
 
     private func computeStats(from allRecords: [UsageRecord]) -> (today: UsageStats, week: UsageStats, month: UsageStats) {

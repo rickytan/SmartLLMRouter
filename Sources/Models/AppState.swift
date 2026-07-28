@@ -8,6 +8,11 @@ final class AppState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var launchAtLogin: Bool = false
     @Published var onboardingCompleted: Bool = false
+    @Published var showTokenSpeed: Bool = false {
+        didSet {
+            defaults.set(showTokenSpeed, forKey: "smartllm_show_token_speed")
+        }
+    }
 
     private let defaults: UserDefaults
 
@@ -20,6 +25,7 @@ final class AppState: ObservableObject {
             defaults.set(port, forKey: "smartllm_port")
         }
         launchAtLogin = defaults.object(forKey: "smartllm_launch_at_login") as? Bool ?? false
+        showTokenSpeed = defaults.object(forKey: "smartllm_show_token_speed") as? Bool ?? false
     }
 
     func completeOnboarding() {

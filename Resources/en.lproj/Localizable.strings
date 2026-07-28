@@ -70,6 +70,8 @@
 "settings.general.section.proxy" = "Proxy Service";
 "settings.general.port.hint" = "Local port the proxy service listens on";
 "settings.general.auto_start.hint" = "Launch SmartLLMRouter automatically after signing in to macOS";
+"settings.general.tokenSpeed" = "Show token speed";
+"settings.general.tokenSpeed.hint" = "Display the latest output speed in the menu bar popover";
 "settings.general.integrations" = "Developer Tools";
 "settings.general.shell.supportHint" = "Supports zsh, bash";
 "settings.general.shell.configuredLabel" = "Configured";

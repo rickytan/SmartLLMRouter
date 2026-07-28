@@ -24,9 +24,11 @@ final class ServiceStateTests: XCTestCase {
         let state = AppState(defaults: defaults)
 
         XCTAssertEqual(state.port, 1897)
+        XCTAssertFalse(state.showTokenSpeed)
         state.savePort(4242)
         state.savePort(0)
         state.toggleLaunchAtLogin()
+        state.showTokenSpeed = true
         state.completeOnboarding()
 
         XCTAssertEqual(state.port, 4242)
@@ -37,6 +39,7 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(reloaded.port, 4242)
         XCTAssertTrue(reloaded.launchAtLogin)
         XCTAssertTrue(reloaded.onboardingCompleted)
+        XCTAssertTrue(reloaded.showTokenSpeed)
     }
 
     func testCooldownEnginePersistsInChannelStoreInjectedDefaults() {
@@ -192,6 +195,7 @@ final class ServiceStateTests: XCTestCase {
         tracker.clearHistory()
         try await waitUntil { tracker.records.isEmpty }
         XCTAssertEqual(tracker.monthStats.totalRequests, 0)
+        XCTAssertNil(tracker.currentTokenSpeed)
     }
 
     func testUsageTrackerIncludesInFlightUsageInStatsWithoutPersistingIt() async throws {
@@ -213,6 +217,7 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(tracker.todayStats.totalRequests, 1)
         XCTAssertEqual(tracker.todayStats.totalInputTokens, 100)
         XCTAssertEqual(tracker.todayStats.totalOutputTokens, 250)
+        XCTAssertEqual(tracker.currentTokenSpeed ?? 0, 250.0 / 1.2, accuracy: 0.001)
 
         let reloaded = UsageTracker(defaults: defaults)
         try await Task.sleep(nanoseconds: 50_000_000)
@@ -253,6 +258,7 @@ final class ServiceStateTests: XCTestCase {
         XCTAssertEqual(tracker.records.first?.outputTokens, 300)
         XCTAssertEqual(tracker.todayStats.totalRequests, 1)
         XCTAssertEqual(tracker.todayStats.totalTokens, 420)
+        XCTAssertEqual(tracker.currentTokenSpeed ?? 0, 200, accuracy: 0.001)
     }
 
     private func makeChannel(

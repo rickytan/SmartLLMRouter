@@ -118,6 +118,8 @@ struct GeneralSettingsTab: View {
                     portRow
                     rowDivider
                     launchRow
+                    rowDivider
+                    tokenSpeedRow
                 }
 
                 sectionTitle(L10n.Settings.generalIntegrations)
@@ -229,6 +231,24 @@ struct GeneralSettingsTab: View {
                 .toggleStyle(.switch)
         }
         .accessibilityIdentifier("settings.general.launchAtLogin")
+    }
+
+    private var tokenSpeedRow: some View {
+        GeneralFormRow {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.generalTokenSpeed)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                Text(L10n.Settings.generalTokenSpeedHint)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.textSecondary)
+            }
+        } trailing: {
+            Toggle("", isOn: $appState.showTokenSpeed)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .accessibilityIdentifier("settings.general.showTokenSpeed")
     }
 
     // MARK: - Integration Rows
