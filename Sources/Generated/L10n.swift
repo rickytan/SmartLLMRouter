@@ -1195,6 +1195,10 @@ internal enum L10n {
     internal static var generalAutoStartHint: String {
       L10n.tr("Localizable", "settings.general.auto_start.hint", fallback: "Launch SmartLLMRouter automatically after signing in to macOS")
     }
+    /// Approval required in System Settings > General > Login Items.
+    internal static var generalAutoStartRequiresApproval: String {
+      L10n.tr("Localizable", "settings.general.auto_start.requires_approval", fallback: "Approval required in System Settings > General > Login Items.")
+    }
     /// Local port the proxy service listens on
     internal static var generalPortHint: String {
       L10n.tr("Localizable", "settings.general.port.hint", fallback: "Local port the proxy service listens on")

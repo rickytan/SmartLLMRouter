@@ -50,6 +50,7 @@
 "settings.general.port.placeholder" = "1897";
 "settings.general.language" = "Language";
 "settings.general.auto_start" = "Auto-start at login";
+"settings.general.auto_start.requires_approval" = "Approval required in System Settings > General > Login Items.";
 "settings.general.dark_mode" = "Dark mode";
 "settings.general.default_protocol" = "Default Protocol";
 "settings.general.protocol.auto" = "Auto-detect";

@@ -21,25 +21,55 @@ final class ServiceStateTests: XCTestCase {
     }
 
     func testAppStatePersistsValidatedSettings() {
-        let state = AppState(defaults: defaults)
+        let launchAtLogin = MockLaunchAtLoginManager()
+        let state = AppState(defaults: defaults, launchAtLoginManager: launchAtLogin)
 
         XCTAssertEqual(state.port, 1897)
         XCTAssertFalse(state.showTokenSpeed)
         state.savePort(4242)
         state.savePort(0)
-        state.toggleLaunchAtLogin()
         state.showTokenSpeed = true
         state.completeOnboarding()
 
         XCTAssertEqual(state.port, 4242)
-        XCTAssertTrue(state.launchAtLogin)
         XCTAssertTrue(state.onboardingCompleted)
 
-        let reloaded = AppState(defaults: defaults)
+        let reloaded = AppState(defaults: defaults, launchAtLoginManager: launchAtLogin)
         XCTAssertEqual(reloaded.port, 4242)
-        XCTAssertTrue(reloaded.launchAtLogin)
         XCTAssertTrue(reloaded.onboardingCompleted)
         XCTAssertTrue(reloaded.showTokenSpeed)
+    }
+
+    func testAppStateRegistersAndUnregistersSystemLaunchAtLogin() {
+        let manager = MockLaunchAtLoginManager()
+        let state = AppState(defaults: defaults, launchAtLoginManager: manager)
+
+        XCTAssertFalse(state.launchAtLogin)
+
+        state.setLaunchAtLogin(true)
+        XCTAssertEqual(manager.registerCallCount, 1)
+        XCTAssertTrue(state.launchAtLogin)
+        XCTAssertFalse(state.launchAtLoginRequiresApproval)
+
+        state.setLaunchAtLogin(false)
+        XCTAssertEqual(manager.unregisterCallCount, 1)
+        XCTAssertFalse(state.launchAtLogin)
+    }
+
+    func testAppStateReflectsLaunchAtLoginApprovalAndRegistrationFailure() {
+        let manager = MockLaunchAtLoginManager(status: .requiresApproval)
+        let state = AppState(defaults: defaults, launchAtLoginManager: manager)
+
+        XCTAssertTrue(state.launchAtLogin)
+        XCTAssertTrue(state.launchAtLoginRequiresApproval)
+
+        manager.status = .disabled
+        manager.registerError = LaunchAtLoginTestError.registrationFailed
+        state.setLaunchAtLogin(true)
+
+        XCTAssertFalse(state.launchAtLogin)
+        XCTAssertFalse(state.launchAtLoginRequiresApproval)
+        XCTAssertEqual(state.launchAtLoginError, "Registration failed")
     }
 
     func testCooldownEnginePersistsInChannelStoreInjectedDefaults() {
@@ -289,5 +319,41 @@ final class ServiceStateTests: XCTestCase {
             }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
+    }
+}
+
+private final class MockLaunchAtLoginManager: LaunchAtLoginManaging {
+    var status: LaunchAtLoginRegistrationStatus
+    var registerError: Error?
+    var unregisterError: Error?
+    private(set) var registerCallCount = 0
+    private(set) var unregisterCallCount = 0
+
+    init(status: LaunchAtLoginRegistrationStatus = .disabled) {
+        self.status = status
+    }
+
+    func register() throws {
+        registerCallCount += 1
+        if let registerError {
+            throw registerError
+        }
+        status = .enabled
+    }
+
+    func unregister() throws {
+        unregisterCallCount += 1
+        if let unregisterError {
+            throw unregisterError
+        }
+        status = .disabled
+    }
+}
+
+private enum LaunchAtLoginTestError: LocalizedError {
+    case registrationFailed
+
+    var errorDescription: String? {
+        "Registration failed"
     }
 }

@@ -221,16 +221,41 @@ struct GeneralSettingsTab: View {
                 Text(L10n.Settings.generalAutoStart)
                     .font(DesignToken.Font.body())
                     .foregroundColor(DesignToken.Colors.textPrimary)
-                Text(L10n.Settings.generalAutoStartHint)
+                Text(launchAtLoginDescription)
                     .font(DesignToken.Font.caption())
-                    .foregroundColor(DesignToken.Colors.textSecondary)
+                    .foregroundColor(appState.launchAtLoginRequiresApproval
+                        ? DesignToken.Colors.statusWarning
+                        : DesignToken.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let error = appState.launchAtLoginError {
+                    Text(error)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusOffline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.general.launchAtLoginError")
+                }
             }
         } trailing: {
-            Toggle("", isOn: $appState.launchAtLogin)
+            Toggle("", isOn: Binding(
+                get: { appState.launchAtLogin },
+                set: { appState.setLaunchAtLogin($0) }
+            ))
                 .labelsHidden()
                 .toggleStyle(.switch)
         }
+        .onAppear {
+            appState.refreshLaunchAtLoginStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            appState.refreshLaunchAtLoginStatus()
+        }
         .accessibilityIdentifier("settings.general.launchAtLogin")
+    }
+
+    private var launchAtLoginDescription: String {
+        appState.launchAtLoginRequiresApproval
+            ? L10n.Settings.generalAutoStartRequiresApproval
+            : L10n.Settings.generalAutoStartHint
     }
 
     private var tokenSpeedRow: some View {
