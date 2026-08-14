@@ -452,8 +452,9 @@ final class HTTPForwardingClientTests: XCTestCase {
         let server = HttpServer()
         var authorizations: [String] = []
         server.post["/v1/chat/completions"] = { request in
-            authorizations.append(request.headers["authorization"] ?? "")
-            if authorizations.count == 1 {
+            let authorization = request.headers["authorization"] ?? ""
+            authorizations.append(authorization)
+            if authorization == "Bearer bad-key" {
                 return Self.jsonResponse(
                     statusCode: 401,
                     json: ["error": ["message": "invalid token"]]

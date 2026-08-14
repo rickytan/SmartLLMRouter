@@ -50,6 +50,7 @@
 "settings.general.port.placeholder" = "1897";
 "settings.general.language" = "语言";
 "settings.general.auto_start" = "登录时自动启动";
+"settings.general.auto_start.requires_approval" = "需要在“系统设置 > 通用 > 登录项”中批准。";
 "settings.general.dark_mode" = "深色模式";
 "settings.general.default_protocol" = "默认协议";
 "settings.general.protocol.auto" = "自动检测";
@@ -70,6 +71,8 @@
 "settings.general.section.proxy" = "代理服务";
 "settings.general.port.hint" = "代理服务监听的本地端口";
 "settings.general.auto_start.hint" = "登录 macOS 后自动运行 SmartLLMRouter";
+"settings.general.tokenSpeed" = "显示 Token 速度";
+"settings.general.tokenSpeed.hint" = "在菜单栏弹窗中显示最近一次请求的输出速度";
 "settings.general.integrations" = "开发工具集成";
 "settings.general.shell.supportHint" = "支持 zsh、bash";
 "settings.general.shell.configuredLabel" = "已配置";

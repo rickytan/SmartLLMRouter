@@ -78,6 +78,7 @@ targets:
           ASSETCATALOG_COMPILER_OPTIMIZATION: space
     dependencies:
       - sdk: Cocoa.framework
+      - sdk: ServiceManagement.framework
       - sdk: SystemConfiguration.framework
       - sdk: libsqlite3.tbd
     preBuildScripts:

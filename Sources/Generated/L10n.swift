@@ -1183,6 +1183,10 @@ internal enum L10n {
     internal static var generalSubtitle: String {
       L10n.tr("Localizable", "settings.general.subtitle", fallback: "Manage the local proxy, launch behavior, and developer tool integration.")
     }
+    /// Show token speed
+    internal static var generalTokenSpeed: String {
+      L10n.tr("Localizable", "settings.general.tokenSpeed", fallback: "Show token speed")
+    }
     /// Update Shell Config
     internal static var generalUpdateShellConfig: String {
       L10n.tr("Localizable", "settings.general.updateShellConfig", fallback: "Update Shell Config")
@@ -1190,6 +1194,10 @@ internal enum L10n {
     /// Launch SmartLLMRouter automatically after signing in to macOS
     internal static var generalAutoStartHint: String {
       L10n.tr("Localizable", "settings.general.auto_start.hint", fallback: "Launch SmartLLMRouter automatically after signing in to macOS")
+    }
+    /// Approval required in System Settings > General > Login Items.
+    internal static var generalAutoStartRequiresApproval: String {
+      L10n.tr("Localizable", "settings.general.auto_start.requires_approval", fallback: "Approval required in System Settings > General > Login Items.")
     }
     /// Local port the proxy service listens on
     internal static var generalPortHint: String {
@@ -1222,6 +1230,10 @@ internal enum L10n {
     /// Supports zsh, bash
     internal static var generalShellSupportHint: String {
       L10n.tr("Localizable", "settings.general.shell.supportHint", fallback: "Supports zsh, bash")
+    }
+    /// Display the latest output speed in the menu bar popover
+    internal static var generalTokenSpeedHint: String {
+      L10n.tr("Localizable", "settings.general.tokenSpeed.hint", fallback: "Display the latest output speed in the menu bar popover")
     }
     /// Channel Statistics
     internal static var usageChannelStats: String {

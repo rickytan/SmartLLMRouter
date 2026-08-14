@@ -118,6 +118,8 @@ struct GeneralSettingsTab: View {
                     portRow
                     rowDivider
                     launchRow
+                    rowDivider
+                    tokenSpeedRow
                 }
 
                 sectionTitle(L10n.Settings.generalIntegrations)
@@ -219,16 +221,59 @@ struct GeneralSettingsTab: View {
                 Text(L10n.Settings.generalAutoStart)
                     .font(DesignToken.Font.body())
                     .foregroundColor(DesignToken.Colors.textPrimary)
-                Text(L10n.Settings.generalAutoStartHint)
+                Text(launchAtLoginDescription)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(appState.launchAtLoginRequiresApproval
+                        ? DesignToken.Colors.statusWarning
+                        : DesignToken.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let error = appState.launchAtLoginError {
+                    Text(error)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.statusOffline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.general.launchAtLoginError")
+                }
+            }
+        } trailing: {
+            Toggle("", isOn: Binding(
+                get: { appState.launchAtLogin },
+                set: { appState.setLaunchAtLogin($0) }
+            ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .onAppear {
+            appState.refreshLaunchAtLoginStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            appState.refreshLaunchAtLoginStatus()
+        }
+        .accessibilityIdentifier("settings.general.launchAtLogin")
+    }
+
+    private var launchAtLoginDescription: String {
+        appState.launchAtLoginRequiresApproval
+            ? L10n.Settings.generalAutoStartRequiresApproval
+            : L10n.Settings.generalAutoStartHint
+    }
+
+    private var tokenSpeedRow: some View {
+        GeneralFormRow {
+            VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                Text(L10n.Settings.generalTokenSpeed)
+                    .font(DesignToken.Font.body())
+                    .foregroundColor(DesignToken.Colors.textPrimary)
+                Text(L10n.Settings.generalTokenSpeedHint)
                     .font(DesignToken.Font.caption())
                     .foregroundColor(DesignToken.Colors.textSecondary)
             }
         } trailing: {
-            Toggle("", isOn: $appState.launchAtLogin)
+            Toggle("", isOn: $appState.showTokenSpeed)
                 .labelsHidden()
                 .toggleStyle(.switch)
         }
-        .accessibilityIdentifier("settings.general.launchAtLogin")
+        .accessibilityIdentifier("settings.general.showTokenSpeed")
     }
 
     // MARK: - Integration Rows

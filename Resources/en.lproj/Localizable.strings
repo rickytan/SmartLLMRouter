@@ -50,6 +50,7 @@
 "settings.general.port.placeholder" = "1897";
 "settings.general.language" = "Language";
 "settings.general.auto_start" = "Auto-start at login";
+"settings.general.auto_start.requires_approval" = "Approval required in System Settings > General > Login Items.";
 "settings.general.dark_mode" = "Dark mode";
 "settings.general.default_protocol" = "Default Protocol";
 "settings.general.protocol.auto" = "Auto-detect";
@@ -70,6 +71,8 @@
 "settings.general.section.proxy" = "Proxy Service";
 "settings.general.port.hint" = "Local port the proxy service listens on";
 "settings.general.auto_start.hint" = "Launch SmartLLMRouter automatically after signing in to macOS";
+"settings.general.tokenSpeed" = "Show token speed";
+"settings.general.tokenSpeed.hint" = "Display the latest output speed in the menu bar popover";
 "settings.general.integrations" = "Developer Tools";
 "settings.general.shell.supportHint" = "Supports zsh, bash";
 "settings.general.shell.configuredLabel" = "Configured";
