@@ -341,6 +341,16 @@
 "claudecode.backupCreated" = "备份已创建";
 "claudecode.restored" = "配置已从备份恢复";
 
+// OpenCode 集成
+"opencode.takeoverToggle" = "接管 OpenCode 配置";
+"opencode.takeoverDescription" = "向 ~/.config/opencode/opencode.json 添加 SmartLLM Router provider。现有 provider 会保留，修改前会自动创建备份。";
+"opencode.configNotFound" = "未找到配置文件 ~/.config/opencode/opencode.json";
+
+// Codex 集成
+"codex.takeoverToggle" = "接管 Codex 配置";
+"codex.takeoverDescription" = "向 ~/.codex/config.toml 添加 SmartLLM Router chat provider，并设为当前模型 provider。修改前会自动创建备份。";
+"codex.configNotFound" = "未找到配置文件 ~/.codex/config.toml";
+
 // 通道导入导出
 "channelExport.exportChannels" = "导出通道";
 "channelExport.importChannels" = "导入通道";

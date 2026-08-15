@@ -22,6 +22,8 @@ final class AppServices {
     let channelExportService: ChannelExportService
     let shellConfigManager: ShellConfigManager
     let claudeCodeConfigManager: ClaudeCodeConfigManager
+    let openCodeConfigManager: OpenCodeConfigManager
+    let codexConfigManager: CodexConfigManager
     lazy var menuBarManager: MenuBarManager = MenuBarManager(services: self)
 
     convenience init() {
@@ -32,7 +34,9 @@ final class AppServices {
             circuitBreaker: CircuitBreaker(),
             switchLock: SwitchLock(),
             shellConfigManager: ShellConfigManager(),
-            claudeCodeConfigManager: ClaudeCodeConfigManager()
+            claudeCodeConfigManager: ClaudeCodeConfigManager(),
+            openCodeConfigManager: OpenCodeConfigManager(),
+            codexConfigManager: CodexConfigManager()
         )
     }
 
@@ -44,6 +48,8 @@ final class AppServices {
         switchLock: SwitchLock,
         shellConfigManager: ShellConfigManager,
         claudeCodeConfigManager: ClaudeCodeConfigManager,
+        openCodeConfigManager: OpenCodeConfigManager,
+        codexConfigManager: CodexConfigManager,
         channelExportService: ChannelExportService? = nil
     ) {
         self.appState = appState
@@ -51,6 +57,8 @@ final class AppServices {
         self.circuitBreaker = circuitBreaker
         self.shellConfigManager = shellConfigManager
         self.claudeCodeConfigManager = claudeCodeConfigManager
+        self.openCodeConfigManager = openCodeConfigManager
+        self.codexConfigManager = codexConfigManager
 
         let runtimeState = RouterRuntimeState(
             circuitBreaker: circuitBreaker,

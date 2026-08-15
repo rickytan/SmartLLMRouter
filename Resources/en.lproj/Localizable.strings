@@ -342,6 +342,16 @@
 "claudecode.backupCreated" = "Backup created";
 "claudecode.restored" = "Config restored from backup";
 
+// OpenCode Integration
+"opencode.takeoverToggle" = "Take over OpenCode config";
+"opencode.takeoverDescription" = "Add a SmartLLM Router provider to ~/.config/opencode/opencode.json. Existing providers are preserved and a backup is created automatically.";
+"opencode.configNotFound" = "Config file not found at ~/.config/opencode/opencode.json";
+
+// Codex Integration
+"codex.takeoverToggle" = "Take over Codex config";
+"codex.takeoverDescription" = "Add a SmartLLM Router chat provider to ~/.codex/config.toml and make it the active model provider. A backup is created automatically.";
+"codex.configNotFound" = "Config file not found at ~/.codex/config.toml";
+
 // Channel Export/Import
 "channelExport.exportChannels" = "Export Channels";
 "channelExport.importChannels" = "Import Channels";

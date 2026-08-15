@@ -97,6 +97,8 @@ struct GeneralSettingsTab: View {
     @ObservedObject private var proxy: ProxyServer
     @ObservedObject private var shellConfig: ShellConfigManager
     @ObservedObject private var claudeCode: ClaudeCodeConfigManager
+    @ObservedObject private var openCode: OpenCodeConfigManager
+    @ObservedObject private var codex: CodexConfigManager
 
     @MainActor
     init(services: AppServices? = nil) {
@@ -105,6 +107,8 @@ struct GeneralSettingsTab: View {
         _proxy = ObservedObject(wrappedValue: services.proxyServer)
         _shellConfig = ObservedObject(wrappedValue: services.shellConfigManager)
         _claudeCode = ObservedObject(wrappedValue: services.claudeCodeConfigManager)
+        _openCode = ObservedObject(wrappedValue: services.openCodeConfigManager)
+        _codex = ObservedObject(wrappedValue: services.codexConfigManager)
     }
 
     var body: some View {
@@ -127,6 +131,10 @@ struct GeneralSettingsTab: View {
                     shellRow
                     rowDivider
                     claudeRow
+                    rowDivider
+                    openCodeRow
+                    rowDivider
+                    codexRow
                 }
 
                 footerHint
@@ -136,10 +144,14 @@ struct GeneralSettingsTab: View {
         .onAppear {
             shellConfig.checkConfigurationStatus(port: appState.port)
             claudeCode.refresh(port: appState.port)
+            openCode.refresh(port: appState.port)
+            codex.refresh(port: appState.port)
         }
         .onChange(of: appState.port) { newPort in
             shellConfig.checkConfigurationStatus(port: newPort)
             claudeCode.refresh(port: newPort)
+            openCode.refresh(port: newPort)
+            codex.refresh(port: newPort)
         }
     }
 
@@ -344,6 +356,76 @@ struct GeneralSettingsTab: View {
         .accessibilityIdentifier("settings.general.claudeCodeToggle")
     }
 
+    @ViewBuilder
+    private var openCodeRow: some View {
+        GeneralFormRow {
+            HStack(spacing: DesignToken.Spacing.md) {
+                iconBox("curlybraces.square")
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                    Text(L10n.Opencode.takeoverToggle)
+                        .font(DesignToken.Font.body())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                    Text(L10n.Opencode.takeoverDescription)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    integrationURLStatus(
+                        isActive: openCode.isActive,
+                        text: integrationStatusText(
+                            configExists: openCode.configExists,
+                            currentURL: openCode.currentURL,
+                            configNotFound: L10n.Opencode.configNotFound
+                        )
+                    )
+                    integrationError(openCode.lastError, identifier: "settings.general.openCodeError")
+                }
+            }
+        } trailing: {
+            Toggle("", isOn: Binding(
+                get: { openCode.isActive },
+                set: { openCode.toggleTakeover(enable: $0, port: appState.port) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+        .accessibilityIdentifier("settings.general.openCodeToggle")
+    }
+
+    @ViewBuilder
+    private var codexRow: some View {
+        GeneralFormRow {
+            HStack(spacing: DesignToken.Spacing.md) {
+                iconBox("command")
+                VStack(alignment: .leading, spacing: DesignToken.Spacing.xxs) {
+                    Text(L10n.Codex.takeoverToggle)
+                        .font(DesignToken.Font.body())
+                        .foregroundColor(DesignToken.Colors.textPrimary)
+                    Text(L10n.Codex.takeoverDescription)
+                        .font(DesignToken.Font.caption())
+                        .foregroundColor(DesignToken.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    integrationURLStatus(
+                        isActive: codex.isActive,
+                        text: integrationStatusText(
+                            configExists: codex.configExists,
+                            currentURL: codex.currentURL,
+                            configNotFound: L10n.Codex.configNotFound
+                        )
+                    )
+                    integrationError(codex.lastError, identifier: "settings.general.codexError")
+                }
+            }
+        } trailing: {
+            Toggle("", isOn: Binding(
+                get: { codex.isActive },
+                set: { codex.toggleTakeover(enable: $0, port: appState.port) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+        .accessibilityIdentifier("settings.general.codexToggle")
+    }
+
     private var claudeURLStatus: some View {
         HStack(spacing: DesignToken.Spacing.xs) {
             Circle()
@@ -358,6 +440,34 @@ struct GeneralSettingsTab: View {
         .accessibilityIdentifier("settings.general.claudeCodeStatus")
     }
 
+    private func integrationURLStatus(isActive: Bool, text: String) -> some View {
+        HStack(spacing: DesignToken.Spacing.xs) {
+            Circle()
+                .fill(isActive ? DesignToken.Colors.statusOnline : DesignToken.Colors.textTertiary)
+                .frame(width: 7, height: 7)
+            Text(text)
+                .font(DesignToken.Font.monoMicro())
+                .foregroundColor(DesignToken.Colors.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    @ViewBuilder
+    private func integrationError(_ error: String?, identifier: String) -> some View {
+        if let error {
+            HStack(spacing: DesignToken.Spacing.xs) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(DesignToken.Font.system(size: DesignToken.Layout.smallIconSize, weight: .medium))
+                Text(error)
+                    .font(DesignToken.Font.caption())
+                    .foregroundColor(DesignToken.Colors.statusWarning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityIdentifier(identifier)
+        }
+    }
+
     private var urlStatusText: String {
         if !claudeCode.configExists {
             return L10n.ClaudeCode.configNotFound
@@ -366,6 +476,16 @@ struct GeneralSettingsTab: View {
             return L10n.ClaudeCode.currentUrlNotSet
         }
         return L10n.ClaudeCode.currentUrl(claudeCode.currentURL)
+    }
+
+    private func integrationStatusText(configExists: Bool, currentURL: String, configNotFound: String) -> String {
+        if !configExists {
+            return configNotFound
+        }
+        if currentURL.isEmpty {
+            return L10n.ClaudeCode.currentUrlNotSet
+        }
+        return L10n.ClaudeCode.currentUrl(currentURL)
     }
 
     private var shellStatusText: String {
